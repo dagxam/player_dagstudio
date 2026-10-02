@@ -1,0 +1,13 @@
+# Runtime data — never commit
+/player.db
+/player.db-*
+/sessions/
+/uploads/
+/cache/
+
+# Local/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
