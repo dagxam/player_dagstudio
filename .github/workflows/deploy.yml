@@ -27,6 +27,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create deployment marker
+        if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
+        run: printf '%s' "$GITHUB_SHA" > deploy-version.txt
+
       - name: Deploy site over FTP
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
@@ -47,6 +51,19 @@ jobs:
             uploads/**
             cache/**
             *.log
+
+      - name: Verify production version
+        if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
+        run: |
+          EXPECTED="$GITHUB_SHA"
+          ACTUAL="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 20 "https://player.dagstudio.ru/deploy-version.txt")"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Production verification failed."
+            echo "Expected commit: $EXPECTED"
+            echo "Received marker: $ACTUAL"
+            exit 1
+          fi
+          echo "Production verified at commit $EXPECTED"
 
       - name: Deployment is not configured yet
         if: ${{ env.FTP_SERVER == '' || env.FTP_USERNAME == '' || env.FTP_PASSWORD == '' || env.FTP_SERVER_DIR == '' }}
