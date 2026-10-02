@@ -1,27 +1,32 @@
 {
-  "id": "/dagstudio-player/",
+  "id": "/",
   "name": "DAGSTUDIO PLAYER",
   "short_name": "DAGSTUDIO",
-  "description": "Музыкальный плеер DAGSTUDIO: слушайте и скачивайте любимую музыку",
-  "start_url": "./index.php",
+  "description": "Музыкальный плеер DAGSTUDIO: слушайте и сохраняйте любимую музыку",
+  "lang": "ru",
+  "start_url": "/index.php?source=pwa",
+  "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "minimal-ui"],
   "background_color": "#0b0b0b",
   "theme_color": "#0b0b0b",
-  "orientation": "portrait-primary",
-  "scope": "./",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "categories": [
+    "music",
+    "entertainment"
+  ],
   "icons": [
     {
-      "src": "images/faviconch.png",
+      "src": "/images/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "images/faviconch.png",
+      "src": "/images/faviconch.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

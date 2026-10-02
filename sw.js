@@ -1,31 +1,35 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2209';
+const CACHE_NAME = 'dagstudio-player-shell-v2210';
 const ASSETS_TO_CACHE = [
-    './index.php',
-    './style.css?v=2200',
-    './script.js?v=2208',
-    './manifest.json',
-    './images/faviconch.png',
-    './images/cover.png',
-    './images/icon.png'
+    '/',
+    '/index.php',
+    '/style.css?v=2200',
+    '/script.js?v=2210',
+    '/manifest.json?v=2210',
+    '/images/faviconch.png',
+    '/images/icon-192.png',
+    '/images/cover.png'
 ];
 
 self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(ASSETS_TO_CACHE))
-            .then(() => self.skipWaiting())
-    );
+    event.waitUntil((async () => {
+        const cache = await caches.open(CACHE_NAME);
+        // Один временно недоступный ресурс не должен ломать установку всего SW.
+        await Promise.allSettled(ASSETS_TO_CACHE.map(asset => cache.add(asset)));
+        await self.skipWaiting();
+    })());
 });
 
 self.addEventListener('activate', event => {
-    event.waitUntil(
-        caches.keys().then(names => Promise.all(
+    event.waitUntil((async () => {
+        const names = await caches.keys();
+        await Promise.all(
             names
                 .filter(name => name.startsWith('dagstudio-player-shell-') && name !== CACHE_NAME)
                 .map(name => caches.delete(name))
-        )).then(() => self.clients.claim())
-    );
+        );
+        await self.clients.claim();
+    })());
 });
 
 self.addEventListener('fetch', event => {
@@ -33,7 +37,6 @@ self.addEventListener('fetch', event => {
     if (request.method !== 'GET') return;
 
     const url = new URL(request.url);
-    // API, поток и скачивание всегда должны идти в сеть.
     if (url.pathname.endsWith('/api.php') ||
         url.pathname.endsWith('/download.php') ||
         url.pathname.endsWith('/stream.php') ||
@@ -41,20 +44,21 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Навигация: сначала сеть, чтобы пользователь получал актуальную версию;
-    // при отсутствии сети используем закэшированный index.php.
     if (request.mode === 'navigate') {
         event.respondWith(
             fetch(request).then(response => {
-                const copy = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put('./index.php', copy)).catch(() => {});
+                if (response && response.ok) {
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put('/index.php', copy)).catch(() => {});
+                }
                 return response;
-            }).catch(() => caches.match('./index.php'))
+            }).catch(async () => {
+                return (await caches.match('/index.php')) || (await caches.match('/'));
+            })
         );
         return;
     }
 
-    // Статика: cache-first, затем сеть.
     event.respondWith(
         caches.match(request).then(cached => {
             if (cached) return cached;

@@ -1,7 +1,17 @@
 // script.js - V2208 (universal Android streaming resilience)
 
+let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    serviceWorkerRegistrationPromise = navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .then(registration => {
+            registration.update().catch(() => {});
+            return registration;
+        })
+        .catch(error => {
+            console.warn('Service Worker registration failed:', error);
+            return null;
+        });
 }
 
 // --- GLOBAL VARIABLES ---
@@ -128,48 +138,99 @@ window.downloadTrack = function(index) {
 };
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
-// Важно: beforeinstallprompt приходит асинхронно и только после того,
-// как браузер подтвердил все условия PWA. Поэтому кнопку нельзя считать
-// готовой сразу после загрузки страницы.
+// beforeinstallprompt поддерживается не всеми браузерами, поэтому у кнопки
+// есть два режима: системный install prompt и понятная ручная инструкция.
 let defPrompt = null;
 let pwaInstallReady = false;
 let pwaInstallWaiting = false;
-const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+let appInstalledThisSession = false;
+
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/i.test(navigator.userAgent);
+
+function isAppStandalone() {
+    return appInstalledThisSession ||
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.navigator.standalone === true ||
+        document.referrer.startsWith('android-app://');
+}
+
+function getBrowserInfo() {
+    const ua = navigator.userAgent || '';
+    const androidWebView = isAndroid && (/\bwv\b/i.test(ua) || /; wv\)/i.test(ua) || (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua)));
+    return {
+        androidWebView,
+        samsung: /SamsungBrowser/i.test(ua),
+        yandex: /YaBrowser/i.test(ua),
+        edge: /EdgA|EdgiOS|Edg\//i.test(ua),
+        firefox: /Firefox|FxiOS/i.test(ua),
+        chrome: /Chrome|CriOS/i.test(ua) && !/EdgA|EdgiOS|Edg\/|OPR|Opera|YaBrowser|SamsungBrowser/i.test(ua)
+    };
+}
 
 function updateInstallButton() {
-    const buttons = document.querySelectorAll('[onclick="triggerInstall()"]');
-    buttons.forEach(btn => {
-        if (isStandalone) {
-            btn.innerHTML = '<i class="fas fa-circle-check"></i> Приложение установлено';
-            btn.disabled = true;
-            btn.style.opacity = '0.55';
-        } else if (pwaInstallReady) {
-            btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
-            btn.disabled = false;
-            btn.style.opacity = '1';
-        }
-    });
+    const btn = document.getElementById('pwa-install-btn');
+    if (!btn) return;
+
+    if (isAppStandalone()) {
+        btn.innerHTML = '<i class="fas fa-circle-check"></i> Приложение установлено';
+        btn.disabled = true;
+        btn.style.opacity = '0.55';
+        return;
+    }
+
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
 }
 
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then(() => {
-        // Service Worker активен. Если beforeinstallprompt уже пришёл,
-        // кнопка сразу становится доступной.
-        updateInstallButton();
-    }).catch(() => {});
+function showInstallHelp() {
+    if (isIOS) {
+        const modal = document.getElementById('ios-modal');
+        if (modal) modal.classList.add('show');
+        return;
+    }
+
+    const info = getBrowserInfo();
+    const help = document.getElementById('install-help-text');
+    const modal = document.getElementById('android-modal');
+    if (!help || !modal) {
+        showNotification('Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».');
+        return;
+    }
+
+    if (info.androidWebView) {
+        help.innerHTML = '<b>Это встроенный браузер Android / WebView.</b><br><br>' +
+            'Такие браузеры на магнитолах часто не показывают системное окно установки PWA. ' +
+            'Откройте <b>player.dagstudio.ru</b> в обычном Chrome, Edge, Яндекс Браузере или Samsung Internet, ' +
+            'затем откройте меню браузера и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.';
+    } else if (info.firefox) {
+        help.innerHTML = 'В этом браузере установка запускается через его собственное меню.<br><br>' +
+            'Откройте меню браузера и выберите <b>«Установить»</b>, <b>«Добавить на главный экран»</b> или похожий пункт.';
+    } else if (info.samsung || info.yandex || info.edge || info.chrome || isAndroid) {
+        help.innerHTML = 'Системное окно установки не было предоставлено браузером.<br><br>' +
+            'Откройте меню <b>⋮</b> и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>. ' +
+            'Если такого пункта нет на Android-магнитоле, откройте сайт в другом современном браузере.';
+    } else {
+        help.innerHTML = 'Этот браузер не предоставил сайту системное окно установки.<br><br>' +
+            'Используйте пункт <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b> в меню браузера. ' +
+            'Если такого пункта нет, установка PWA этим браузером не поддерживается.';
+    }
+
+    modal.classList.add('show');
 }
 
-if (!isStandalone) {
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        defPrompt = e;
+serviceWorkerRegistrationPromise.then(() => updateInstallButton());
+
+if (!isAppStandalone()) {
+    window.addEventListener('beforeinstallprompt', event => {
+        event.preventDefault();
+        defPrompt = event;
         pwaInstallReady = true;
         updateInstallButton();
 
-        // Если пользователь нажал установку до появления события,
-        // показываем системный диалог сразу после его появления.
         if (pwaInstallWaiting) {
             pwaInstallWaiting = false;
             setTimeout(() => window.triggerInstall(), 0);
@@ -178,6 +239,7 @@ if (!isStandalone) {
 }
 
 window.addEventListener('appinstalled', () => {
+    appInstalledThisSession = true;
     defPrompt = null;
     pwaInstallReady = false;
     pwaInstallWaiting = false;
@@ -185,20 +247,21 @@ window.addEventListener('appinstalled', () => {
     showNotification('Приложение успешно установлено!');
 });
 
+window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButton);
+
 window.triggerInstall = async function() {
     closeModal('menu-modal');
 
-    if (isStandalone) {
+    if (isAppStandalone()) {
         showNotification('Приложение уже установлено.');
         return;
     }
 
     if (isIOS) {
-        document.getElementById('ios-modal').classList.add('show');
+        showInstallHelp();
         return;
     }
 
-    // На поддерживаемом Android/Chromium сразу открываем системное окно установки.
     if (defPrompt) {
         const promptEvent = defPrompt;
         defPrompt = null;
@@ -207,31 +270,34 @@ window.triggerInstall = async function() {
         updateInstallButton();
 
         try {
-            await promptEvent.prompt();
-            const choice = await promptEvent.userChoice;
+            const promptResult = await promptEvent.prompt();
+            const choice = promptResult && promptResult.outcome
+                ? promptResult
+                : await promptEvent.userChoice;
+
             if (choice && choice.outcome === 'accepted') {
                 showNotification('Установка запущена...');
+            } else {
+                showInstallHelp();
             }
-        } catch (e) {
-            console.warn('PWA install prompt failed:', e);
-            showNotification('Не удалось открыть системное окно установки.');
+        } catch (error) {
+            console.warn('PWA install prompt failed:', error);
+            showInstallHelp();
         }
         return;
     }
 
-    // beforeinstallprompt иногда приходит с небольшой задержкой. Ждём его,
-    // но не подменяем системную установку ручной инструкцией.
     if ('serviceWorker' in navigator) {
         pwaInstallWaiting = true;
-        showNotification('Ожидаем системное окно установки...');
+        showNotification('Проверяем возможность установки...');
         setTimeout(() => {
-            if (pwaInstallWaiting && !defPrompt && !isStandalone) {
+            if (pwaInstallWaiting && !defPrompt && !isAppStandalone()) {
                 pwaInstallWaiting = false;
-                showNotification('Системная установка сейчас недоступна в этом браузере.');
+                showInstallHelp();
             }
-        }, 2500);
+        }, 1500);
     } else {
-        showNotification('Системная установка сейчас недоступна в этом браузере.');
+        showInstallHelp();
     }
 };
 

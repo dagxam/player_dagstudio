@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DAGSTUDIO PLAYER</title>
     <meta name="theme-color" content="#0b0b0b">
+    <meta name="application-name" content="DAGSTUDIO PLAYER">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="referrer" content="no-referrer">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json?v=2210">
     <link rel="icon" type="image/png" href="images/faviconch.png">
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="DAGSTUDIO">
-    <link rel="apple-touch-icon" href="images/faviconch.png">
+    <link rel="apple-touch-icon" href="/images/faviconch.png">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,7 +114,6 @@
         <div id="user-section" style="display:none;">
             <div class="user-card"><div class="user-avatar"><i class="fas fa-user"></i></div><div class="user-details"><div class="user-name" id="user-name-disp">USER</div><div class="user-status">DAGSTUDIO MEMBER</div></div></div>
             <button class="menu-list-btn" onclick="openManagePlaylists()"><i class="fas fa-list"></i> Управление плейлистами</button>
-            <button class="menu-list-btn" onclick="triggerInstall()"><i class="fas fa-mobile-alt"></i> Установить приложение</button>
             <div class="theme-selector-wrapper">
                 <div class="theme-lbl">ЦВЕТ ТЕМЫ:</div>
                 <div class="theme-options">
@@ -125,6 +126,7 @@
             </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
+        <button id="pwa-install-btn" class="menu-list-btn pwa-install-btn" onclick="triggerInstall()" style="margin-top:18px;"><i class="fas fa-mobile-screen-button"></i> Установить приложение</button>
     </div>
 </div>
 
@@ -134,22 +136,26 @@
 <div id="input-modal" class="modal-overlay"><div class="modal-box" style="padding-top: 30px;"><span class="modal-close" onclick="closeModal('input-modal')">&times;</span><h3 class="modal-title" style="margin-bottom: 20px;">НОВЫЙ ПЛЕЙЛИСТ</h3><input type="text" id="new-tab-name" class="auth-input" placeholder="Введите название..." style="margin-bottom: 25px; text-align:center; font-weight:bold;"><button class="modal-btn btn-dark" onclick="submitCreateTab()" style="padding: 12px; font-size: 0.9rem;">СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
 
 <input type="file" id="local-file-input" multiple accept="audio/*" style="display:none;" onchange="handleLocalFileSelect(this)">
-<div id="ios-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('ios-modal')">&times;</span><h3 class="modal-title">УСТАНОВКА НА IOS</h3><p style="color:#ccc; margin:10px 0;">Нажмите кнопку "Поделиться" <i class="fas fa-arrow-up-from-bracket"></i> в браузере Safari, а затем выберите "На экран Домой".</p></div></div>
+<div id="ios-modal" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close" onclick="closeModal('ios-modal')">&times;</span>
+        <h3 class="modal-title">УСТАНОВКА НА IPHONE / IPAD</h3>
+        <p style="color:#ccc; margin:10px 0 20px; line-height:1.6; text-align:left;">
+            Откройте сайт в <b>Safari</b>, нажмите <b>«Поделиться»</b> <i class="fas fa-arrow-up-from-bracket"></i> и выберите <b>«На экран Домой»</b>.
+        </p>
+        <button class="modal-btn btn-primary" onclick="closeModal('ios-modal')">ПОНЯТНО</button>
+    </div>
+</div>
 <div id="android-modal" class="modal-overlay">
     <div class="modal-box">
         <span class="modal-close" onclick="closeModal('android-modal')">&times;</span>
         <h3 class="modal-title">УСТАНОВКА ПРИЛОЖЕНИЯ</h3>
-        <p style="color:#ccc; margin:10px 0 20px 0; line-height: 1.6; font-size: 1rem; text-align:left;">
-            Ваш браузер блокирует автоматическую установку.<br><br>
-            <b>Как установить вручную:</b><br>
-            1. Нажмите на <b>три точки (⋮)</b> в углу браузера.<br>
-            2. Выберите пункт <b>«Добавить на главный экран»</b> или <b>«Установить приложение»</b>.
-        </p>
+        <div id="install-help-text" style="color:#ccc; margin:10px 0 20px; line-height:1.65; font-size:1rem; text-align:left;"></div>
         <button class="modal-btn btn-primary" onclick="closeModal('android-modal')">ПОНЯТНО</button>
     </div>
 </div>
 
-<script src="script.js?v=2208" defer></script>
+<script src="script.js?v=2210" defer></script>
 
 </body>
 </html>
