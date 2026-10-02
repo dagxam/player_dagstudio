@@ -1,0 +1,1051 @@
+// script.js - V2208 (universal Android streaming resilience)
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// --- GLOBAL VARIABLES ---
+let currentUser = null; 
+let isRegMode = false; 
+let playlists = []; 
+let playlist = []; 
+let searchPlaylistCache = []; 
+let currentIndex = -1; 
+let currentTab = 'search';
+let searchTimeout; 
+let selectedTrackForSave = null;
+let activePlIdForUpload = null;
+let wakeLock = null;
+let editingPlaylistId = null;
+
+let currentSearchQuery = '';
+let currentSearchPage = 1;
+let isSearchLoading = false;
+let hasMoreSearchResults = true;
+
+let isShuffle = false;
+let isRepeat = false;
+
+// ПРЕДОТВРАЩЕНИЕ УТЕЧЕК ПАМЯТИ
+let currentBlobUrl = null; 
+let playWatchdog = null; 
+window.skipCounter = 0; // Для предотвращения бесконечного скипа
+
+const SEARCH_HISTORY_KEY = 'dag_search_history';
+
+const colorThemes = {
+    brown: { main: '#C06C42', dark: '#8a4b2c', rgb: '192, 108, 66', img: 'images/cover.png' }, 
+    red:   { main: '#D32F2F', dark: '#B71C1C', rgb: '211, 47, 47', img: 'images/r.png' },
+    green: { main: '#2E7D32', dark: '#1B5E20', rgb: '46, 125, 50', img: 'images/z.png' },
+    blue:  { main: '#1976D2', dark: '#0D47A1', rgb: '25, 118, 210', img: 'images/s.png' },
+    purple: { main: '#8b00ff', dark: '#4a0082', rgb: '139, 0, 255', img: 'images/f.png' }
+};
+
+const mainAudio = document.getElementById('main-audio');
+if (mainAudio) { mainAudio.preload = 'auto'; }
+const connectionInfo = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+const isSlowConnection = !!(connectionInfo && (connectionInfo.effectiveType === '2g' || connectionInfo.effectiveType === 'slow-2g' || (connectionInfo.downlink && connectionInfo.downlink < 1.5))); 
+const titleEl = document.getElementById('track-title'); 
+const artistEl = document.getElementById('track-artist'); 
+const listEl = document.getElementById('playlist-container');
+const progCurrent = document.getElementById('prog-current'); 
+const progBuffer = document.getElementById('prog-buffer'); 
+const currTimeEl = document.getElementById('curr-time'); 
+const durTimeEl = document.getElementById('dur-time');
+
+// --- УМНОЕ ЦЕЛЕВОЕ КЭШИРОВАНИЕ ---
+// Теперь функция запускается только при добавлении в плейлист или при игре ИЗ плейлиста.
+async function cacheTrackSilently(url) {
+    if (!url || !url.startsWith('http') || !navigator.onLine) return;
+    try {
+        const proxyUrl = 'proxy.php?url=' + encodeURIComponent(url);
+        const cache = await caches.open('dag-audio-cache');
+        const match = await cache.match(proxyUrl);
+        if (!match) {
+            const res = await fetch(proxyUrl);
+            if (res.ok) cache.put(proxyUrl, res.clone());
+        }
+    } catch (e) {}
+}
+
+async function getDeviceCachedAudio(url) {
+    if (!url || !url.startsWith('http')) return { url: url, isBlob: false, inCache: false };
+    let proxyUrl = 'proxy.php?url=' + encodeURIComponent(url);
+    
+    try {
+        const cache = await caches.open('dag-audio-cache');
+        const res = await cache.match(proxyUrl);
+        if (res) {
+            // Файл найден в 100% кэше устройства
+            const blob = await res.blob();
+            return { url: URL.createObjectURL(blob), isBlob: true, inCache: true };
+        }
+    } catch(e) {}
+    
+    // Если файла нет в кэше
+    return { url: proxyUrl, isBlob: false, inCache: false };
+}
+
+// --- ПОЛНОЭКРАННЫЙ РЕЖИМ (ПО КНОПКЕ) ---
+window.toggleFullScreen = function() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            showNotification(`Функция заблокирована устройством`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+};
+
+document.addEventListener('fullscreenchange', () => {
+    const btnIcon = document.querySelector('button[onclick="toggleFullScreen()"] i');
+    if (btnIcon) {
+        if (document.fullscreenElement) {
+            btnIcon.classList.remove('fa-expand');
+            btnIcon.classList.add('fa-compress');
+        } else {
+            btnIcon.classList.remove('fa-compress');
+            btnIcon.classList.add('fa-expand');
+        }
+    }
+});
+
+window.downloadTrack = function(index) {
+    const track = playlist[index];
+    if (!track || !track.url) return;
+    const safeTitle = `${track.artist} - ${track.title}`;
+    showNotification(`Начинаем скачивание: ${safeTitle}`);
+    const downloadUrl = `download.php?url=${encodeURIComponent(track.url)}&title=${encodeURIComponent(safeTitle)}`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.setAttribute('download', safeTitle + '.mp3'); 
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};
+
+// --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
+// Важно: beforeinstallprompt приходит асинхронно и только после того,
+// как браузер подтвердил все условия PWA. Поэтому кнопку нельзя считать
+// готовой сразу после загрузки страницы.
+let defPrompt = null;
+let pwaInstallReady = false;
+let pwaInstallWaiting = false;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function updateInstallButton() {
+    const buttons = document.querySelectorAll('[onclick="triggerInstall()"]');
+    buttons.forEach(btn => {
+        if (isStandalone) {
+            btn.innerHTML = '<i class="fas fa-circle-check"></i> Приложение установлено';
+            btn.disabled = true;
+            btn.style.opacity = '0.55';
+        } else if (pwaInstallReady) {
+            btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        }
+    });
+}
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(() => {
+        // Service Worker активен. Если beforeinstallprompt уже пришёл,
+        // кнопка сразу становится доступной.
+        updateInstallButton();
+    }).catch(() => {});
+}
+
+if (!isStandalone) {
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        defPrompt = e;
+        pwaInstallReady = true;
+        updateInstallButton();
+
+        // Если пользователь нажал установку до появления события,
+        // показываем системный диалог сразу после его появления.
+        if (pwaInstallWaiting) {
+            pwaInstallWaiting = false;
+            setTimeout(() => window.triggerInstall(), 0);
+        }
+    });
+}
+
+window.addEventListener('appinstalled', () => {
+    defPrompt = null;
+    pwaInstallReady = false;
+    pwaInstallWaiting = false;
+    updateInstallButton();
+    showNotification('Приложение успешно установлено!');
+});
+
+window.triggerInstall = async function() {
+    closeModal('menu-modal');
+
+    if (isStandalone) {
+        showNotification('Приложение уже установлено.');
+        return;
+    }
+
+    if (isIOS) {
+        document.getElementById('ios-modal').classList.add('show');
+        return;
+    }
+
+    // На поддерживаемом Android/Chromium сразу открываем системное окно установки.
+    if (defPrompt) {
+        const promptEvent = defPrompt;
+        defPrompt = null;
+        pwaInstallReady = false;
+        pwaInstallWaiting = false;
+        updateInstallButton();
+
+        try {
+            await promptEvent.prompt();
+            const choice = await promptEvent.userChoice;
+            if (choice && choice.outcome === 'accepted') {
+                showNotification('Установка запущена...');
+            }
+        } catch (e) {
+            console.warn('PWA install prompt failed:', e);
+            showNotification('Не удалось открыть системное окно установки.');
+        }
+        return;
+    }
+
+    // beforeinstallprompt иногда приходит с небольшой задержкой. Ждём его,
+    // но не подменяем системную установку ручной инструкцией.
+    if ('serviceWorker' in navigator) {
+        pwaInstallWaiting = true;
+        showNotification('Ожидаем системное окно установки...');
+        setTimeout(() => {
+            if (pwaInstallWaiting && !defPrompt && !isStandalone) {
+                pwaInstallWaiting = false;
+                showNotification('Системная установка сейчас недоступна в этом браузере.');
+            }
+        }, 2500);
+    } else {
+        showNotification('Системная установка сейчас недоступна в этом браузере.');
+    }
+};
+
+// --- API & AUTH ---
+async function api(action, data = {}) { 
+    data.action = action; 
+    try { 
+        const res = await fetch('api.php', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify(data) 
+        }); 
+        if (!res.ok) { throw new Error(`Server Error: ${res.status}`); }
+        const text = await res.text();
+        try { return JSON.parse(text); } 
+        catch (e) { console.error("JSON Parse Error:", text); return {error: "Ошибка обработки ответа сервера"}; }
+    } catch(e) { 
+        return {error: "Ошибка сети или сервера."}; 
+    } 
+}
+
+async function checkAuth() { 
+    const res = await api('check_auth'); 
+    if (res.logged_in) { 
+        currentUser = res.username; 
+        if(res.theme) setTheme(res.theme, false);
+        await loadUserData(); 
+    } 
+    else { currentUser = null; await loadUserData(); } 
+}
+
+async function loadUserData() { 
+    let dbPlaylists = []; 
+    if(currentUser) { 
+        const data = await api('get_data'); 
+        if(!data.error && Array.isArray(data)) dbPlaylists = data; 
+    } 
+    playlists = [...dbPlaylists]; 
+    if(currentTab !== 'search') { 
+        const pl = playlists.find(p => p.id == currentTab); 
+        if(pl) { playlist = [...pl.tracks]; renderPlaylist(); } 
+        else switchTab('search'); 
+    } 
+}
+
+// --- WAKE LOCK ---
+async function requestWakeLock() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+}
+function releaseWakeLock() {
+    if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") requestWakeLock();
+});
+
+// --- UI HELPERS ---
+function showNotification(msg) { 
+    const el = document.getElementById('alert-msg');
+    if(el) el.innerText = msg; 
+    document.getElementById('alert-modal').classList.add('show'); 
+}
+function showConfirm(msg, callback) { 
+    document.getElementById('confirm-msg').innerText = msg; 
+    const yesBtn = document.getElementById('confirm-btn-yes'); 
+    const newBtn = yesBtn.cloneNode(true); 
+    yesBtn.parentNode.replaceChild(newBtn, yesBtn); 
+    newBtn.addEventListener('click', () => { closeModal('confirm-modal'); callback(); }); 
+    document.getElementById('confirm-modal').classList.add('show'); 
+}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showLoader(show) { 
+    const loader = document.getElementById('loader-overlay');
+    if(show) loader.classList.add('active'); 
+    else loader.classList.remove('active'); 
+}
+
+// --- ПЛЕЙЛИСТЫ ---
+function openNewPlModal() { 
+    document.getElementById('new-tab-name').value = ''; 
+    closeModal('manage-pl-modal'); 
+    document.getElementById('input-modal').classList.add('show'); 
+}
+
+async function submitCreateTab() { 
+    const name = document.getElementById('new-tab-name').value.trim(); 
+    if(!name) return; 
+    if(!currentUser) return showNotification("Авторизуйтесь для создания плейлистов"); 
+    const res = await api('create_playlist', { name: name, type: 'standard' }); 
+    if (res.success) {
+        await loadUserData(); 
+        showNotification("Создано");
+        closeModal('input-modal'); 
+        const pl = playlists.find(p => p.id == res.id);
+        if(pl) openTrackManager(pl.id, pl.name, pl.type);
+    } else { showNotification(res.error || "Ошибка"); }
+}
+
+function openManagePlaylists() { 
+    const list = document.getElementById('manage-pl-list'); 
+    list.innerHTML = ''; 
+    playlists.forEach(pl => { 
+        const div = document.createElement('div'); 
+        div.className = 'pl-manage-item'; 
+        const nameWrap = document.createElement('span');
+        nameWrap.className = 'pl-manage-name';
+        nameWrap.textContent = pl.name || '';
+        const actions = document.createElement('div');
+        actions.className = 'pl-manage-actions';
+        const editBtn = document.createElement('button');
+        editBtn.innerHTML = '<i class="fas fa-pen"></i>';
+        editBtn.addEventListener('click', () => openTrackManager(pl.id, pl.name, pl.type));
+        const delBtn = document.createElement('button');
+        delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        delBtn.addEventListener('click', () => deletePlaylistFromManager(pl.id));
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+        div.appendChild(nameWrap);
+        div.appendChild(actions);
+        list.appendChild(div); 
+    }); 
+    closeModal('menu-modal'); 
+    document.getElementById('manage-pl-modal').classList.add('show'); 
+}
+
+async function deletePlaylistFromManager(id) {
+    showConfirm("Удалить плейлист?", async () => {
+        await api('delete_playlist', { id: id });
+        await loadUserData();
+        openManagePlaylists(); 
+        showNotification("Плейлист удален");
+        if (currentTab == id) switchTab('search');
+    });
+}
+
+function openTrackManager(plId, plName, plType) { 
+    const pl = playlists.find(p => p.id == plId); 
+    editingPlaylistId = plId; 
+    document.getElementById('tm-rename-input').value = plName;
+    document.getElementById('tm-add-link-area').style.display = 'none';
+    renderTrackManagerList(pl); 
+    closeModal('manage-pl-modal'); 
+    document.getElementById('track-manager-modal').classList.add('show'); 
+}
+
+async function savePlaylistName() {
+    if(!editingPlaylistId) return;
+    const newName = document.getElementById('tm-rename-input').value.trim();
+    if(!newName) return;
+    const pl = playlists.find(p => p.id == editingPlaylistId);
+    if(pl && pl.name !== newName) {
+        await api('rename_playlist', { id: editingPlaylistId, name: newName });
+        await loadUserData();
+        if(currentTab == editingPlaylistId) {
+             const label = document.getElementById('active-tab-name');
+             if(label) label.innerText = newName.toUpperCase();
+        }
+    }
+}
+
+function showAddLinkUI(type) {
+    const area = document.getElementById('tm-add-link-area');
+    const input = document.getElementById('tm-link-input');
+    const btn = document.getElementById('tm-add-confirm-btn');
+    area.style.display = 'block';
+    document.getElementById('tm-link-name').value = '';
+    input.value = '';
+    input.placeholder = "Ссылка на аудио/MP3...";
+    btn.onclick = () => addLinkToPlaylist(editingPlaylistId);
+    input.focus();
+}
+
+function triggerLocalUploadManager() {
+    activePlIdForUpload = editingPlaylistId;
+    document.getElementById('local-file-input').click();
+}
+
+function renderTrackManagerList(pl) { 
+    const list = document.getElementById('track-manage-list'); 
+    list.innerHTML = ''; 
+    if(!pl || pl.tracks.length === 0) { 
+        const empty = document.createElement('div');
+        empty.style.color = '#666'; empty.style.padding = '20px'; empty.style.textAlign = 'center';
+        empty.textContent = 'Плейлист пуст'; list.appendChild(empty); return; 
+    } 
+    pl.tracks.forEach(t => { 
+        const div = document.createElement('div'); 
+        div.className = 'tm-row'; 
+        const info = document.createElement('div');
+        info.className = 'tm-info';
+        const icon = document.createElement('div');
+        icon.className = 'tm-icon';
+        icon.innerHTML = `<i class="fas fa-music"></i>`;
+        const title = document.createElement('span');
+        title.className = 'tm-title'; title.textContent = t.title || '';
+        info.appendChild(icon); info.appendChild(title);
+        const del = document.createElement('button');
+        del.className = 'tm-del'; del.innerHTML = '<i class="fas fa-trash"></i>';
+        del.addEventListener('click', () => deleteTrackFromPlaylist(pl.id, t.id));
+        div.appendChild(info); div.appendChild(del);
+        list.appendChild(div); 
+    }); 
+}
+
+async function addLinkToPlaylist(plId) { 
+    if(!plId) plId = editingPlaylistId;
+    const url = document.getElementById('tm-link-input').value.trim();
+    const nameVal = document.getElementById('tm-link-name').value.trim() || 'Сетевой трек';
+    if(!url) return;
+    const trackData = { title: nameVal, artist: 'Web Link', url: url, thumb: '', type: 'audio' };
+    await api('add_track', { playlist_id: plId, track: trackData }); 
+    await loadUserData();
+    document.getElementById('tm-add-link-area').style.display = 'none';
+    renderTrackManagerList(playlists.find(p => p.id == plId));
+}
+
+async function handleLocalFileSelect(input) { 
+    if(input.files.length > 0 && activePlIdForUpload) { 
+        showLoader(true); let successCount = 0;
+        for (let i = 0; i < input.files.length; i++) {
+            const formData = new FormData();
+            formData.append('action', 'upload_track');
+            formData.append('playlist_id', activePlIdForUpload);
+            formData.append('file', input.files[i]);
+            try {
+                const res = await fetch('api.php', { method: 'POST', body: formData });
+                const data = await res.json();
+                if(data.success) successCount++;
+            } catch(e) {}
+        }
+        await loadUserData();
+        const updatedPl = playlists.find(p => p.id == activePlIdForUpload);
+        if (updatedPl) renderTrackManagerList(updatedPl);
+        showLoader(false);
+        showNotification(`Загружено файлов: ${successCount} из ${input.files.length}`);
+    } 
+}
+
+async function deleteTrackFromPlaylist(plId, trackId) { 
+    await api('delete_track', {track_id: trackId}); 
+    await loadUserData(); 
+    renderTrackManagerList(playlists.find(p => p.id == plId)); 
+}
+window.deleteTrackGeneral = async function(trackId, plId) {
+    await api('delete_track', {track_id: trackId}); 
+    await loadUserData(); 
+}
+
+// --- БЕСШУМНЫЙ PLAYBACK LOGIC ---
+
+// Сбрасываем счетчик ошибок при успешном начале
+mainAudio.addEventListener('playing', () => { 
+    showLoader(false); 
+    window.skipCounter = 0; 
+});
+
+mainAudio.addEventListener('ended', () => { 
+    if (isRepeat) playTrack(currentIndex); else playNext(); 
+}); 
+mainAudio.addEventListener('waiting', () => showLoader(true)); 
+mainAudio.addEventListener('canplay', () => showLoader(false));
+
+// Страховочный механизм: если сам тег audio выбросил ошибку
+mainAudio.addEventListener('error', () => {
+    const track = playlist[currentIndex];
+
+    // Не переключаемся на прямой внешний URL: для слабого Android лучше
+    // повторить запрос через proxy без Range. Это одинаково работает для всех источников.
+    if (currentTab === 'search' && track && track.url && !track._proxyNoRangeRetry) {
+        track._proxyNoRangeRetry = true;
+        showLoader(true);
+        mainAudio.pause();
+        const retryUrl = 'proxy.php?url=' + encodeURIComponent(track.url) +
+            '&source=' + encodeURIComponent((track.source || '').replace(/[^A-Za-z0-9_\[\]]/g, '')) + '&norange=1';
+        mainAudio.src = retryUrl;
+        mainAudio.load();
+        mainAudio.play().then(() => {
+            showLoader(false);
+            window.skipCounter = 0;
+        }).catch(() => {
+            showLoader(false);
+        });
+        return;
+    }
+
+    showLoader(false);
+    titleEl.textContent = "Ошибка. Пропуск...";
+    if (!window.skipCounter) window.skipCounter = 0;
+    window.skipCounter++;
+    if (window.skipCounter < 10) {
+        setTimeout(playNext, 800);
+    } else {
+        window.skipCounter = 0;
+    }
+});
+
+async function playTrack(index) {
+    if(index < 0 || index >= playlist.length) return;
+    currentIndex = index;
+    const track = playlist[index];
+    
+    updateActiveTrackInList(index);
+    titleEl.textContent = track.title;
+    artistEl.textContent = track.artist;
+    showLoader(true);
+
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: track.artist, album: 'DAGSTUDIO', artwork: [{ src: track.thumb || 'images/faviconch.png', sizes: '512x512', type: 'image/png' }] });
+        navigator.mediaSession.setActionHandler('play', togglePlay); navigator.mediaSession.setActionHandler('pause', togglePlay); navigator.mediaSession.setActionHandler('previoustrack', playPrev); navigator.mediaSession.setActionHandler('nexttrack', playNext);
+    }
+
+    clearTimeout(playWatchdog);
+    
+    // СБОРЩИК МУСОРА ПАМЯТИ
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = null;
+    }
+
+    mainAudio.pause();
+    mainAudio.removeAttribute('src');
+    mainAudio.load();
+    requestWakeLock();
+
+    try {
+        let finalUrl = track.url;
+        let isCached = false;
+
+        // Если мы включаем музыку ИЗ СВОЕГО ПЛЕЙЛИСТА
+        if (currentTab !== 'search' && track.url.startsWith('http')) {
+            const cachedRes = await getDeviceCachedAudio(track.url);
+            if (cachedRes.isBlob) {
+                // Если трек в кэше, играем его
+                currentBlobUrl = cachedRes.url; 
+                finalUrl = currentBlobUrl;
+                isCached = true;
+            } else {
+                // Если не в кэше, играем через прокси и кэшируем
+                finalUrl = cachedRes.url;
+                if (navigator.onLine) cacheTrackSilently(track.url);
+            }
+        } 
+        // Если мы В ПОИСКЕ — сначала используем наш потоковый proxy.
+        // Это важно для Android-магнитол: многие внешние MP3-хостинги
+        // режут прямое воспроизведение, требуют Referer или плохо работают
+        // на слабом TLS/мобильном соединении.
+        else if (currentTab === 'search' && track.url && track.url.startsWith('http')) {
+            finalUrl = 'proxy.php?url=' + encodeURIComponent(track.url) + '&source=' + encodeURIComponent((track.source || '').replace(/[^A-Za-z0-9_\[\]]/g, ''));
+            track._usingProxy = true;
+        }
+
+        // АВТО-ПРОПУСК ОФФЛАЙН (Если нет интернета и нет кэша)
+        if (!navigator.onLine && !isCached && currentTab !== 'local') {
+            showLoader(false);
+            titleEl.textContent = "Не скачано (Нет сети)";
+            
+            if (!window.skipCounter) window.skipCounter = 0;
+            window.skipCounter++;
+            
+            // Пропускаем моментально, лимит 15 треков, чтобы не зависнуть
+            if (window.skipCounter < 15) {
+                setTimeout(playNext, 300);
+            } else {
+                window.skipCounter = 0;
+            }
+            return;
+        }
+
+        mainAudio.src = finalUrl; 
+        mainAudio.loop = false;
+        
+        // Сторожевой таймер. На слабой мобильной сети даём источнику больше
+        // времени на первый байт, но не оставляем магнитолу зависшей навсегда.
+        playWatchdog = setTimeout(() => {
+            if (mainAudio.paused || mainAudio.readyState === 0) {
+                // Не уходим напрямую на внешний MP3: на Android-магнитолах
+                // это часто обходит серверный Referer/Range и снова зависает.
+                // Повторяем через наш прокси с запросом на режим без Range.
+                if (currentTab === 'search' && track.url && !track._proxyNoRangeRetry) {
+                    track._proxyNoRangeRetry = true;
+                    showLoader(true);
+                    mainAudio.pause();
+                    const retryUrl = 'proxy.php?url=' + encodeURIComponent(track.url) +
+                        '&source=' + encodeURIComponent((track.source || '').replace(/[^A-Za-z0-9_\[\]]/g, '')) + '&norange=1';
+                    mainAudio.src = retryUrl;
+                    mainAudio.load();
+                    mainAudio.play().then(() => {
+                        showLoader(false);
+                        window.skipCounter = 0;
+                    }).catch(() => {
+                        showLoader(false);
+                    });
+                    return;
+                }
+
+                showLoader(false);
+                titleEl.textContent = "Сбой потока...";
+                if (!window.skipCounter) window.skipCounter = 0;
+                window.skipCounter++;
+                if (window.skipCounter < 10) setTimeout(playNext, 1000);
+            }
+        }, isSlowConnection ? 45000 : 20000);
+
+        await mainAudio.play();
+        clearTimeout(playWatchdog);
+        showLoader(false);
+
+    } catch (e) { 
+        clearTimeout(playWatchdog);
+
+        // play() может завершиться ошибкой ещё до события error. Если это
+        // произошло на proxy-пути, один раз переходим напрямую к источнику.
+        if (currentTab === 'search' && track.url && track.url.startsWith('http') && !track._directRetry) {
+            track._directRetry = true;
+            track._usingProxy = false;
+            try {
+                showLoader(true);
+                mainAudio.pause();
+                mainAudio.src = track.url;
+                mainAudio.load();
+                await mainAudio.play();
+                clearTimeout(playWatchdog);
+                showLoader(false);
+                updateState(true);
+                return;
+            } catch (directError) {}
+        }
+
+        showLoader(false); 
+        titleEl.textContent = "Ошибка. Пропуск...";
+        
+        if (!window.skipCounter) window.skipCounter = 0;
+        window.skipCounter++;
+        
+        if (window.skipCounter < 10) {
+            setTimeout(playNext, 1000); 
+        } else {
+            window.skipCounter = 0;
+        }
+    }
+    
+    updateState(true);
+}
+
+function updateActiveTrackInList(index) {
+    const rows = document.querySelectorAll('.track-row');
+    rows.forEach(r => r.classList.remove('active'));
+    if(rows[index]) {
+        rows[index].classList.add('active');
+        rows[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function togglePlay() { 
+    const track = playlist[currentIndex]; if(!track) return; 
+    let isPlaying = false;
+    
+    // Сброс счетчика ошибок при ручном нажатии на кнопку
+    window.skipCounter = 0;
+
+    if(mainAudio.paused) { 
+        // Если трек не был загружен (NotAllowedError)
+        if (!mainAudio.src || mainAudio.src.endsWith('null') || mainAudio.src === window.location.href) {
+            playTrack(currentIndex);
+            return;
+        }
+        mainAudio.play().catch(()=>{}); 
+        isPlaying = true; 
+    } else { 
+        mainAudio.pause(); 
+        isPlaying = false; 
+    }
+    
+    if(isPlaying) requestWakeLock(); else releaseWakeLock();
+    updateState(isPlaying);
+}
+
+function updateState(playing) { 
+    const btn = document.getElementById('btn-play'); 
+    if(playing) { btn.innerHTML = '<i class="fas fa-pause"></i>'; document.querySelector('.vinyl-wrapper').classList.add('spinning'); startProgressLoop(); } 
+    else { btn.innerHTML = '<i class="fas fa-play" style="padding-left:5px;"></i>'; document.querySelector('.vinyl-wrapper').classList.remove('spinning'); stopProgressLoop(); } 
+}
+
+function toggleShuffle() { isShuffle = !isShuffle; document.getElementById('btn-shuffle').classList.toggle('active'); }
+function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('btn-repeat').classList.toggle('active'); }
+function playNext() { 
+    if (isShuffle) {
+        if(playlist.length > 1) {
+            let r = Math.floor(Math.random() * playlist.length);
+            while(r === currentIndex && playlist.length > 1) { r = Math.floor(Math.random() * playlist.length); }
+            playTrack(r);
+        } else { playTrack(0); }
+    } else {
+        let n = currentIndex + 1; if(n >= playlist.length) n = 0; playTrack(n); 
+    }
+}
+function playPrev() { let p = currentIndex - 1; if(p < 0) p = playlist.length - 1; playTrack(p); }
+
+document.getElementById('btn-shuffle').onclick = toggleShuffle;
+document.getElementById('btn-repeat').onclick = toggleRepeat;
+document.getElementById('btn-next').onclick = playNext; 
+document.getElementById('btn-prev').onclick = playPrev; 
+
+let animationFrameId;
+
+function startProgressLoop() { stopProgressLoop(); function loop() { updateProgress(); animationFrameId = requestAnimationFrame(loop); } loop(); }
+function stopProgressLoop() { if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } }
+
+function updateProgress() { 
+    if (document.hidden) return; 
+    let curr = 0, dur = 0, buf = 0; 
+    const track = playlist[currentIndex]; 
+    if(!track) return;
+
+    if(mainAudio) { 
+        curr = mainAudio.currentTime; dur = mainAudio.duration; 
+        if(mainAudio.buffered.length > 0) try { buf = (mainAudio.buffered.end(mainAudio.buffered.length - 1) / dur) * 100; } catch(e) {} 
+        if((buf === 0 || buf < (curr/dur)*100) && !mainAudio.paused && mainAudio.currentTime > 0) { buf = ((curr / dur) * 100) + 10; if(buf > 100) buf = 100; } 
+    } 
+
+    // Защита от NaN
+    if(isFinite(dur) && dur > 0 && isFinite(curr)) { 
+        const pct = (curr / dur) * 100; 
+        progCurrent.style.width = pct.toFixed(2) + '%'; 
+        progBuffer.style.width = buf.toFixed(2) + '%'; 
+        currTimeEl.innerText = formatTime(curr); 
+        durTimeEl.innerText = formatTime(dur); 
+    } else {
+        currTimeEl.innerText = "0:00"; 
+        durTimeEl.innerText = "0:00"; 
+    }
+}
+
+function formatTime(s) { 
+    if(isNaN(s) || !isFinite(s)) return "0:00";
+    const m = Math.floor(s / 60); const sc = Math.floor(s % 60); return m + ":" + (sc < 10 ? '0' : '') + sc; 
+}
+
+document.getElementById('prog-area').onclick = function(e) { 
+    const track = playlist[currentIndex]; if(track) { 
+        const rect = this.getBoundingClientRect(); 
+        const pos = (e.clientX - rect.left) / rect.width; 
+        const seekTo = pos * mainAudio.duration; 
+        if(isFinite(seekTo)) {
+            mainAudio.currentTime = seekTo; 
+            updateProgress(); 
+        }
+    } 
+};
+
+// --- GLOBAL SEARCH LOGIC ---
+const mainSearchInput = document.getElementById('search-input'); 
+const searchHistoryBox = document.getElementById('search-history');
+
+function saveSearchQuery(query) { 
+    if(!query || query.length < 2) return; 
+    let history = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); 
+    history = history.filter(item => item !== query); 
+    history.unshift(query); 
+    if(history.length > 8) history.pop(); 
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history)); 
+}
+
+function showSearchHistory() {
+    if(!mainSearchInput || !searchHistoryBox) return;
+    let history = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); 
+    if(history.length === 0) { searchHistoryBox.style.display = 'none'; return; }
+    searchHistoryBox.innerHTML = '';
+    history.forEach(q => { 
+        const div = document.createElement('div'); div.className = 'search-suggestion-item'; 
+        const icon = document.createElement('i'); icon.className = 'fas fa-history';
+        const span = document.createElement('span'); span.textContent = q;
+        div.appendChild(icon); div.appendChild(span);
+        div.onclick = () => { mainSearchInput.value = q; performSearch(q); searchHistoryBox.style.display = 'none'; }; 
+        searchHistoryBox.appendChild(div); 
+    }); 
+    searchHistoryBox.style.display = 'block'; 
+}
+
+if(mainSearchInput) mainSearchInput.addEventListener('focus', showSearchHistory); 
+document.addEventListener('click', (e) => { 
+    if (mainSearchInput && searchHistoryBox && !mainSearchInput.contains(e.target) && !searchHistoryBox.contains(e.target)) { searchHistoryBox.style.display = 'none'; } 
+});
+
+async function performSearch(query, save = false) { 
+    if(!query) return; 
+    if(save && searchHistoryBox) { saveSearchQuery(query); searchHistoryBox.style.display = 'none'; } 
+    localStorage.setItem('dag_last_search', query); 
+    currentSearchQuery = query; currentSearchPage = 1; hasMoreSearchResults = true;
+    
+    listEl.innerHTML = '<div class="search-loader-box"><div class="search-spinner"></div><div style="margin-top:15px; font-size:0.9rem; color:#666;">Ищем музыку...</div></div>'; 
+    try {
+        isSearchLoading = true;
+        const result = await api('search_global', { query: query, page: currentSearchPage });
+        isSearchLoading = false;
+        
+        if (result.success && result.data) {
+            playlist = result.data; searchPlaylistCache = result.data; renderPlaylist(); 
+            if(result.data.length === 0) { listEl.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Ничего не найдено</div>'; hasMoreSearchResults = false; } else if (result.data.length < 15) { hasMoreSearchResults = false; }
+        } else { listEl.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Ошибка поиска</div>'; }
+    } catch(e) { isSearchLoading = false; listEl.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Ошибка сети</div>'; } 
+}
+
+async function loadMoreSearchResults() {
+    if (isSearchLoading || !hasMoreSearchResults || currentTab !== 'search') return;
+    isSearchLoading = true; currentSearchPage++;
+    
+    const loader = document.createElement('div'); loader.className = 'more-loader';
+    loader.innerHTML = '<div class="spinner" style="width:20px; height:20px; margin: 15px auto;"></div>';
+    listEl.appendChild(loader);
+
+    try {
+        const result = await api('search_global', { query: currentSearchQuery, page: currentSearchPage });
+        loader.remove();
+        if (result.success && result.data && result.data.length > 0) {
+            playlist = playlist.concat(result.data); searchPlaylistCache = playlist; renderPlaylist(); 
+            if (result.data.length < 10) hasMoreSearchResults = false;
+        } else { hasMoreSearchResults = false; }
+    } catch(e) { loader.remove(); hasMoreSearchResults = false; }
+    isSearchLoading = false;
+}
+
+const playlistArea = document.querySelector('.playlist-area');
+if(playlistArea) {
+    playlistArea.addEventListener('scroll', function() {
+        if (currentTab === 'search' && !isSearchLoading && hasMoreSearchResults) {
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) { loadMoreSearchResults(); }
+        }
+    });
+}
+
+if(mainSearchInput) {
+    mainSearchInput.addEventListener('input', (e) => { 
+        if(searchHistoryBox) searchHistoryBox.style.display = 'none'; 
+        clearTimeout(searchTimeout); 
+        searchTimeout = setTimeout(() => { performSearch(e.target.value, false); }, 400); 
+    });
+    mainSearchInput.addEventListener('keydown', (e) => { 
+        if(e.key === 'Enter') { clearTimeout(searchTimeout); performSearch(e.target.value, true); } 
+    });
+}
+
+// --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
+function switchTab(id) { 
+    currentTab = id; 
+    const searchBtn = document.getElementById('tab-search-btn'); 
+    const plSelectBtn = document.getElementById('btn-pl-select'); 
+    const label = document.getElementById('active-tab-name'); 
+    const searchContainer = document.getElementById('search-container-box'); 
+
+    if (searchBtn) searchBtn.classList.remove('active'); 
+    if (plSelectBtn) plSelectBtn.classList.remove('active'); 
+    
+    if(id === 'search') { 
+        if(label) label.style.display = 'none'; 
+        if(searchContainer) searchContainer.style.display = 'block'; 
+        if(searchBtn) searchBtn.classList.add('active'); 
+        playlist = searchPlaylistCache; 
+        renderPlaylist(); 
+    } else { 
+        const pl = playlists.find(p => p.id == id); 
+        if(pl) { 
+            if(label) { label.innerText = pl.name.toUpperCase(); label.style.display = 'block'; } 
+            if(searchContainer) searchContainer.style.display = 'none'; 
+            if(plSelectBtn) plSelectBtn.classList.add('active'); 
+            playlist = [...pl.tracks]; 
+            renderPlaylist(); 
+        } 
+    } 
+}
+
+// --- RENDER PLAYLIST С ДИНАМИЧЕСКИМИ ЛОГОТИПАМИ ---
+function renderPlaylist() { 
+    listEl.innerHTML = ''; 
+    const fragment = document.createDocumentFragment();
+    
+    let currentThemeName = localStorage.getItem('dag_theme') || 'brown';
+    let activeThemeImg = colorThemes[currentThemeName] ? colorThemes[currentThemeName].img : 'images/cover.png';
+
+    if (playlist.length === 0) {
+        let msg = "Нет треков";
+        if (currentTab === 'search') msg = "Используйте поиск";
+        
+        listEl.innerHTML = `<div style="text-align:center; padding:40px; color:#444;">${msg}</div>`;
+        return;
+    }
+
+    playlist.forEach((t, i) => { 
+        const div = document.createElement('div'); div.className = 'track-row ' + (i === currentIndex ? 'active' : ''); 
+        let iconHtml = '';
+        let trackThumb = t.thumb;
+        let isDefaultLogo = false;
+
+        if (!trackThumb || trackThumb.includes('images/cover.png') || trackThumb.includes('images/r.png') || trackThumb.includes('images/z.png') || trackThumb.includes('images/s.png') || trackThumb.includes('images/f.png')) {
+            trackThumb = activeThemeImg;
+            isDefaultLogo = true;
+        }
+
+        if(trackThumb) {
+            let imgClass = isDefaultLogo ? "theme-aware-thumb" : "";
+            iconHtml = `<img src="${trackThumb}" class="${imgClass}" loading="lazy" decoding="async" style="width:48px; height:48px; border-radius:50%; object-fit:cover; margin-right:12px;" alt="">`;
+        } else {
+            iconHtml = `<div class="track-icon-box link" style="margin-right:12px;"><i class="fas fa-music"></i></div>`;
+        }
+        
+        const downloadBtn = (t.url && t.url.startsWith('http')) 
+            ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>` 
+            : '';
+
+        let actionBtn = ''; 
+        if(currentTab === 'search') { 
+            const isLiked = playlists.some(pl => pl.tracks.some(track => track.url === t.url)); 
+            const likeClass = isLiked ? 'fas fa-heart liked' : 'far fa-heart'; 
+            actionBtn = `
+                ${downloadBtn}
+                <button class="btn-list-action ${likeClass}" title="В плейлист" onclick="event.stopPropagation(); openSaveModal(${i})"></button>
+            `; 
+        } else { 
+            actionBtn = `
+                ${downloadBtn}
+                <button class="btn-list-action del" title="Удалить" onclick="event.stopPropagation(); window.deleteTrackGeneral('${t.id}', '${currentTab}')"><i class="fas fa-trash"></i></button>
+            `; 
+        } 
+        div.innerHTML = '';
+
+        const left = document.createElement('div'); left.className = 'track-left';
+        const title = document.createElement('div'); title.className = 't-title'; title.textContent = t.title || '';
+        const artist = document.createElement('div'); artist.className = 't-artist'; 
+        
+        let sourceHtml = (currentTab === 'search' && t.source) ? `<span class="source-badge">${t.source}</span>` : '';
+        artist.innerHTML = `${t.artist || 'Неизвестен'} ${sourceHtml}`;
+        
+        left.appendChild(title); left.appendChild(artist);
+
+        const actions = document.createElement('div'); actions.className = 'track-actions'; actions.innerHTML = actionBtn;
+        const iconWrap = document.createElement('div'); iconWrap.innerHTML = iconHtml;
+
+        div.appendChild(iconWrap.firstChild); div.appendChild(left); div.appendChild(actions);
+        div.onclick = () => { playTrack(i); }; 
+        fragment.appendChild(div); 
+    }); 
+    listEl.appendChild(fragment);
+    if(currentIndex !== -1) updateActiveTrackInList(currentIndex);
+}
+
+function openPlaylistSelect(isSaving = false) { 
+    if(!currentUser) return showNotification("Сначала войдите!"); 
+    const list = document.getElementById('playlist-select-list'); 
+    list.innerHTML = ''; 
+    playlists.forEach(pl => { 
+        const btn = document.createElement('div'); btn.className = 'playlist-select-btn'; 
+        const nameSpan = document.createElement('span'); nameSpan.textContent = pl.name || '';
+        btn.appendChild(nameSpan);
+        btn.addEventListener('click', () => { 
+            if(isSaving) addToPlaylist(pl.id); 
+            else { closeModal('save-modal'); switchTab(pl.id); if(pl.tracks.length > 0) { playlist = [...pl.tracks]; playTrack(0); } } 
+        }); 
+        list.appendChild(btn); 
+    }); 
+    document.getElementById('save-modal').classList.add('show'); 
+}
+
+function openSaveModal(index) { selectedTrackForSave = playlist[index]; openPlaylistSelect(true); }
+
+async function addToPlaylist(plId) { 
+    const track = selectedTrackForSave; const pl = playlists.find(p => p.id == plId); 
+    if(pl.tracks.some(t => t.url === track.url)) { showNotification("Уже есть"); return; } 
+    const trackData = { title: track.title, artist: track.artist, url: track.url || track.file, thumb: track.thumb, type: 'audio' }; 
+    await api('add_track', { playlist_id: plId, track: trackData }); 
+    closeModal('save-modal'); 
+    showNotification("Добавлено! Кэшируем для оффлайна..."); 
+    await loadUserData(); 
+    
+    // Как только трек добавлен в плейлист, даем команду на его кэширование в фоне!
+    if (navigator.onLine && trackData.url.startsWith('http')) {
+        cacheTrackSilently(trackData.url);
+    }
+}
+
+function openMenu() { if (currentUser) { document.getElementById('auth-section').style.display = 'none'; document.getElementById('user-section').style.display = 'block'; document.getElementById('user-name-disp').innerText = currentUser; } else { document.getElementById('auth-section').style.display = 'block'; document.getElementById('user-section').style.display = 'none'; } document.getElementById('menu-modal').classList.add('show'); }
+function toggleAuthMode() { isRegMode = !isRegMode; const title = document.getElementById('auth-title'); const btn = document.querySelector('#auth-section button'); const toggle = document.querySelector('.auth-toggle'); if (isRegMode) { title.innerText = "РЕГИСТРАЦИЯ"; btn.innerText = "СОЗДАТЬ АККАУНТ"; toggle.innerText = "Уже есть аккаунт? Войти"; } else { title.innerText = "ВХОД"; btn.innerText = "ВОЙТИ"; toggle.innerText = "Нет аккаунта? Зарегистрироваться"; } }
+
+async function handleAuth() { 
+    const name = document.getElementById('auth-name').value.trim(); const pass = document.getElementById('auth-pass').value.trim(); 
+    if(!name || !pass) return showNotification("Введите данные"); 
+    const action = isRegMode ? 'register' : 'login'; 
+    const res = await api(action, {name, pass}); 
+    if(res.success) { 
+        if(isRegMode) { showNotification("Регистрация успешна!"); toggleAuthMode(); } 
+        else { currentUser = res.username; closeModal('menu-modal'); if(res.theme) setTheme(res.theme, false); await loadUserData(); showNotification("Добро пожаловать, " + res.username + "!"); } 
+    } else { showNotification(res.error || "Ошибка сервера"); } 
+}
+async function handleLogout() { await api('logout'); currentUser = null; playlists = []; playlist = []; switchTab('search'); closeModal('menu-modal'); }
+
+function preloadThemeImages() { Object.values(colorThemes).forEach(theme => { const img = new Image(); img.src = theme.img; }); }
+preloadThemeImages();
+
+function setTheme(themeName, save = true) {
+    if(!colorThemes[themeName]) return;
+    const t = colorThemes[themeName]; const root = document.documentElement;
+    root.style.setProperty('--accent-color', t.main); root.style.setProperty('--accent-dark', t.dark); root.style.setProperty('--accent-rgb', t.rgb);
+    const glowColor = t.main + '80'; root.style.setProperty('--accent-glow', glowColor);
+    
+    const coverImg = document.getElementById('cover-img'); 
+    if(coverImg) coverImg.src = t.img;
+    
+    document.querySelectorAll('.theme-aware-thumb').forEach(img => { img.src = t.img; });
+
+    localStorage.setItem('dag_theme', themeName);
+    if(save && currentUser) { api('update_theme', {theme: themeName}); }
+    document.querySelectorAll('.theme-dot').forEach(btn => { btn.classList.remove('active'); if(btn.getAttribute('onclick').includes(themeName)) { btn.classList.add('active'); } });
+}
+
+function loadTheme() { const saved = localStorage.getItem('dag_theme') || 'brown'; setTheme(saved, false); }
+
+loadTheme();
+checkAuth();

@@ -1,0 +1,30 @@
+RewriteEngine On
+
+# Принудительная переадресация на HTTPS (Обязательно для PWA)
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# --- Security: deny access to sqlite db and session storage ---
+<FilesMatch "\.(db|sqlite|sqlite3)$">
+    Require all denied
+</FilesMatch>
+
+# If you store PHP sessions in /sessions inside webroot, block it
+RedirectMatch 403 ^/sessions(/|$)
+
+# --- Basic security headers ---
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header always set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+# PWA: manifest и Service Worker нельзя держать в старом браузерном кэше
+<FilesMatch "^(manifest\.json|sw\.js)$">
+    Header always set Cache-Control "no-cache, no-store, must-revalidate"
+    Header always set Pragma "no-cache"
+    Header always set Expires "0"
+</FilesMatch>
