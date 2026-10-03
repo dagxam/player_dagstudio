@@ -176,11 +176,13 @@ window.downloadTrack = function(index) {
 };
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
-// На Chromium-классах браузеров кнопка установки показывается только после
-// beforeinstallprompt. Поэтому нажатие всегда сразу открывает НАТИВНОЕ окно
-// браузера «Установить / Отмена» без промежуточных окон приложения.
+// Максимально совместимый порядок:
+// 1) новый navigator.install(), если браузер его реально предоставляет;
+// 2) классический beforeinstallprompt;
+// 3) точный браузерный fallback (особенно для Яндекс Браузера).
 let defPrompt = null;
 let appInstalledThisSession = false;
+let installBusy = false;
 
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -219,37 +221,28 @@ function setInstallButtonState() {
     const btn = getInstallButton();
     if (!btn) return;
 
-    // Единственное условие скрытия кнопки — приложение уже реально запущено
-    // как установленное PWA. Пока не установлено, кнопка всегда видна.
     if (isAppStandalone()) {
         btn.style.display = 'none';
         btn.disabled = true;
-        btn.dataset.installMode = 'installed';
         return;
     }
 
-    const info = getBrowserInfo();
     btn.style.display = '';
-    btn.disabled = false;
-    btn.style.opacity = '1';
+    btn.disabled = installBusy;
+    btn.style.opacity = installBusy ? '0.7' : '1';
 
-    if (defPrompt) {
-        btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
-        btn.dataset.installMode = 'native';
-    } else if (isIOS) {
-        btn.innerHTML = '<i class="fas fa-square-plus"></i> Добавить на экран Домой';
-        btn.dataset.installMode = 'ios';
-    } else if (info.safari && info.mac) {
-        btn.innerHTML = '<i class="fas fa-square-plus"></i> Добавить в Dock';
-        btn.dataset.installMode = 'safari-mac';
-    } else {
-        btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
-        btn.dataset.installMode = 'waiting-native';
+    if (installBusy) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Открываем установку...';
+        return;
     }
+
+    btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
 }
 
-function showUnsupportedInstallHelp(mode) {
-    if (mode === 'ios') {
+function showInstallHelpForCurrentBrowser() {
+    const info = getBrowserInfo();
+
+    if (isIOS) {
         const iosModal = document.getElementById('ios-modal');
         if (iosModal) iosModal.classList.add('show');
         return;
@@ -259,16 +252,46 @@ function showUnsupportedInstallHelp(mode) {
     const modal = document.getElementById('android-modal');
     if (!help || !modal) return;
 
-    if (mode === 'safari-mac') {
-        help.innerHTML = 'В Safari откройте верхнее меню <b>Файл</b> и выберите <b>«Добавить в Dock»</b>.';
+    if (info.yandex && isAndroid) {
+        help.innerHTML =
+            '<b>Яндекс Браузер на Android не передал сайту системный API установки.</b><br><br>' +
+            'В самом Яндекс Браузере нажмите меню <b>⋮</b> → <b>«Добавить на домашний экран»</b> → <b>«Добавить»</b>.<br><br>' +
+            'После этого значок DAGSTUDIO PLAYER появится на домашнем экране.';
+    } else if (info.yandex && (info.windows || info.mac || info.linux)) {
+        help.innerHTML =
+            '<b>Яндекс Браузер устанавливает веб-приложения через Умную строку.</b><br><br>' +
+            'Откройте меню в Умной строке → <b>«Установить как приложение»</b>, затем подтвердите установку.';
+    } else if (info.androidWebView) {
+        help.innerHTML =
+            '<b>Встроенный Android WebView не предоставляет сайту системную установку PWA.</b><br><br>' +
+            'Откройте player.dagstudio.ru в Chrome, Edge, Яндекс Браузере или Samsung Internet.';
+    } else if (info.safari && info.mac) {
+        help.innerHTML =
+            'В Safari выберите <b>Файл → Добавить в Dock</b>.';
+    } else if (info.firefox && (info.windows || info.mac || info.linux)) {
+        help.innerHTML =
+            'Firefox на компьютере не предоставляет сайту системный PWA-install prompt. ' +
+            'Для отдельного приложения используйте Chrome, Edge или установку сайта средствами вашего браузера.';
+    } else if (isAndroid) {
+        help.innerHTML =
+            'Откройте меню браузера <b>⋮</b> и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.';
     } else {
-        help.innerHTML = 'Этот браузер не предоставляет сайту системное окно установки. Откройте сайт в Chrome, Edge, Яндекс Браузере или Samsung Internet.';
+        help.innerHTML =
+            'Этот браузер не передал странице системный API установки. Используйте встроенный пункт браузера ' +
+            '<b>«Установить приложение»</b> / <b>«Добавить сайт как приложение»</b>.';
     }
+
     modal.classList.add('show');
 }
 
 window.addEventListener('beforeinstallprompt', function(event) {
-    event.preventDefault();
+    const info = getBrowserInfo();
+
+    // Для обычного Chromium удерживаем prompt до клика нашей кнопки.
+    // В Яндекс Браузере не отменяем штатное поведение: так сохраняется
+    // и собственная install-UI Яндекса, если его сборка решит её показать.
+    if (!info.yandex && event.preventDefault) event.preventDefault();
+
     defPrompt = event;
     setInstallButtonState();
 });
@@ -276,8 +299,8 @@ window.addEventListener('beforeinstallprompt', function(event) {
 window.addEventListener('appinstalled', function() {
     appInstalledThisSession = true;
     defPrompt = null;
+    installBusy = false;
     setInstallButtonState();
-    showNotification('Приложение установлено.');
 });
 
 const standaloneMedia = window.matchMedia('(display-mode: standalone)');
@@ -285,68 +308,84 @@ if (standaloneMedia && typeof standaloneMedia.addEventListener === 'function') {
     standaloneMedia.addEventListener('change', setInstallButtonState);
 }
 
-window.triggerInstall = function() {
-    const btn = getInstallButton();
-    const mode = btn ? btn.dataset.installMode : '';
+async function tryModernWebInstall() {
+    if (typeof navigator.install !== 'function') return false;
 
-    if (isAppStandalone()) {
+    try {
+        // Вызываем прямо из пользовательского клика. Если текущая сборка
+        // Chromium/Edge/Yandex предоставляет Web Install API, браузер сам
+        // показывает нативное окно подтверждения.
+        await navigator.install();
+        appInstalledThisSession = true;
+        return true;
+    } catch (error) {
+        // AbortError = пользователь закрыл системное окно.
+        // NotAllowed/DataError и т.п. означают, что этот путь сейчас недоступен.
+        if (error && error.name === 'AbortError') return true;
+        console.warn('navigator.install() unavailable:', error);
+        return false;
+    }
+}
+
+async function tryBeforeInstallPrompt() {
+    if (!defPrompt) return false;
+
+    const promptEvent = defPrompt;
+    defPrompt = null;
+
+    try {
+        // Нативное окно «Установить / Отмена».
+        const result = await promptEvent.prompt();
+
+        let choice = result && result.outcome ? result : null;
+        if (!choice && promptEvent.userChoice) {
+            choice = await promptEvent.userChoice;
+        }
+
+        if (choice && choice.outcome === 'accepted') {
+            return true;
+        }
+
+        // Событие одноразовое даже после отмены.
+        return true;
+    } catch (error) {
+        console.warn('beforeinstallprompt failed:', error);
+        return false;
+    }
+}
+
+window.triggerInstall = async function() {
+    if (installBusy || isAppStandalone()) {
         setInstallButtonState();
         return;
     }
 
-    // Важно: prompt() вызывается синхронно из обработчика клика пользователя.
-    // Никаких setTimeout, «проверяем установку» и промежуточных модальных окон.
-    if (defPrompt) {
-        const promptEvent = defPrompt;
-        defPrompt = null;
-        closeModal('menu-modal');
+    installBusy = true;
+    setInstallButtonState();
 
-        try {
-            const result = promptEvent.prompt();
-
-            Promise.resolve(result)
-                .then(function(choice) {
-                    if (choice && choice.outcome === 'accepted') {
-                        // appinstalled окончательно скроет кнопку после установки.
-                        return;
-                    }
-                    // Один BeforeInstallPromptEvent можно использовать только один раз.
-                    // После отказа ждём, пока браузер снова сам разрешит prompt.
-                    setInstallButtonState();
-                })
-                .catch(function() {
-                    setInstallButtonState();
-                });
-        } catch (error) {
-            console.warn('Native PWA install prompt failed:', error);
-            setInstallButtonState();
-        }
-        return;
-    }
-
+    // Закрываем меню ДО вызова нативной установки, но остаёмся в том же
+    // пользовательском click task без setTimeout.
     closeModal('menu-modal');
 
-    if (mode === 'ios' || mode === 'safari-mac') {
-        showUnsupportedInstallHelp(mode);
-        return;
+    let handled = false;
+
+    // Новый API — первый приоритет, если конкретный браузер реально его даёт.
+    handled = await tryModernWebInstall();
+
+    // Надёжный классический Chromium-путь.
+    if (!handled) {
+        handled = await tryBeforeInstallPrompt();
     }
 
-    // Кнопка остаётся видимой даже если событие beforeinstallprompt ещё
-    // не пришло. Как только браузер разрешит системную установку, следующий
-    // клик сразу откроет нативное окно «Установить / Отмена».
-    // Сам сайт не может программно создать это системное окно раньше браузера.
-    if (!defPrompt) {
-        const btnNow = getInstallButton();
-        if (btnNow) {
-            btnNow.disabled = true;
-            btnNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Подготовка установки...';
-            setTimeout(function() {
-                if (!isAppStandalone()) {
-                    btnNow.disabled = false;
-                    btnNow.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
-                }
-            }, 900);
-        }
+    installBusy = false;
+    setInstallButtonState();
+
+    if (isAppStandalone()) return;
+
+    // Если браузер не дал ни одного install API, молчать нельзя.
+    // Для Яндекса показываем его собственный официальный путь установки.
+    if (!handled) {
+        showInstallHelpForCurrentBrowser();
     }
 };
 

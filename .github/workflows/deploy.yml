@@ -73,6 +73,13 @@ jobs:
           fi
           echo "Production verified at commit $EXPECTED"
 
+          INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/?v=$EXPECTED")"
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2215'
+
+          MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/manifest.json?v=$EXPECTED")"
+          echo "$MANIFEST_JSON" | python -m json.tool > /dev/null
+          echo "Live PWA shell and manifest verified"
+
       - name: Deployment is not configured yet
         if: ${{ env.FTP_SERVER == '' || env.FTP_USERNAME == '' || env.FTP_PASSWORD == '' || env.FTP_SERVER_DIR == '' }}
         run: |

@@ -1,12 +1,12 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2214';
-const RUNTIME_CACHE = 'dagstudio-player-runtime-v2214';
+const CACHE_NAME = 'dagstudio-player-shell-v2215';
+const RUNTIME_CACHE = 'dagstudio-player-runtime-v2215';
 
 const CORE_ASSETS = [
     '/',
     '/index.php',
     '/style.css?v=2212',
-    '/script.js?v=2214',
+    '/script.js?v=2215',
     '/manifest.json?v=2212',
     '/images/faviconch.png',
     '/images/icon-192.png',
@@ -77,32 +77,38 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // PWA запускается мгновенно из shell-кэша даже при очень слабом интернете.
-    // Свежая страница параллельно обновляет кэш в фоне.
+    // Навигация: сначала пробуем свежую сеть, но на слабом сигнале
+    // через 3 секунды мгновенно отдаём локальную оболочку.
     if (request.mode === 'navigate') {
-        const networkPromise = fetch(request)
-            .then(function(response) {
-                if (response && response.ok) {
-                    const copy = response.clone();
-                    caches.open(CACHE_NAME)
-                        .then(function(cache) { return cache.put('/index.php', copy); })
-                        .catch(function() {});
-                }
-                return response;
-            })
-            .catch(function() { return null; });
+        event.respondWith((async function() {
+            const cached = await caches.match('/index.php');
 
-        event.waitUntil(networkPromise.then(function() {}).catch(function() {}));
+            const network = fetch(request, { cache: 'no-store' })
+                .then(async function(response) {
+                    if (response && response.ok) {
+                        const copy = response.clone();
+                        const cache = await caches.open(CACHE_NAME);
+                        await cache.put('/index.php', copy);
+                    }
+                    return response;
+                })
+                .catch(function() { return null; });
 
-        event.respondWith(
-            caches.match('/index.php').then(function(cached) {
-                if (cached) return cached;
-                return networkPromise.then(function(response) {
-                    if (response) return response;
-                    return caches.match('/');
-                });
-            })
-        );
+            if (!cached) {
+                return (await network) || (await caches.match('/'));
+            }
+
+            const timeout = new Promise(function(resolve) {
+                setTimeout(function() { resolve(null); }, 3000);
+            });
+
+            const fresh = await Promise.race([network, timeout]);
+            if (fresh) return fresh;
+
+            // Сеть продолжит обновлять кэш в фоне, текущий запуск не ждёт.
+            event.waitUntil(network.then(function() {}).catch(function() {}));
+            return cached;
+        })());
         return;
     }
 
