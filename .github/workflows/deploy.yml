@@ -27,6 +27,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate application files
+        run: |
+          set -e
+          for file in ./*.php; do php -l "$file"; done
+          node --check script.js
+          node --check sw.js
+          python -m json.tool manifest.json > /dev/null
+
       - name: Create deployment marker
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
         run: printf '%s' "$GITHUB_SHA" > deploy-version.txt

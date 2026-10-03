@@ -54,7 +54,38 @@ const colorThemes = {
 const mainAudio = document.getElementById('main-audio');
 if (mainAudio) { mainAudio.preload = 'auto'; }
 const connectionInfo = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-const isSlowConnection = !!(connectionInfo && (connectionInfo.effectiveType === '2g' || connectionInfo.effectiveType === 'slow-2g' || (connectionInfo.downlink && connectionInfo.downlink < 1.5))); 
+
+function getNetworkProfile() {
+    const info = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const effectiveType = info && info.effectiveType ? String(info.effectiveType) : '';
+    const downlink = info && Number(info.downlink) > 0 ? Number(info.downlink) : 0;
+    const rtt = info && Number(info.rtt) > 0 ? Number(info.rtt) : 0;
+    const saveData = !!(info && info.saveData);
+    const offline = navigator.onLine === false;
+    const weak = offline || saveData || effectiveType === 'slow-2g' || effectiveType === '2g' ||
+        (downlink > 0 && downlink < 1.5) || (rtt > 0 && rtt >= 700);
+    const veryWeak = offline || effectiveType === 'slow-2g' ||
+        (downlink > 0 && downlink < 0.55) || (rtt > 0 && rtt >= 1400);
+    return { effectiveType, downlink, rtt, saveData, offline, weak, veryWeak };
+}
+
+function isWeakConnection() {
+    return getNetworkProfile().weak;
+}
+
+function buildProxyUrl(trackOrUrl, options = {}) {
+    const track = typeof trackOrUrl === 'string' ? { url: trackOrUrl } : (trackOrUrl || {});
+    if (!track.url) return '';
+    const params = new URLSearchParams();
+    params.set('url', track.url);
+    if (track.source) {
+        params.set('source', String(track.source).replace(/[^A-Za-z0-9_\[\]]/g, ''));
+    }
+    if (options.weak || isWeakConnection()) params.set('weak', '1');
+    if (options.norange) params.set('norange', '1');
+    if (options.retry) params.set('retry', String(options.retry));
+    return 'proxy.php?' + params.toString();
+}
 const titleEl = document.getElementById('track-title'); 
 const artistEl = document.getElementById('track-artist'); 
 const listEl = document.getElementById('playlist-container');
@@ -64,36 +95,43 @@ const currTimeEl = document.getElementById('curr-time');
 const durTimeEl = document.getElementById('dur-time');
 
 // --- УМНОЕ ЦЕЛЕВОЕ КЭШИРОВАНИЕ ---
-// Теперь функция запускается только при добавлении в плейлист или при игре ИЗ плейлиста.
 async function cacheTrackSilently(url) {
-    if (!url || !url.startsWith('http') || !navigator.onLine) return;
+    if (!url || !url.startsWith('http') || !navigator.onLine || !('caches' in window)) return;
+
+    // На слабом интернете фоновое скачивание удваивает трафик и мешает
+    // текущему воспроизведению. Кэшируем только когда сеть нормальная
+    // и аудиопоток прямо сейчас не играет.
+    const net = getNetworkProfile();
+    if (net.weak || net.saveData || (mainAudio && !mainAudio.paused)) return;
+
     try {
-        const proxyUrl = 'proxy.php?url=' + encodeURIComponent(url);
+        const proxyUrl = buildProxyUrl(url);
         const cache = await caches.open('dag-audio-cache');
         const match = await cache.match(proxyUrl);
         if (!match) {
-            const res = await fetch(proxyUrl);
-            if (res.ok) cache.put(proxyUrl, res.clone());
+            const res = await fetch(proxyUrl, { cache: 'no-store' });
+            if (res.ok) await cache.put(proxyUrl, res.clone());
         }
     } catch (e) {}
 }
 
 async function getDeviceCachedAudio(url) {
     if (!url || !url.startsWith('http')) return { url: url, isBlob: false, inCache: false };
-    let proxyUrl = 'proxy.php?url=' + encodeURIComponent(url);
-    
-    try {
-        const cache = await caches.open('dag-audio-cache');
-        const res = await cache.match(proxyUrl);
-        if (res) {
-            // Файл найден в 100% кэше устройства
-            const blob = await res.blob();
-            return { url: URL.createObjectURL(blob), isBlob: true, inCache: true };
-        }
-    } catch(e) {}
-    
-    // Если файла нет в кэше
-    return { url: proxyUrl, isBlob: false, inCache: false };
+
+    if ('caches' in window) {
+        try {
+            const cache = await caches.open('dag-audio-cache');
+            const normalProxy = buildProxyUrl(url);
+            const weakProxy = buildProxyUrl(url, { weak: true });
+            const res = (await cache.match(normalProxy)) || (await cache.match(weakProxy));
+            if (res) {
+                const blob = await res.blob();
+                return { url: URL.createObjectURL(blob), isBlob: true, inCache: true };
+            }
+        } catch(e) {}
+    }
+
+    return { url: buildProxyUrl(url, { weak: isWeakConnection() }), isBlob: false, inCache: false };
 }
 
 // --- ПОЛНОЭКРАННЫЙ РЕЖИМ (ПО КНОПКЕ) ---
@@ -138,10 +176,7 @@ window.downloadTrack = function(index) {
 };
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
-// beforeinstallprompt поддерживается не всеми браузерами, поэтому у кнопки
-// есть два режима: системный install prompt и понятная ручная инструкция.
 let defPrompt = null;
-let pwaInstallReady = false;
 let pwaInstallWaiting = false;
 let appInstalledThisSession = false;
 
@@ -154,19 +189,24 @@ function isAppStandalone() {
         window.matchMedia('(display-mode: standalone)').matches ||
         window.matchMedia('(display-mode: fullscreen)').matches ||
         window.navigator.standalone === true ||
-        document.referrer.startsWith('android-app://');
+        document.referrer.indexOf('android-app://') === 0;
 }
 
 function getBrowserInfo() {
     const ua = navigator.userAgent || '';
-    const androidWebView = isAndroid && (/\bwv\b/i.test(ua) || /; wv\)/i.test(ua) || (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua)));
+    const androidWebView = isAndroid && (/\bwv\b/i.test(ua) || /; wv\)/i.test(ua) ||
+        (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua)));
     return {
-        androidWebView,
+        androidWebView: androidWebView,
         samsung: /SamsungBrowser/i.test(ua),
         yandex: /YaBrowser/i.test(ua),
         edge: /EdgA|EdgiOS|Edg\//i.test(ua),
         firefox: /Firefox|FxiOS/i.test(ua),
-        chrome: /Chrome|CriOS/i.test(ua) && !/EdgA|EdgiOS|Edg\/|OPR|Opera|YaBrowser|SamsungBrowser/i.test(ua)
+        chrome: /Chrome|CriOS/i.test(ua) && !/EdgA|EdgiOS|Edg\/|OPR|Opera|YaBrowser|SamsungBrowser/i.test(ua),
+        safari: /Safari/i.test(ua) && !/Chrome|CriOS|Edg|OPR|Opera|YaBrowser|SamsungBrowser|Firefox|FxiOS/i.test(ua),
+        mac: /Macintosh|Mac OS X/i.test(ua) && !isIOS,
+        windows: /Windows/i.test(ua),
+        linux: /Linux/i.test(ua) && !isAndroid
     };
 }
 
@@ -178,76 +218,82 @@ function updateInstallButton() {
         btn.innerHTML = '<i class="fas fa-circle-check"></i> Приложение установлено';
         btn.disabled = true;
         btn.style.opacity = '0.55';
-        return;
+    } else {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
     }
-
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
 }
 
 function showInstallHelp() {
-    if (isIOS) {
-        const modal = document.getElementById('ios-modal');
-        if (modal) modal.classList.add('show');
-        return;
-    }
-
     const info = getBrowserInfo();
     const help = document.getElementById('install-help-text');
     const modal = document.getElementById('android-modal');
+
+    if (isIOS) {
+        const iosModal = document.getElementById('ios-modal');
+        if (iosModal) iosModal.classList.add('show');
+        return;
+    }
+
     if (!help || !modal) {
         showNotification('Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».');
         return;
     }
 
-    if (info.androidWebView) {
-        help.innerHTML = '<b>Это встроенный браузер Android / WebView.</b><br><br>' +
-            'Такие браузеры на магнитолах часто не показывают системное окно установки PWA. ' +
-            'Откройте <b>player.dagstudio.ru</b> в обычном Chrome, Edge, Яндекс Браузере или Samsung Internet, ' +
-            'затем откройте меню браузера и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.';
-    } else if (info.firefox) {
-        help.innerHTML = 'В этом браузере установка запускается через его собственное меню.<br><br>' +
-            'Откройте меню браузера и выберите <b>«Установить»</b>, <b>«Добавить на главный экран»</b> или похожий пункт.';
-    } else if (info.samsung || info.yandex || info.edge || info.chrome || isAndroid) {
-        help.innerHTML = 'Системное окно установки не было предоставлено браузером.<br><br>' +
-            'Откройте меню <b>⋮</b> и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>. ' +
-            'Если такого пункта нет на Android-магнитоле, откройте сайт в другом современном браузере.';
+    if (!window.isSecureContext) {
+        help.innerHTML = '<b>Установка требует HTTPS.</b><br><br>Откройте сайт по адресу <b>https://player.dagstudio.ru/</b>.';
+    } else if (info.androidWebView) {
+        help.innerHTML = '<b>Встроенный браузер Android / WebView не умеет полноценно устанавливать PWA.</b><br><br>' +
+            'На магнитоле откройте <b>player.dagstudio.ru</b> в Chrome или другом полноценном Chromium-браузере. ' +
+            'В меню <b>⋮</b> выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.';
+    } else if (info.firefox && (info.windows || info.mac || info.linux)) {
+        help.innerHTML = '<b>Firefox на компьютере не предоставляет установку PWA как отдельного приложения.</b><br><br>' +
+            'Для отдельного окна приложения откройте сайт в Chrome или Edge. На macOS также можно открыть сайт в Safari и выбрать <b>Файл → Добавить в Dock</b>.';
+    } else if (info.safari && info.mac) {
+        help.innerHTML = 'В Safari на macOS выберите в верхнем меню <b>Файл → Добавить в Dock</b>. ' +
+            'После этого DAGSTUDIO PLAYER будет запускаться как отдельное приложение.';
+    } else if (isAndroid) {
+        help.innerHTML = 'Откройте меню браузера <b>⋮</b> и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.<br><br>' +
+            'На Android без сервисов Google некоторые браузеры создают ярлык на главном экране вместо системного WebAPK — это нормальное поведение браузера.';
+    } else if (info.windows || info.mac || info.linux) {
+        help.innerHTML = 'В Chrome/Edge нажмите значок установки в адресной строке или откройте меню браузера и выберите <b>«Установить DAGSTUDIO PLAYER»</b>.';
     } else {
         help.innerHTML = 'Этот браузер не предоставил сайту системное окно установки.<br><br>' +
-            'Используйте пункт <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b> в меню браузера. ' +
-            'Если такого пункта нет, установка PWA этим браузером не поддерживается.';
+            'Используйте пункт <b>«Установить приложение»</b> / <b>«Добавить на главный экран»</b> в меню браузера. ' +
+            'Если такого пункта нет, сам браузер не поддерживает установку PWA.';
     }
 
     modal.classList.add('show');
 }
 
-serviceWorkerRegistrationPromise.then(() => updateInstallButton());
+serviceWorkerRegistrationPromise.then(function() { updateInstallButton(); });
 
 if (!isAppStandalone()) {
-    window.addEventListener('beforeinstallprompt', event => {
+    window.addEventListener('beforeinstallprompt', function(event) {
         event.preventDefault();
         defPrompt = event;
-        pwaInstallReady = true;
         updateInstallButton();
 
         if (pwaInstallWaiting) {
             pwaInstallWaiting = false;
-            setTimeout(() => window.triggerInstall(), 0);
+            setTimeout(function() { window.triggerInstall(); }, 0);
         }
     });
 }
 
-window.addEventListener('appinstalled', () => {
+window.addEventListener('appinstalled', function() {
     appInstalledThisSession = true;
     defPrompt = null;
-    pwaInstallReady = false;
     pwaInstallWaiting = false;
     updateInstallButton();
     showNotification('Приложение успешно установлено!');
 });
 
-window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButton);
+const standaloneMedia = window.matchMedia('(display-mode: standalone)');
+if (standaloneMedia && typeof standaloneMedia.addEventListener === 'function') {
+    standaloneMedia.addEventListener('change', updateInstallButton);
+}
 
 window.triggerInstall = async function() {
     closeModal('menu-modal');
@@ -265,15 +311,13 @@ window.triggerInstall = async function() {
     if (defPrompt) {
         const promptEvent = defPrompt;
         defPrompt = null;
-        pwaInstallReady = false;
         pwaInstallWaiting = false;
         updateInstallButton();
 
         try {
-            const promptResult = await promptEvent.prompt();
-            const choice = promptResult && promptResult.outcome
-                ? promptResult
-                : await promptEvent.userChoice;
+            const result = await promptEvent.prompt();
+            const choice = result && result.outcome ? result :
+                (promptEvent.userChoice ? await promptEvent.userChoice : null);
 
             if (choice && choice.outcome === 'accepted') {
                 showNotification('Установка запущена...');
@@ -287,15 +331,16 @@ window.triggerInstall = async function() {
         return;
     }
 
+    // Иногда Chromium выдаёт beforeinstallprompt чуть позже после активации SW.
     if ('serviceWorker' in navigator) {
         pwaInstallWaiting = true;
         showNotification('Проверяем возможность установки...');
-        setTimeout(() => {
+        setTimeout(function() {
             if (pwaInstallWaiting && !defPrompt && !isAppStandalone()) {
                 pwaInstallWaiting = false;
                 showInstallHelp();
             }
-        }, 1500);
+        }, 1800);
     } else {
         showInstallHelp();
     }
@@ -345,13 +390,21 @@ async function loadUserData() {
 
 // --- WAKE LOCK ---
 async function requestWakeLock() {
-    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+    try {
+        if ('wakeLock' in navigator && !mainAudio.paused && !mainAudio.ended) {
+            wakeLock = await navigator.wakeLock.request('screen');
+        }
+    } catch (err) {}
 }
 function releaseWakeLock() {
-    if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
+    if (wakeLock !== null) {
+        wakeLock.release().then(function() { wakeLock = null; }).catch(function() { wakeLock = null; });
+    }
 }
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") requestWakeLock();
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && !mainAudio.paused && !mainAudio.ended) {
+        requestWakeLock();
+    }
 });
 
 // --- UI HELPERS ---
@@ -546,72 +599,233 @@ window.deleteTrackGeneral = async function(trackId, plId) {
     await loadUserData(); 
 }
 
-// --- БЕСШУМНЫЙ PLAYBACK LOGIC ---
+// --- УСТОЙЧИВЫЙ PLAYBACK ДЛЯ СЛАБОЙ СЕТИ ---
+let streamRecoveryTimer = null;
+let pendingResumeTime = 0;
+let currentPlaybackToken = 0;
+let networkRetryPending = false;
+const MAX_STREAM_RETRIES = 4;
 
-// Сбрасываем счетчик ошибок при успешном начале
-mainAudio.addEventListener('playing', () => { 
-    showLoader(false); 
-    window.skipCounter = 0; 
-});
+function clearStreamRecoveryTimer() {
+    if (streamRecoveryTimer) {
+        clearTimeout(streamRecoveryTimer);
+        streamRecoveryTimer = null;
+    }
+}
 
-mainAudio.addEventListener('ended', () => { 
-    if (isRepeat) playTrack(currentIndex); else playNext(); 
-}); 
-mainAudio.addEventListener('waiting', () => showLoader(true)); 
-mainAudio.addEventListener('canplay', () => showLoader(false));
+function restorePendingPosition() {
+    if (pendingResumeTime > 1 && isFinite(mainAudio.duration) && mainAudio.duration > 0) {
+        const target = Math.min(pendingResumeTime, Math.max(0, mainAudio.duration - 1));
+        try { mainAudio.currentTime = target; } catch(e) {}
+        pendingResumeTime = 0;
+    }
+}
 
-// Страховочный механизм: если сам тег audio выбросил ошибку
-mainAudio.addEventListener('error', () => {
+function scheduleStreamRecovery(reason, delay) {
     const track = playlist[currentIndex];
+    if (!track || !track.url || mainAudio.ended) return;
+    clearStreamRecoveryTimer();
 
-    // Не переключаемся на прямой внешний URL: для слабого Android лучше
-    // повторить запрос через proxy без Range. Это одинаково работает для всех источников.
-    if (currentTab === 'search' && track && track.url && !track._proxyNoRangeRetry) {
-        track._proxyNoRangeRetry = true;
+    const token = currentPlaybackToken;
+    const net = getNetworkProfile();
+    const wait = typeof delay === 'number' ? delay : (net.veryWeak ? 26000 : (net.weak ? 16000 : 8000));
+
+    streamRecoveryTimer = setTimeout(function() {
+        if (token !== currentPlaybackToken || mainAudio.ended) return;
+        recoverCurrentStream(reason);
+    }, wait);
+}
+
+async function recoverCurrentStream(reason) {
+    const track = playlist[currentIndex];
+    if (!track || !track.url) return;
+
+    clearStreamRecoveryTimer();
+
+    if (!navigator.onLine && track.url.startsWith('http')) {
+        networkRetryPending = true;
         showLoader(true);
-        mainAudio.pause();
-        const retryUrl = 'proxy.php?url=' + encodeURIComponent(track.url) +
-            '&source=' + encodeURIComponent((track.source || '').replace(/[^A-Za-z0-9_\[\]]/g, '')) + '&norange=1';
-        mainAudio.src = retryUrl;
-        mainAudio.load();
-        mainAudio.play().then(() => {
-            showLoader(false);
-            window.skipCounter = 0;
-        }).catch(() => {
-            showLoader(false);
-        });
+        titleEl.textContent = track.title;
+        artistEl.textContent = 'Нет сети — ждём восстановления сигнала';
+        updateState(false);
         return;
     }
 
+    networkRetryPending = false;
+    track._streamRetries = (track._streamRetries || 0) + 1;
+
+    if (track._streamRetries > MAX_STREAM_RETRIES) {
+        showLoader(false);
+        updateState(false);
+        titleEl.textContent = track.title;
+        artistEl.textContent = 'Источник временно недоступен';
+        // Только после нескольких попыток переходим дальше, и только при наличии сети.
+        setTimeout(function() {
+            if (playlist[currentIndex] === track && navigator.onLine) playNext();
+        }, 3500);
+        return;
+    }
+
+    const resumeAt = Math.max(
+        Number(track._resumeTime || 0),
+        isFinite(mainAudio.currentTime) ? Number(mainAudio.currentTime || 0) : 0
+    );
+    pendingResumeTime = resumeAt > 1 ? resumeAt : 0;
+
+    const retry = track._streamRetries;
+    const useNoRange = retry >= 3;
+    let retryUrl = track.url;
+
+    if (track.url.startsWith('http')) {
+        // Последняя попытка может идти напрямую: это помогает источникам,
+        // которые не дружат с relay, но сначала всегда используем наш устойчивый proxy.
+        if (retry < MAX_STREAM_RETRIES) {
+            retryUrl = buildProxyUrl(track, { weak: true, norange: useNoRange, retry: retry });
+        }
+    }
+
+    showLoader(true);
+    mainAudio.pause();
+    mainAudio.src = retryUrl;
+    mainAudio.load();
+
+    try {
+        await mainAudio.play();
+        restorePendingPosition();
+        showLoader(false);
+        updateState(true);
+    } catch (error) {
+        if (error && error.name === 'NotAllowedError') {
+            showLoader(false);
+            updateState(false);
+            artistEl.textContent = 'Нажмите ▶ для продолжения';
+            return;
+        }
+        scheduleStreamRecovery('retry-failed', getNetworkProfile().weak ? 5000 : 2500);
+    }
+}
+
+mainAudio.addEventListener('playing', function() {
+    clearStreamRecoveryTimer();
     showLoader(false);
-    titleEl.textContent = "Ошибка. Пропуск...";
-    if (!window.skipCounter) window.skipCounter = 0;
-    window.skipCounter++;
-    if (window.skipCounter < 10) {
-        setTimeout(playNext, 800);
-    } else {
-        window.skipCounter = 0;
+    networkRetryPending = false;
+    window.skipCounter = 0;
+    updateState(true);
+    requestWakeLock();
+
+    const token = currentPlaybackToken;
+    const track = playlist[currentIndex];
+    setTimeout(function() {
+        if (token === currentPlaybackToken && track === playlist[currentIndex] && !mainAudio.paused) {
+            track._streamRetries = 0;
+        }
+    }, 12000);
+});
+
+mainAudio.addEventListener('pause', function() {
+    if (!mainAudio.ended) updateState(false);
+});
+
+mainAudio.addEventListener('ended', function() {
+    clearStreamRecoveryTimer();
+    releaseWakeLock();
+    if (isRepeat) playTrack(currentIndex); else playNext();
+});
+
+mainAudio.addEventListener('waiting', function() {
+    if (mainAudio.ended) return;
+    showLoader(true);
+    if (!mainAudio.paused) scheduleStreamRecovery('waiting');
+});
+
+mainAudio.addEventListener('stalled', function() {
+    if (mainAudio.ended) return;
+    showLoader(true);
+    if (!mainAudio.paused) scheduleStreamRecovery('stalled');
+});
+
+mainAudio.addEventListener('canplay', function() {
+    restorePendingPosition();
+    showLoader(false);
+});
+
+mainAudio.addEventListener('loadedmetadata', restorePendingPosition);
+
+mainAudio.addEventListener('timeupdate', function() {
+    const track = playlist[currentIndex];
+    if (track && isFinite(mainAudio.currentTime) && mainAudio.currentTime > 0) {
+        track._resumeTime = mainAudio.currentTime;
     }
 });
+
+mainAudio.addEventListener('error', function() {
+    const track = playlist[currentIndex];
+    if (!track || !track.url) return;
+    showLoader(true);
+    scheduleStreamRecovery('media-error', getNetworkProfile().weak ? 2500 : 1200);
+});
+
+window.addEventListener('offline', function() {
+    if (currentIndex < 0 || mainAudio.ended) return;
+    // Уже буферизованный звук может продолжать играть даже без сети.
+    // Не перезапускаем поток, пока буфера хватает.
+    if (mainAudio.paused || mainAudio.readyState < 3) {
+        networkRetryPending = true;
+        showLoader(true);
+        artistEl.textContent = 'Сигнал потерян — ждём сеть';
+    }
+});
+
+window.addEventListener('online', function() {
+    if (networkRetryPending && currentIndex >= 0) {
+        recoverCurrentStream('network-online');
+    }
+});
+
+if (connectionInfo && typeof connectionInfo.addEventListener === 'function') {
+    connectionInfo.addEventListener('change', function() {
+        // Если радиосеть вернулась после провала, продолжаем тот же трек.
+        if (networkRetryPending && navigator.onLine) {
+            recoverCurrentStream('connection-change');
+        }
+    });
+}
 
 async function playTrack(index) {
     if(index < 0 || index >= playlist.length) return;
     currentIndex = index;
     const track = playlist[index];
-    
+    currentPlaybackToken++;
+    const token = currentPlaybackToken;
+
+    track._streamRetries = 0;
+    track._resumeTime = 0;
+    networkRetryPending = false;
+    pendingResumeTime = 0;
+    clearStreamRecoveryTimer();
+
     updateActiveTrackInList(index);
     titleEl.textContent = track.title;
     artistEl.textContent = track.artist;
     showLoader(true);
 
     if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: track.artist, album: 'DAGSTUDIO', artwork: [{ src: track.thumb || 'images/faviconch.png', sizes: '512x512', type: 'image/png' }] });
-        navigator.mediaSession.setActionHandler('play', togglePlay); navigator.mediaSession.setActionHandler('pause', togglePlay); navigator.mediaSession.setActionHandler('previoustrack', playPrev); navigator.mediaSession.setActionHandler('nexttrack', playNext);
+        try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.title,
+                artist: track.artist,
+                album: 'DAGSTUDIO',
+                artwork: [{ src: track.thumb || 'images/faviconch.png', sizes: '512x512', type: 'image/png' }]
+            });
+            navigator.mediaSession.setActionHandler('play', togglePlay);
+            navigator.mediaSession.setActionHandler('pause', togglePlay);
+            navigator.mediaSession.setActionHandler('previoustrack', playPrev);
+            navigator.mediaSession.setActionHandler('nexttrack', playNext);
+        } catch(e) {}
     }
 
     clearTimeout(playWatchdog);
-    
-    // СБОРЩИК МУСОРА ПАМЯТИ
+
     if (currentBlobUrl) {
         URL.revokeObjectURL(currentBlobUrl);
         currentBlobUrl = null;
@@ -620,126 +834,68 @@ async function playTrack(index) {
     mainAudio.pause();
     mainAudio.removeAttribute('src');
     mainAudio.load();
-    requestWakeLock();
 
     try {
         let finalUrl = track.url;
         let isCached = false;
 
-        // Если мы включаем музыку ИЗ СВОЕГО ПЛЕЙЛИСТА
-        if (currentTab !== 'search' && track.url.startsWith('http')) {
-            const cachedRes = await getDeviceCachedAudio(track.url);
-            if (cachedRes.isBlob) {
-                // Если трек в кэше, играем его
-                currentBlobUrl = cachedRes.url; 
-                finalUrl = currentBlobUrl;
-                isCached = true;
+        if (track.url && track.url.startsWith('http')) {
+            if (currentTab !== 'search') {
+                const cachedRes = await getDeviceCachedAudio(track.url);
+                if (token !== currentPlaybackToken) return;
+
+                if (cachedRes.isBlob) {
+                    currentBlobUrl = cachedRes.url;
+                    finalUrl = currentBlobUrl;
+                    isCached = true;
+                } else {
+                    finalUrl = buildProxyUrl(track, { weak: isWeakConnection() });
+                }
             } else {
-                // Если не в кэше, играем через прокси и кэшируем
-                finalUrl = cachedRes.url;
-                if (navigator.onLine) cacheTrackSilently(track.url);
+                finalUrl = buildProxyUrl(track, { weak: isWeakConnection() });
             }
-        } 
-        // Если мы В ПОИСКЕ — сначала используем наш потоковый proxy.
-        // Это важно для Android-магнитол: многие внешние MP3-хостинги
-        // режут прямое воспроизведение, требуют Referer или плохо работают
-        // на слабом TLS/мобильном соединении.
-        else if (currentTab === 'search' && track.url && track.url.startsWith('http')) {
-            finalUrl = 'proxy.php?url=' + encodeURIComponent(track.url) + '&source=' + encodeURIComponent((track.source || '').replace(/[^A-Za-z0-9_\[\]]/g, ''));
-            track._usingProxy = true;
         }
 
-        // АВТО-ПРОПУСК ОФФЛАЙН (Если нет интернета и нет кэша)
-        if (!navigator.onLine && !isCached && currentTab !== 'local') {
-            showLoader(false);
-            titleEl.textContent = "Не скачано (Нет сети)";
-            
-            if (!window.skipCounter) window.skipCounter = 0;
-            window.skipCounter++;
-            
-            // Пропускаем моментально, лимит 15 треков, чтобы не зависнуть
-            if (window.skipCounter < 15) {
-                setTimeout(playNext, 300);
-            } else {
-                window.skipCounter = 0;
-            }
+        if (!navigator.onLine && !isCached && track.url && track.url.startsWith('http')) {
+            networkRetryPending = true;
+            showLoader(true);
+            titleEl.textContent = track.title;
+            artistEl.textContent = 'Нет сети — начнём автоматически после восстановления';
+            updateState(false);
             return;
         }
 
-        mainAudio.src = finalUrl; 
+        mainAudio.src = finalUrl;
         mainAudio.loop = false;
-        
-        // Сторожевой таймер. На слабой мобильной сети даём источнику больше
-        // времени на первый байт, но не оставляем магнитолу зависшей навсегда.
-        playWatchdog = setTimeout(() => {
-            if (mainAudio.paused || mainAudio.readyState === 0) {
-                // Не уходим напрямую на внешний MP3: на Android-магнитолах
-                // это часто обходит серверный Referer/Range и снова зависает.
-                // Повторяем через наш прокси с запросом на режим без Range.
-                if (currentTab === 'search' && track.url && !track._proxyNoRangeRetry) {
-                    track._proxyNoRangeRetry = true;
-                    showLoader(true);
-                    mainAudio.pause();
-                    const retryUrl = 'proxy.php?url=' + encodeURIComponent(track.url) +
-                        '&source=' + encodeURIComponent((track.source || '').replace(/[^A-Za-z0-9_\[\]]/g, '')) + '&norange=1';
-                    mainAudio.src = retryUrl;
-                    mainAudio.load();
-                    mainAudio.play().then(() => {
-                        showLoader(false);
-                        window.skipCounter = 0;
-                    }).catch(() => {
-                        showLoader(false);
-                    });
-                    return;
-                }
+        mainAudio.preload = 'auto';
 
-                showLoader(false);
-                titleEl.textContent = "Сбой потока...";
-                if (!window.skipCounter) window.skipCounter = 0;
-                window.skipCounter++;
-                if (window.skipCounter < 10) setTimeout(playNext, 1000);
+        const net = getNetworkProfile();
+        playWatchdog = setTimeout(function() {
+            if (token !== currentPlaybackToken) return;
+            if (mainAudio.readyState < 3 && !mainAudio.ended) {
+                recoverCurrentStream('startup-timeout');
             }
-        }, isSlowConnection ? 45000 : 20000);
+        }, net.veryWeak ? 60000 : (net.weak ? 45000 : 25000));
 
         await mainAudio.play();
+        if (token !== currentPlaybackToken) return;
         clearTimeout(playWatchdog);
         showLoader(false);
+        updateState(true);
 
-    } catch (e) { 
+    } catch (error) {
         clearTimeout(playWatchdog);
+        if (token !== currentPlaybackToken) return;
 
-        // play() может завершиться ошибкой ещё до события error. Если это
-        // произошло на proxy-пути, один раз переходим напрямую к источнику.
-        if (currentTab === 'search' && track.url && track.url.startsWith('http') && !track._directRetry) {
-            track._directRetry = true;
-            track._usingProxy = false;
-            try {
-                showLoader(true);
-                mainAudio.pause();
-                mainAudio.src = track.url;
-                mainAudio.load();
-                await mainAudio.play();
-                clearTimeout(playWatchdog);
-                showLoader(false);
-                updateState(true);
-                return;
-            } catch (directError) {}
+        if (error && error.name === 'NotAllowedError') {
+            showLoader(false);
+            updateState(false);
+            artistEl.textContent = 'Нажмите ▶ для запуска';
+            return;
         }
 
-        showLoader(false); 
-        titleEl.textContent = "Ошибка. Пропуск...";
-        
-        if (!window.skipCounter) window.skipCounter = 0;
-        window.skipCounter++;
-        
-        if (window.skipCounter < 10) {
-            setTimeout(playNext, 1000); 
-        } else {
-            window.skipCounter = 0;
-        }
+        scheduleStreamRecovery('play-failed', getNetworkProfile().weak ? 2500 : 1000);
     }
-    
-    updateState(true);
 }
 
 function updateActiveTrackInList(index) {
@@ -751,28 +907,35 @@ function updateActiveTrackInList(index) {
     }
 }
 
-function togglePlay() { 
-    const track = playlist[currentIndex]; if(!track) return; 
-    let isPlaying = false;
-    
-    // Сброс счетчика ошибок при ручном нажатии на кнопку
+function togglePlay() {
+    const track = playlist[currentIndex];
+    if(!track) return;
+
     window.skipCounter = 0;
 
-    if(mainAudio.paused) { 
-        // Если трек не был загружен (NotAllowedError)
+    if(mainAudio.paused) {
         if (!mainAudio.src || mainAudio.src.endsWith('null') || mainAudio.src === window.location.href) {
             playTrack(currentIndex);
             return;
         }
-        mainAudio.play().catch(()=>{}); 
-        isPlaying = true; 
-    } else { 
-        mainAudio.pause(); 
-        isPlaying = false; 
+
+        mainAudio.play().then(function() {
+            updateState(true);
+            requestWakeLock();
+        }).catch(function(error) {
+            updateState(false);
+            if (error && error.name === 'NotAllowedError') {
+                artistEl.textContent = 'Нажмите ▶ ещё раз для запуска';
+                return;
+            }
+            scheduleStreamRecovery('manual-play-failed', 1000);
+        });
+    } else {
+        clearStreamRecoveryTimer();
+        mainAudio.pause();
+        releaseWakeLock();
+        updateState(false);
     }
-    
-    if(isPlaying) requestWakeLock(); else releaseWakeLock();
-    updateState(isPlaying);
 }
 
 function updateState(playing) { 

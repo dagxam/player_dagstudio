@@ -1,4 +1,4 @@
-/* style.css - V2100 (Final Polished UI) */
+/* style.css - V2212 (PWA + universal viewport) */
 
 :root {
     --bg-color: #0b0b0b;
@@ -310,4 +310,25 @@ body, html {
 
     .playlist-area { flex-grow: 1 !important; padding: 5px 15px 20px 15px !important; height: 0; overflow-y: auto !important; }
     .modal-box { width: 90%; padding: 30px 20px; }
+}
+
+/* --- PWA / современные мобильные viewport-единицы --- */
+@supports (height: 100dvh) {
+    body, html { height: 100dvh; }
+    .main-container { height: 95dvh; }
+
+    @media (max-width: 768px) {
+        .main-container { height: 100dvh !important; }
+        :fullscreen .main-container, ::-webkit-full-screen .main-container { height: 100dvh !important; }
+    }
+}
+
+@media (display-mode: standalone) and (max-width: 768px) {
+    .header-overlay {
+        padding-top: env(safe-area-inset-top) !important;
+        height: calc(60px + env(safe-area-inset-top)) !important;
+    }
+    .playlist-area {
+        padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    }
 }

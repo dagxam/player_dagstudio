@@ -5,12 +5,18 @@
 
 $url = trim($_GET['url'] ?? '');
 $source = strtolower(trim($_GET['source'] ?? ''));
+$forceNoRange = (string)($_GET['norange'] ?? '') === '1';
+$weakMode = (string)($_GET['weak'] ?? '') === '1';
 if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
     http_response_code(400);
     exit;
 }
 
 session_write_close();
+@set_time_limit(0);
+@ini_set('zlib.output_compression', '0');
+if (function_exists('apache_setenv')) @apache_setenv('no-gzip', '1');
+header('X-Accel-Buffering: no');
 $parts  = parse_url($url);
 $scheme = strtolower($parts['scheme'] ?? '');
 $host   = strtolower($parts['host'] ?? '');
@@ -43,7 +49,7 @@ if (filter_var($host, FILTER_VALIDATE_IP) &&
 
 $range = trim($_SERVER['HTTP_RANGE'] ?? '');
 $forwardRange = '';
-if ($range !== '') {
+if (!$forceNoRange && $range !== '') {
     // Поддерживаем только один byte-range — именно его использует HTML5 audio.
     if (!preg_match('/^bytes=(\d+)-(\d*)$/', $range, $m)) {
         http_response_code(416);
@@ -134,12 +140,15 @@ $sendHeaders = static function() use (&$responseHeaders, &$currentStatus, &$head
     header('X-Content-Type-Options: nosniff');
     header('Cache-Control: no-store');
     header('X-DAG-Stream: 1');
+    if (isset($_GET['weak']) && (string)$_GET['weak'] === '1') {
+        header('X-DAG-Network-Mode: weak');
+    }
     $headersSent = true;
     return true;
 };
 
 $runAttempt = function(bool $useRange) use (
-    $url, $forwardRange, $profile, &$responseHeaders, &$currentStatus,
+    $url, $forwardRange, $profile, $weakMode, &$responseHeaders, &$currentStatus,
     &$headersSent, &$bodyStarted, &$attemptError, $sendHeaders
 ) {
     $responseHeaders = [];
@@ -153,19 +162,21 @@ $runAttempt = function(bool $useRange) use (
         CURLOPT_RETURNTRANSFER => false,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS => 5,
-        CURLOPT_CONNECTTIMEOUT => 6,
+        // На слабой мобильной сети даём DNS/TCP/TLS и паузам радиосети больше времени.
+        CURLOPT_CONNECTTIMEOUT => $weakMode ? 15 : 8,
         CURLOPT_TIMEOUT => 0,
-        // Не держим запрос бесконечно на мёртвом источнике.
-        CURLOPT_LOW_SPEED_LIMIT => 256,
-        CURLOPT_LOW_SPEED_TIME => 12,
+        CURLOPT_LOW_SPEED_LIMIT => $weakMode ? 32 : 128,
+        CURLOPT_LOW_SPEED_TIME => $weakMode ? 45 : 20,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
         CURLOPT_TCP_KEEPALIVE => 1,
-        CURLOPT_TCP_KEEPIDLE => 20,
-        CURLOPT_TCP_KEEPINTVL => 10,
-        CURLOPT_BUFFERSIZE => 16384,
+        CURLOPT_TCP_KEEPIDLE => $weakMode ? 10 : 20,
+        CURLOPT_TCP_KEEPINTVL => $weakMode ? 5 : 10,
+        CURLOPT_DNS_CACHE_TIMEOUT => 300,
+        CURLOPT_NOSIGNAL => 1,
+        CURLOPT_BUFFERSIZE => $weakMode ? 8192 : 16384,
         CURLOPT_HTTPHEADER => buildAudioHeaders($useRange, $forwardRange, $profile),
         CURLOPT_HEADERFUNCTION => function($ch, $line) use (&$responseHeaders, &$currentStatus) {
             $trim = trim($line);
@@ -227,8 +238,8 @@ $runAttempt = function(bool $useRange) use (
 
 // Сначала используем Range — это правильный режим для HTML5 audio и перемотки.
 // Если источник не умеет Range или возвращает 416/неаудио, повторяем БЕЗ Range.
-$ok = $runAttempt($forwardRange !== '');
-if (!$ok && $forwardRange !== '' && !headers_sent()) {
+$ok = $runAttempt(!$forceNoRange && $forwardRange !== '');
+if (!$ok && !$forceNoRange && $forwardRange !== '' && !headers_sent()) {
     $ok = $runAttempt(false);
 }
 

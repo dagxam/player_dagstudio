@@ -8,21 +8,22 @@
     <meta name="application-name" content="DAGSTUDIO PLAYER">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="referrer" content="no-referrer">
-    <link rel="manifest" href="/manifest.json?v=2210">
-    <link rel="icon" type="image/png" href="images/faviconch.png">
+    <link rel="manifest" href="/manifest.json?v=2212">
+    <link rel="icon" type="image/png" sizes="512x512" href="/images/faviconch.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/icon-192.png">
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="DAGSTUDIO">
-    <link rel="apple-touch-icon" href="/images/faviconch.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/faviconch.png">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2200" as="style">
-    <link rel="stylesheet" href="style.css?v=2200">
+    <link rel="preload" href="style.css?v=2212" as="style">
+    <link rel="stylesheet" href="style.css?v=2212">
 </head>
 <body>
 
@@ -141,7 +142,8 @@
         <span class="modal-close" onclick="closeModal('ios-modal')">&times;</span>
         <h3 class="modal-title">УСТАНОВКА НА IPHONE / IPAD</h3>
         <p style="color:#ccc; margin:10px 0 20px; line-height:1.6; text-align:left;">
-            Откройте сайт в <b>Safari</b>, нажмите <b>«Поделиться»</b> <i class="fas fa-arrow-up-from-bracket"></i> и выберите <b>«На экран Домой»</b>.
+            Нажмите <b>«Поделиться»</b> <i class="fas fa-arrow-up-from-bracket"></i> и выберите <b>«На экран Домой»</b>.<br><br>
+            На старых версиях iOS/iPadOS, где этот пункт недоступен в стороннем браузере, откройте сайт в <b>Safari</b>.
         </p>
         <button class="modal-btn btn-primary" onclick="closeModal('ios-modal')">ПОНЯТНО</button>
     </div>
@@ -155,7 +157,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2210" defer></script>
+<script src="script.js?v=2212" defer></script>
 
 </body>
 </html>

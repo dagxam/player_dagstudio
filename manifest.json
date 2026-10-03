@@ -2,19 +2,18 @@
   "id": "/",
   "name": "DAGSTUDIO PLAYER",
   "short_name": "DAGSTUDIO",
-  "description": "Музыкальный плеер DAGSTUDIO: слушайте и сохраняйте любимую музыку",
+  "description": "Музыкальный плеер DAGSTUDIO для телефона, планшета, компьютера и автомобильных Android-устройств",
   "lang": "ru",
-  "start_url": "/index.php?source=pwa",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0b0b0b",
   "theme_color": "#0b0b0b",
   "orientation": "any",
   "prefer_related_applications": false,
-  "categories": [
-    "music",
-    "entertainment"
-  ],
+  "categories": ["music", "entertainment"],
   "icons": [
     {
       "src": "/images/icon-192.png",
@@ -25,6 +24,18 @@
     {
       "src": "/images/faviconch.png",
       "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/faviconch.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/images/icon.png",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
     }
