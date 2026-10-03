@@ -127,7 +127,7 @@
             </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
-        <button id="pwa-install-btn" class="menu-list-btn pwa-install-btn" onclick="triggerInstall()" style="margin-top:18px;"><i class="fas fa-mobile-screen-button"></i> Установить приложение</button>
+        <button id="pwa-install-btn" class="menu-list-btn pwa-install-btn" onclick="triggerInstall()" style="margin-top:18px; display:none;" aria-live="polite"><i class="fas fa-mobile-screen-button"></i> Установить приложение</button>
     </div>
 </div>
 
@@ -157,7 +157,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2212" defer></script>
+<script src="script.js?v=2213" defer></script>
 
 </body>
 </html>

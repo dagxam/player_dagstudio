@@ -176,8 +176,10 @@ window.downloadTrack = function(index) {
 };
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
+// На Chromium-классах браузеров кнопка установки показывается только после
+// beforeinstallprompt. Поэтому нажатие всегда сразу открывает НАТИВНОЕ окно
+// браузера «Установить / Отмена» без промежуточных окон приложения.
 let defPrompt = null;
-let pwaInstallWaiting = false;
 let appInstalledThisSession = false;
 
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
@@ -194,10 +196,9 @@ function isAppStandalone() {
 
 function getBrowserInfo() {
     const ua = navigator.userAgent || '';
-    const androidWebView = isAndroid && (/\bwv\b/i.test(ua) || /; wv\)/i.test(ua) ||
-        (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua)));
     return {
-        androidWebView: androidWebView,
+        androidWebView: isAndroid && (/\bwv\b/i.test(ua) || /; wv\)/i.test(ua) ||
+            (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua))),
         samsung: /SamsungBrowser/i.test(ua),
         yandex: /YaBrowser/i.test(ua),
         edge: /EdgA|EdgiOS|Edg\//i.test(ua),
@@ -210,141 +211,148 @@ function getBrowserInfo() {
     };
 }
 
-function updateInstallButton() {
-    const btn = document.getElementById('pwa-install-btn');
+function getInstallButton() {
+    return document.getElementById('pwa-install-btn');
+}
+
+function setInstallButtonState() {
+    const btn = getInstallButton();
     if (!btn) return;
 
     if (isAppStandalone()) {
-        btn.innerHTML = '<i class="fas fa-circle-check"></i> Приложение установлено';
+        btn.style.display = 'none';
         btn.disabled = true;
-        btn.style.opacity = '0.55';
-    } else {
+        return;
+    }
+
+    const info = getBrowserInfo();
+
+    // Главное поведение: на Chromium показываем кнопку ТОЛЬКО когда
+    // настоящий системный prompt уже готов.
+    if (defPrompt) {
+        btn.style.display = '';
         btn.disabled = false;
         btn.style.opacity = '1';
         btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
+        btn.dataset.installMode = 'native';
+        return;
     }
+
+    // iOS/iPadOS не предоставляет beforeinstallprompt.
+    if (isIOS) {
+        btn.style.display = '';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.innerHTML = '<i class="fas fa-square-plus"></i> Добавить на экран Домой';
+        btn.dataset.installMode = 'ios';
+        return;
+    }
+
+    // Safari macOS устанавливает сайт через собственный пункт «Добавить в Dock».
+    if (info.safari && info.mac) {
+        btn.style.display = '';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.innerHTML = '<i class="fas fa-square-plus"></i> Добавить в Dock';
+        btn.dataset.installMode = 'safari-mac';
+        return;
+    }
+
+    // WebView/Firefox Desktop/другие браузеры без программного install prompt.
+    // Не показываем ложную кнопку «Установить», которая не может вызвать установку.
+    btn.style.display = 'none';
+    btn.disabled = true;
+    btn.dataset.installMode = 'unsupported';
 }
 
-function showInstallHelp() {
-    const info = getBrowserInfo();
-    const help = document.getElementById('install-help-text');
-    const modal = document.getElementById('android-modal');
-
-    if (isIOS) {
+function showUnsupportedInstallHelp(mode) {
+    if (mode === 'ios') {
         const iosModal = document.getElementById('ios-modal');
         if (iosModal) iosModal.classList.add('show');
         return;
     }
 
-    if (!help || !modal) {
-        showNotification('Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».');
-        return;
-    }
+    const help = document.getElementById('install-help-text');
+    const modal = document.getElementById('android-modal');
+    if (!help || !modal) return;
 
-    if (!window.isSecureContext) {
-        help.innerHTML = '<b>Установка требует HTTPS.</b><br><br>Откройте сайт по адресу <b>https://player.dagstudio.ru/</b>.';
-    } else if (info.androidWebView) {
-        help.innerHTML = '<b>Встроенный браузер Android / WebView не умеет полноценно устанавливать PWA.</b><br><br>' +
-            'На магнитоле откройте <b>player.dagstudio.ru</b> в Chrome или другом полноценном Chromium-браузере. ' +
-            'В меню <b>⋮</b> выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.';
-    } else if (info.firefox && (info.windows || info.mac || info.linux)) {
-        help.innerHTML = '<b>Firefox на компьютере не предоставляет установку PWA как отдельного приложения.</b><br><br>' +
-            'Для отдельного окна приложения откройте сайт в Chrome или Edge. На macOS также можно открыть сайт в Safari и выбрать <b>Файл → Добавить в Dock</b>.';
-    } else if (info.safari && info.mac) {
-        help.innerHTML = 'В Safari на macOS выберите в верхнем меню <b>Файл → Добавить в Dock</b>. ' +
-            'После этого DAGSTUDIO PLAYER будет запускаться как отдельное приложение.';
-    } else if (isAndroid) {
-        help.innerHTML = 'Откройте меню браузера <b>⋮</b> и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.<br><br>' +
-            'На Android без сервисов Google некоторые браузеры создают ярлык на главном экране вместо системного WebAPK — это нормальное поведение браузера.';
-    } else if (info.windows || info.mac || info.linux) {
-        help.innerHTML = 'В Chrome/Edge нажмите значок установки в адресной строке или откройте меню браузера и выберите <b>«Установить DAGSTUDIO PLAYER»</b>.';
+    if (mode === 'safari-mac') {
+        help.innerHTML = 'В Safari откройте верхнее меню <b>Файл</b> и выберите <b>«Добавить в Dock»</b>.';
     } else {
-        help.innerHTML = 'Этот браузер не предоставил сайту системное окно установки.<br><br>' +
-            'Используйте пункт <b>«Установить приложение»</b> / <b>«Добавить на главный экран»</b> в меню браузера. ' +
-            'Если такого пункта нет, сам браузер не поддерживает установку PWA.';
+        help.innerHTML = 'Этот браузер не предоставляет сайту системное окно установки. Откройте сайт в Chrome, Edge, Яндекс Браузере или Samsung Internet.';
     }
-
     modal.classList.add('show');
 }
 
-serviceWorkerRegistrationPromise.then(function() { updateInstallButton(); });
-
-if (!isAppStandalone()) {
-    window.addEventListener('beforeinstallprompt', function(event) {
-        event.preventDefault();
-        defPrompt = event;
-        updateInstallButton();
-
-        if (pwaInstallWaiting) {
-            pwaInstallWaiting = false;
-            setTimeout(function() { window.triggerInstall(); }, 0);
-        }
-    });
-}
+window.addEventListener('beforeinstallprompt', function(event) {
+    event.preventDefault();
+    defPrompt = event;
+    setInstallButtonState();
+});
 
 window.addEventListener('appinstalled', function() {
     appInstalledThisSession = true;
     defPrompt = null;
-    pwaInstallWaiting = false;
-    updateInstallButton();
-    showNotification('Приложение успешно установлено!');
+    setInstallButtonState();
+    showNotification('Приложение установлено.');
 });
 
 const standaloneMedia = window.matchMedia('(display-mode: standalone)');
 if (standaloneMedia && typeof standaloneMedia.addEventListener === 'function') {
-    standaloneMedia.addEventListener('change', updateInstallButton);
+    standaloneMedia.addEventListener('change', setInstallButtonState);
 }
 
-window.triggerInstall = async function() {
-    closeModal('menu-modal');
+window.triggerInstall = function() {
+    const btn = getInstallButton();
+    const mode = btn ? btn.dataset.installMode : '';
 
     if (isAppStandalone()) {
-        showNotification('Приложение уже установлено.');
+        setInstallButtonState();
         return;
     }
 
-    if (isIOS) {
-        showInstallHelp();
-        return;
-    }
-
+    // Важно: prompt() вызывается синхронно из обработчика клика пользователя.
+    // Никаких setTimeout, «проверяем установку» и промежуточных модальных окон.
     if (defPrompt) {
         const promptEvent = defPrompt;
         defPrompt = null;
-        pwaInstallWaiting = false;
-        updateInstallButton();
+        closeModal('menu-modal');
 
         try {
-            const result = await promptEvent.prompt();
-            const choice = result && result.outcome ? result :
-                (promptEvent.userChoice ? await promptEvent.userChoice : null);
+            const result = promptEvent.prompt();
 
-            if (choice && choice.outcome === 'accepted') {
-                showNotification('Установка запущена...');
-            } else {
-                showInstallHelp();
-            }
+            Promise.resolve(result)
+                .then(function(choice) {
+                    if (choice && choice.outcome === 'accepted') {
+                        // appinstalled окончательно скроет кнопку после установки.
+                        return;
+                    }
+                    // Один BeforeInstallPromptEvent можно использовать только один раз.
+                    // После отказа ждём, пока браузер снова сам разрешит prompt.
+                    setInstallButtonState();
+                })
+                .catch(function() {
+                    setInstallButtonState();
+                });
         } catch (error) {
-            console.warn('PWA install prompt failed:', error);
-            showInstallHelp();
+            console.warn('Native PWA install prompt failed:', error);
+            setInstallButtonState();
         }
         return;
     }
 
-    // Иногда Chromium выдаёт beforeinstallprompt чуть позже после активации SW.
-    if ('serviceWorker' in navigator) {
-        pwaInstallWaiting = true;
-        showNotification('Проверяем возможность установки...');
-        setTimeout(function() {
-            if (pwaInstallWaiting && !defPrompt && !isAppStandalone()) {
-                pwaInstallWaiting = false;
-                showInstallHelp();
-            }
-        }, 1800);
-    } else {
-        showInstallHelp();
+    // Только платформы без программного native prompt получают инструкцию.
+    closeModal('menu-modal');
+    if (mode === 'ios' || mode === 'safari-mac') {
+        showUnsupportedInstallHelp(mode);
     }
 };
+
+serviceWorkerRegistrationPromise.then(function() {
+    setInstallButtonState();
+});
+
+document.addEventListener('DOMContentLoaded', setInstallButtonState);
 
 // --- API & AUTH ---
 async function api(action, data = {}) { 
