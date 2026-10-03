@@ -64,7 +64,7 @@ jobs:
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
         run: |
           EXPECTED="$GITHUB_SHA"
-          ACTUAL="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 20 "https://player.dagstudio.ru/deploy-version.txt")"
+          ACTUAL="$(curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "https://player.dagstudio.ru/deploy-version.txt?v=$EXPECTED")"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "Production verification failed."
             echo "Expected commit: $EXPECTED"
