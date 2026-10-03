@@ -219,50 +219,33 @@ function setInstallButtonState() {
     const btn = getInstallButton();
     if (!btn) return;
 
+    // Единственное условие скрытия кнопки — приложение уже реально запущено
+    // как установленное PWA. Пока не установлено, кнопка всегда видна.
     if (isAppStandalone()) {
         btn.style.display = 'none';
         btn.disabled = true;
+        btn.dataset.installMode = 'installed';
         return;
     }
 
     const info = getBrowserInfo();
+    btn.style.display = '';
+    btn.disabled = false;
+    btn.style.opacity = '1';
 
-    // Главное поведение: на Chromium показываем кнопку ТОЛЬКО когда
-    // настоящий системный prompt уже готов.
     if (defPrompt) {
-        btn.style.display = '';
-        btn.disabled = false;
-        btn.style.opacity = '1';
         btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
         btn.dataset.installMode = 'native';
-        return;
-    }
-
-    // iOS/iPadOS не предоставляет beforeinstallprompt.
-    if (isIOS) {
-        btn.style.display = '';
-        btn.disabled = false;
-        btn.style.opacity = '1';
+    } else if (isIOS) {
         btn.innerHTML = '<i class="fas fa-square-plus"></i> Добавить на экран Домой';
         btn.dataset.installMode = 'ios';
-        return;
-    }
-
-    // Safari macOS устанавливает сайт через собственный пункт «Добавить в Dock».
-    if (info.safari && info.mac) {
-        btn.style.display = '';
-        btn.disabled = false;
-        btn.style.opacity = '1';
+    } else if (info.safari && info.mac) {
         btn.innerHTML = '<i class="fas fa-square-plus"></i> Добавить в Dock';
         btn.dataset.installMode = 'safari-mac';
-        return;
+    } else {
+        btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
+        btn.dataset.installMode = 'waiting-native';
     }
-
-    // WebView/Firefox Desktop/другие браузеры без программного install prompt.
-    // Не показываем ложную кнопку «Установить», которая не может вызвать установку.
-    btn.style.display = 'none';
-    btn.disabled = true;
-    btn.dataset.installMode = 'unsupported';
 }
 
 function showUnsupportedInstallHelp(mode) {
@@ -341,10 +324,29 @@ window.triggerInstall = function() {
         return;
     }
 
-    // Только платформы без программного native prompt получают инструкцию.
     closeModal('menu-modal');
+
     if (mode === 'ios' || mode === 'safari-mac') {
         showUnsupportedInstallHelp(mode);
+        return;
+    }
+
+    // Кнопка остаётся видимой даже если событие beforeinstallprompt ещё
+    // не пришло. Как только браузер разрешит системную установку, следующий
+    // клик сразу откроет нативное окно «Установить / Отмена».
+    // Сам сайт не может программно создать это системное окно раньше браузера.
+    if (!defPrompt) {
+        const btnNow = getInstallButton();
+        if (btnNow) {
+            btnNow.disabled = true;
+            btnNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Подготовка установки...';
+            setTimeout(function() {
+                if (!isAppStandalone()) {
+                    btnNow.disabled = false;
+                    btnNow.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
+                }
+            }, 900);
+        }
     }
 };
 
