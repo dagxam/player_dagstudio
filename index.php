@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2216" as="style">
-    <link rel="stylesheet" href="style.css?v=2216">
+    <link rel="preload" href="style.css?v=2217" as="style">
+    <link rel="stylesheet" href="style.css?v=2217">
 </head>
 <body>
 
@@ -113,7 +113,7 @@
         </div>
         
         <div id="user-section" style="display:none;">
-            <div class="user-card"><div class="user-avatar"><i class="fas fa-user"></i></div><div class="user-details"><div class="user-name" id="user-name-disp">USER</div><div class="user-status">DAGSTUDIO MEMBER</div></div></div>
+            <div class="user-card"><div class="user-avatar"><i class="fas fa-user"></i></div><div class="user-details"><div class="user-name" id="user-name-disp">USER</div></div></div>
             <button class="menu-list-btn" onclick="openManagePlaylists()"><i class="fas fa-list"></i> Управление плейлистами</button>
             <div class="theme-selector-wrapper">
                 <div class="theme-lbl">ЦВЕТ ТЕМЫ:</div>

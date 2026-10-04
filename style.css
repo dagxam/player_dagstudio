@@ -192,7 +192,7 @@ body, html {
 .user-avatar { width: 55px; height: 55px; background: #252525; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: var(--accent-color); box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); }
 .user-details { text-align: left; }
 .user-name { font-size: 1.3rem; font-weight: 800; color: #fff; text-transform: uppercase; }
-.user-status { font-size: 0.75rem; color: #666; font-weight: 600; margin-top: 4px; }
+.user-status { display: none !important; }
 .menu-list-btn { width: 100%; padding: 16px 20px; margin-bottom: 12px; border-radius: 12px; background: #1a1a1a; border: 1px solid #2a2a2a; color: #ccc; font-weight: 600; text-align: left; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 15px; }
 .menu-list-btn:hover { background: #222; border-color: var(--accent-color); color: #fff; transform: translateX(3px); }
 
