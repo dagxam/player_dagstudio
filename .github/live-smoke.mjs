@@ -18,7 +18,11 @@ page.on('console', msg => {
 page.on('pageerror', err => pageErrors.push(String(err)));
 
 try {
-  await page.goto(url + '?smoke=' + Date.now(), { waitUntil: 'networkidle2', timeout: 45000 });
+  await page.goto(url + '?smoke=' + Date.now(), { waitUntil: 'domcontentloaded', timeout: 45000 });
+  // A newly activated service worker intentionally reloads the page once.
+  // Give that migration reload time to finish before evaluating the app.
+  await new Promise(resolve => setTimeout(resolve, 2500));
+  await page.waitForFunction(() => document.readyState === 'complete', { timeout: 15000 }).catch(() => {});
 
   const basics = await page.evaluate(() => ({
     readyState: document.readyState,
@@ -26,6 +30,11 @@ try {
     handleAuth: typeof window.handleAuth,
     toggleAuthMode: typeof window.toggleAuthMode,
     triggerInstall: typeof window.triggerInstall,
+    playTrack: typeof window.playTrack,
+    togglePlay: typeof window.togglePlay,
+    playNext: typeof window.playNext,
+    playPrev: typeof window.playPrev,
+    downloadTrack: typeof window.downloadTrack,
     installButton: !!document.getElementById('pwa-install-btn'),
     menuButton: !!document.querySelector('.menu-btn'),
     audio: !!document.getElementById('main-audio')
@@ -117,7 +126,9 @@ try {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
     '(KHTML, like Gecko) Chrome/150.0.0.0 YaBrowser/26.8.0.0 Safari/537.36'
   );
-  await yandexPage.goto(url + '?yandex-smoke=' + Date.now(), { waitUntil: 'networkidle2', timeout: 45000 });
+  await yandexPage.goto(url + '?yandex-smoke=' + Date.now(), { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await new Promise(resolve => setTimeout(resolve, 2500));
+  await yandexPage.waitForFunction(() => document.readyState === 'complete', { timeout: 15000 }).catch(() => {});
 
   const yBasics = await yandexPage.evaluate(() => ({
     openMenu: typeof window.openMenu,

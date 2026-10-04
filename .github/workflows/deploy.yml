@@ -81,13 +81,16 @@ jobs:
           echo "Live PWA shell and manifest verified"
 
           CHECK_AUTH="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"check_auth"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
-          echo "$CHECK_AUTH" | grep -q '"logged_in"'
+          echo "CHECK_AUTH=$CHECK_AUTH"
+          echo "$CHECK_AUTH" | python -c 'import sys,json; d=json.load(sys.stdin); assert "logged_in" in d'
 
           REG_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"register","name":"ab","pass":"1"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
-          echo "$REG_INVALID" | grep -q 'не менее 3'
+          echo "REG_INVALID=$REG_INVALID"
+          echo "$REG_INVALID" | python -c 'import sys,json; d=json.load(sys.stdin); assert "не менее 3" in d.get("error","")'
 
           LOGIN_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"login","name":"__dagstudio_smoke_invalid__","pass":"__invalid__"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
-          echo "$LOGIN_INVALID" | grep -q 'Неверный логин или пароль'
+          echo "LOGIN_INVALID=$LOGIN_INVALID"
+          echo "$LOGIN_INVALID" | python -c 'import sys,json; d=json.load(sys.stdin); assert "Неверный логин или пароль" in d.get("error","")'
 
           echo "Live auth API smoke checks passed"
 
