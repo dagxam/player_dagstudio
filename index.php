@@ -8,7 +8,7 @@
     <meta name="application-name" content="DAGSTUDIO PLAYER">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="referrer" content="no-referrer">
-    <link rel="manifest" href="/manifest.json?v=2212">
+    <link rel="manifest" href="/manifest.json?v=2216">
     <link rel="icon" type="image/png" sizes="512x512" href="/images/faviconch.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/images/icon-192.png">
     
@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2212" as="style">
-    <link rel="stylesheet" href="style.css?v=2212">
+    <link rel="preload" href="style.css?v=2216" as="style">
+    <link rel="stylesheet" href="style.css?v=2216">
 </head>
 <body>
 
@@ -157,7 +157,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2215" defer></script>
+<script src="script.js?v=2216" defer></script>
 
 </body>
 </html>

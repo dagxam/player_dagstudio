@@ -74,11 +74,22 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2215'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2216'
 
           MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/manifest.json?v=$EXPECTED")"
           echo "$MANIFEST_JSON" | python -m json.tool > /dev/null
           echo "Live PWA shell and manifest verified"
+
+          CHECK_AUTH="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"check_auth"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
+          echo "$CHECK_AUTH" | grep -q '"logged_in"'
+
+          REG_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"register","name":"ab","pass":"1"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
+          echo "$REG_INVALID" | grep -q 'не менее 3'
+
+          LOGIN_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"login","name":"__dagstudio_smoke_invalid__","pass":"__invalid__"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
+          echo "$LOGIN_INVALID" | grep -q 'Неверный логин или пароль'
+
+          echo "Live auth API smoke checks passed"
 
       - name: Deployment is not configured yet
         if: ${{ env.FTP_SERVER == '' || env.FTP_USERNAME == '' || env.FTP_PASSWORD == '' || env.FTP_SERVER_DIR == '' }}

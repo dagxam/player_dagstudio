@@ -3,15 +3,22 @@
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if ('serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js', { scope: '/' })
-        .then(registration => {
-            registration.update().catch(() => {});
+        .register('/sw.js?v=2216', { scope: '/', updateViaCache: 'none' })
+        .then(function(registration) {
+            registration.update().catch(function() {});
             return registration;
         })
-        .catch(error => {
+        .catch(function(error) {
             console.warn('Service Worker registration failed:', error);
             return null;
         });
+
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (window.matchMedia('(display-mode: standalone)').matches) return;
+        if (sessionStorage.getItem('dag_sw_reloaded_2216') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2216', '1');
+        window.location.reload();
+    });
 }
 
 // --- GLOBAL VARIABLES ---
@@ -176,10 +183,8 @@ window.downloadTrack = function(index) {
 };
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
-// Максимально совместимый порядок:
-// 1) новый navigator.install(), если браузер его реально предоставляет;
-// 2) классический beforeinstallprompt;
-// 3) точный браузерный fallback (особенно для Яндекс Браузера).
+// Надёжная схема: используем только фактически поддерживаемый браузером
+// beforeinstallprompt. Экспериментальные install API намеренно не используем.
 let defPrompt = null;
 let appInstalledThisSession = false;
 let installBusy = false;
@@ -230,13 +235,9 @@ function setInstallButtonState() {
     btn.style.display = '';
     btn.disabled = installBusy;
     btn.style.opacity = installBusy ? '0.7' : '1';
-
-    if (installBusy) {
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Открываем установку...';
-        return;
-    }
-
-    btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
+    btn.innerHTML = installBusy
+        ? '<i class="fas fa-spinner fa-spin"></i> Открываем установку...'
+        : '<i class="fas fa-mobile-screen-button"></i> Установить приложение';
 }
 
 function showInstallHelpForCurrentBrowser() {
@@ -250,34 +251,35 @@ function showInstallHelpForCurrentBrowser() {
 
     const help = document.getElementById('install-help-text');
     const modal = document.getElementById('android-modal');
-    if (!help || !modal) return;
+    if (!help || !modal) {
+        showNotification('Используйте команду установки в меню браузера.');
+        return;
+    }
 
     if (info.yandex && isAndroid) {
         help.innerHTML =
-            '<b>Яндекс Браузер на Android не передал сайту системный API установки.</b><br><br>' +
-            'В самом Яндекс Браузере нажмите меню <b>⋮</b> → <b>«Добавить на домашний экран»</b> → <b>«Добавить»</b>.<br><br>' +
-            'После этого значок DAGSTUDIO PLAYER появится на домашнем экране.';
+            '<b>Яндекс Браузер не передал странице системный install prompt.</b><br><br>' +
+            'Нажмите меню браузера <b>⋮</b> → <b>«Добавить ярлык»</b> / <b>«Добавить на домашний экран»</b> → <b>«Добавить»</b>.';
     } else if (info.yandex && (info.windows || info.mac || info.linux)) {
         help.innerHTML =
-            '<b>Яндекс Браузер устанавливает веб-приложения через Умную строку.</b><br><br>' +
-            'Откройте меню в Умной строке → <b>«Установить как приложение»</b>, затем подтвердите установку.';
+            '<b>Установка в Яндекс Браузере выполняется через Умную строку.</b><br><br>' +
+            'Справа в Умной строке выберите <b>«Установить как приложение»</b> и подтвердите установку.';
     } else if (info.androidWebView) {
         help.innerHTML =
-            '<b>Встроенный Android WebView не предоставляет сайту системную установку PWA.</b><br><br>' +
+            '<b>Встроенный браузер Android / WebView не даёт сайту системный install prompt.</b><br><br>' +
             'Откройте player.dagstudio.ru в Chrome, Edge, Яндекс Браузере или Samsung Internet.';
     } else if (info.safari && info.mac) {
-        help.innerHTML =
-            'В Safari выберите <b>Файл → Добавить в Dock</b>.';
+        help.innerHTML = 'В Safari выберите <b>Файл → Добавить в Dock</b>.';
     } else if (info.firefox && (info.windows || info.mac || info.linux)) {
         help.innerHTML =
-            'Firefox на компьютере не предоставляет сайту системный PWA-install prompt. ' +
-            'Для отдельного приложения используйте Chrome, Edge или установку сайта средствами вашего браузера.';
+            'Firefox на компьютере не предоставляет системный PWA install prompt. ' +
+            'Используйте Chrome, Edge или функцию установки сайта в самом браузере.';
     } else if (isAndroid) {
         help.innerHTML =
             'Откройте меню браузера <b>⋮</b> и выберите <b>«Установить приложение»</b> или <b>«Добавить на главный экран»</b>.';
     } else {
         help.innerHTML =
-            'Этот браузер не передал странице системный API установки. Используйте встроенный пункт браузера ' +
+            'Браузер не передал странице системный install prompt. Используйте встроенную команду браузера ' +
             '<b>«Установить приложение»</b> / <b>«Добавить сайт как приложение»</b>.';
     }
 
@@ -285,13 +287,7 @@ function showInstallHelpForCurrentBrowser() {
 }
 
 window.addEventListener('beforeinstallprompt', function(event) {
-    const info = getBrowserInfo();
-
-    // Для обычного Chromium удерживаем prompt до клика нашей кнопки.
-    // В Яндекс Браузере не отменяем штатное поведение: так сохраняется
-    // и собственная install-UI Яндекса, если его сборка решит её показать.
-    if (!info.yandex && event.preventDefault) event.preventDefault();
-
+    event.preventDefault();
     defPrompt = event;
     setInstallButtonState();
 });
@@ -308,109 +304,97 @@ if (standaloneMedia && typeof standaloneMedia.addEventListener === 'function') {
     standaloneMedia.addEventListener('change', setInstallButtonState);
 }
 
-async function tryModernWebInstall() {
-    if (typeof navigator.install !== 'function') return false;
-
-    try {
-        // Вызываем прямо из пользовательского клика. Если текущая сборка
-        // Chromium/Edge/Yandex предоставляет Web Install API, браузер сам
-        // показывает нативное окно подтверждения.
-        await navigator.install();
-        appInstalledThisSession = true;
-        return true;
-    } catch (error) {
-        // AbortError = пользователь закрыл системное окно.
-        // NotAllowed/DataError и т.п. означают, что этот путь сейчас недоступен.
-        if (error && error.name === 'AbortError') return true;
-        console.warn('navigator.install() unavailable:', error);
-        return false;
-    }
-}
-
-async function tryBeforeInstallPrompt() {
-    if (!defPrompt) return false;
-
-    const promptEvent = defPrompt;
-    defPrompt = null;
-
-    try {
-        // Нативное окно «Установить / Отмена».
-        const result = await promptEvent.prompt();
-
-        let choice = result && result.outcome ? result : null;
-        if (!choice && promptEvent.userChoice) {
-            choice = await promptEvent.userChoice;
-        }
-
-        if (choice && choice.outcome === 'accepted') {
-            return true;
-        }
-
-        // Событие одноразовое даже после отмены.
-        return true;
-    } catch (error) {
-        console.warn('beforeinstallprompt failed:', error);
-        return false;
-    }
-}
-
 window.triggerInstall = async function() {
     if (installBusy || isAppStandalone()) {
         setInstallButtonState();
         return;
     }
 
+    if (isIOS) {
+        closeModal('menu-modal');
+        showInstallHelpForCurrentBrowser();
+        return;
+    }
+
+    if (!defPrompt) {
+        closeModal('menu-modal');
+        showInstallHelpForCurrentBrowser();
+        return;
+    }
+
     installBusy = true;
     setInstallButtonState();
 
-    // Закрываем меню ДО вызова нативной установки, но остаёмся в том же
-    // пользовательском click task без setTimeout.
+    const promptEvent = defPrompt;
+    defPrompt = null;
+
+    // prompt() вызывается непосредственно из пользовательского клика.
     closeModal('menu-modal');
 
-    let handled = false;
+    try {
+        const result = await promptEvent.prompt();
+        let choice = result && result.outcome ? result : null;
 
-    // Новый API — первый приоритет, если конкретный браузер реально его даёт.
-    handled = await tryModernWebInstall();
+        if (!choice && promptEvent.userChoice) {
+            choice = await promptEvent.userChoice;
+        }
 
-    // Надёжный классический Chromium-путь.
-    if (!handled) {
-        handled = await tryBeforeInstallPrompt();
-    }
-
-    installBusy = false;
-    setInstallButtonState();
-
-    if (isAppStandalone()) return;
-
-    // Если браузер не дал ни одного install API, молчать нельзя.
-    // Для Яндекса показываем его собственный официальный путь установки.
-    if (!handled) {
+        if (choice && choice.outcome === 'accepted') {
+            // appinstalled скроет кнопку после фактической установки.
+        }
+    } catch (error) {
+        console.warn('PWA install prompt failed:', error);
         showInstallHelpForCurrentBrowser();
+    } finally {
+        installBusy = false;
+        setInstallButtonState();
     }
 };
 
 serviceWorkerRegistrationPromise.then(function() {
     setInstallButtonState();
 });
-
 document.addEventListener('DOMContentLoaded', setInstallButtonState);
 
 // --- API & AUTH ---
-async function api(action, data = {}) { 
-    data.action = action; 
-    try { 
-        const res = await fetch('api.php', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify(data) 
-        }); 
-        if (!res.ok) { throw new Error(`Server Error: ${res.status}`); }
+async function api(action, data = {}) {
+    const payload = Object.assign({}, data, { action: action });
+    const controller = new AbortController();
+    const timeout = setTimeout(function() { controller.abort(); }, action === 'search_global' ? 30000 : 15000);
+
+    try {
+        const res = await fetch('/api.php?t=' + Date.now(), {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
         const text = await res.text();
-        try { return JSON.parse(text); } 
-        catch (e) { console.error("JSON Parse Error:", text); return {error: "Ошибка обработки ответа сервера"}; }
-    } catch(e) { 
-        return {error: "Ошибка сети или сервера."}; 
-    } 
+        if (!res.ok) {
+            throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 180));
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON Parse Error:', text);
+            return { error: 'Сервер вернул некорректный ответ.' };
+        }
+    } catch (e) {
+        console.error('API request failed:', action, e);
+        if (e && e.name === 'AbortError') {
+            return { error: 'Сервер отвечает слишком долго. Проверьте интернет и повторите.' };
+        }
+        return { error: 'Ошибка сети или сервера.' };
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 async function checkAuth() { 
@@ -1292,16 +1276,53 @@ async function addToPlaylist(plId) {
 function openMenu() { if (currentUser) { document.getElementById('auth-section').style.display = 'none'; document.getElementById('user-section').style.display = 'block'; document.getElementById('user-name-disp').innerText = currentUser; } else { document.getElementById('auth-section').style.display = 'block'; document.getElementById('user-section').style.display = 'none'; } document.getElementById('menu-modal').classList.add('show'); }
 function toggleAuthMode() { isRegMode = !isRegMode; const title = document.getElementById('auth-title'); const btn = document.querySelector('#auth-section button'); const toggle = document.querySelector('.auth-toggle'); if (isRegMode) { title.innerText = "РЕГИСТРАЦИЯ"; btn.innerText = "СОЗДАТЬ АККАУНТ"; toggle.innerText = "Уже есть аккаунт? Войти"; } else { title.innerText = "ВХОД"; btn.innerText = "ВОЙТИ"; toggle.innerText = "Нет аккаунта? Зарегистрироваться"; } }
 
-async function handleAuth() { 
-    const name = document.getElementById('auth-name').value.trim(); const pass = document.getElementById('auth-pass').value.trim(); 
-    if(!name || !pass) return showNotification("Введите данные"); 
-    const action = isRegMode ? 'register' : 'login'; 
-    const res = await api(action, {name, pass}); 
-    if(res.success) { 
-        if(isRegMode) { showNotification("Регистрация успешна!"); toggleAuthMode(); } 
-        else { currentUser = res.username; closeModal('menu-modal'); if(res.theme) setTheme(res.theme, false); await loadUserData(); showNotification("Добро пожаловать, " + res.username + "!"); } 
-    } else { showNotification(res.error || "Ошибка сервера"); } 
+async function handleAuth() {
+    const nameEl = document.getElementById('auth-name');
+    const passEl = document.getElementById('auth-pass');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const pass = passEl ? passEl.value : '';
+
+    if(!name || !pass) {
+        showNotification('Введите логин и пароль');
+        return;
+    }
+
+    const action = isRegMode ? 'register' : 'login';
+    const oldText = submitBtn ? submitBtn.innerHTML : '';
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (isRegMode ? 'СОЗДАЁМ...' : 'ВХОД...');
+    }
+
+    try {
+        const res = await api(action, { name: name, pass: pass });
+
+        if (res && res.success) {
+            // Сервер после регистрации сразу создаёт сессию, поэтому вход и
+            // регистрация завершаются одинаково и без промежуточного тупика.
+            currentUser = res.username || name;
+            isRegMode = false;
+            closeModal('menu-modal');
+
+            if (res.theme) setTheme(res.theme, false);
+            await loadUserData();
+            showNotification(action === 'register'
+                ? 'Аккаунт создан. Вы вошли в DAGSTUDIO PLAYER.'
+                : 'Добро пожаловать, ' + currentUser + '!');
+            return;
+        }
+
+        showNotification((res && res.error) ? res.error : 'Не удалось выполнить вход.');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = isRegMode ? 'СОЗДАТЬ АККАУНТ' : 'ВОЙТИ';
+        }
+    }
 }
+
 async function handleLogout() { await api('logout'); currentUser = null; playlists = []; playlist = []; switchTab('search'); closeModal('menu-modal'); }
 
 function preloadThemeImages() { Object.values(colorThemes).forEach(theme => { const img = new Image(); img.src = theme.img; }); }
@@ -1326,4 +1347,22 @@ function setTheme(themeName, save = true) {
 function loadTheme() { const saved = localStorage.getItem('dag_theme') || 'brown'; setTheme(saved, false); }
 
 loadTheme();
+
+window.openMenu = openMenu;
+window.toggleAuthMode = toggleAuthMode;
+window.handleAuth = handleAuth;
+window.handleLogout = handleLogout;
+
+['auth-name', 'auth-pass'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleAuth();
+            }
+        });
+    }
+});
+
 checkAuth();

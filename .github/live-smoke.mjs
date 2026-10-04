@@ -108,6 +108,52 @@ try {
   }
 
   console.log('CONSOLE_ERRORS', JSON.stringify(consoleErrors));
+
+  // Browser-compatibility pass with a current Yandex Browser desktop UA.
+  const yandexPage = await browser.newPage();
+  const yandexErrors = [];
+  yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
+  await yandexPage.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/150.0.0.0 YaBrowser/26.8.0.0 Safari/537.36'
+  );
+  await yandexPage.goto(url + '?yandex-smoke=' + Date.now(), { waitUntil: 'networkidle2', timeout: 45000 });
+
+  const yBasics = await yandexPage.evaluate(() => ({
+    openMenu: typeof window.openMenu,
+    handleAuth: typeof window.handleAuth,
+    triggerInstall: typeof window.triggerInstall,
+    buttonVisible: (() => {
+      const b = document.getElementById('pwa-install-btn');
+      return !!b && getComputedStyle(b).display !== 'none' && !b.disabled;
+    })()
+  }));
+  console.log('YANDEX_BASICS', JSON.stringify(yBasics));
+  if (yBasics.openMenu !== 'function' || yBasics.handleAuth !== 'function' ||
+      yBasics.triggerInstall !== 'function' || !yBasics.buttonVisible) {
+    throw new Error('Yandex-UA compatibility basics failed');
+  }
+
+  await yandexPage.evaluate(() => window.openMenu());
+  await yandexPage.click('#pwa-install-btn');
+  await new Promise(resolve => setTimeout(resolve, 800));
+  const yInstall = await yandexPage.evaluate(() => ({
+    helpOpen: document.getElementById('android-modal').classList.contains('show'),
+    iosOpen: document.getElementById('ios-modal').classList.contains('show'),
+    menuOpen: document.getElementById('menu-modal').classList.contains('show')
+  }));
+  console.log('YANDEX_INSTALL_RESULT', JSON.stringify(yInstall));
+  if (!yInstall.helpOpen && !yInstall.iosOpen) {
+    // Headless Chrome does not emit a real install prompt in this test,
+    // so the Yandex-specific fallback must be visible instead of doing nothing.
+    throw new Error('Yandex install button produced no visible result');
+  }
+
+  await yandexPage.close();
+  if (yandexErrors.length) {
+    throw new Error('Yandex-UA runtime errors: ' + yandexErrors.join(' | '));
+  }
+
   console.log('SMOKE_OK');
 } finally {
   await browser.close();

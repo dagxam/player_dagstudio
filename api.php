@@ -95,10 +95,18 @@ if ($action === 'register') {
         if ($stmt->fetch()) { echo json_encode(['error' => 'Это имя уже занято']); exit; }
         
         $stmt = $pdo->prepare("INSERT INTO users (username, password, theme) VALUES (?, ?, 'brown')");
-        if ($stmt->execute([$name, $passHash])) { 
-            echo json_encode(['success' => true]); 
-        } else { 
-            echo json_encode(['error' => 'Ошибка базы данных. Попробуйте позже.']); 
+        if ($stmt->execute([$name, $passHash])) {
+            $userId = (int)$pdo->lastInsertId();
+            session_regenerate_id(true);
+            $_SESSION['user_id'] = $userId;
+            $_SESSION['username'] = $name;
+            echo json_encode([
+                'success' => true,
+                'username' => $name,
+                'theme' => 'brown'
+            ]);
+        } else {
+            echo json_encode(['error' => 'Ошибка базы данных. Попробуйте позже.']);
         }
     } catch (Exception $e) { echo json_encode(['error' => 'Внутренняя ошибка сервера.']); }
 }
@@ -106,7 +114,7 @@ elseif ($action === 'login') {
     $name = trim($data['name'] ?? '');
     $pass = $data['pass'] ?? '';
     try {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE LOWER(username) = LOWER(?)");
         $stmt->execute([$name]);
         $user = $stmt->fetch();
         if ($user && password_verify($pass, $user['password'])) {

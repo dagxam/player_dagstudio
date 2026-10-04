@@ -1,13 +1,13 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2215';
-const RUNTIME_CACHE = 'dagstudio-player-runtime-v2215';
+const CACHE_NAME = 'dagstudio-player-shell-v2216';
+const RUNTIME_CACHE = 'dagstudio-player-runtime-v2216';
 
 const CORE_ASSETS = [
     '/',
     '/index.php',
-    '/style.css?v=2212',
-    '/script.js?v=2215',
-    '/manifest.json?v=2212',
+    '/style.css?v=2216',
+    '/script.js?v=2216',
+    '/manifest.json?v=2216',
     '/images/faviconch.png',
     '/images/icon-192.png',
     '/images/cover.png'
@@ -77,12 +77,12 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // Навигация: сначала пробуем свежую сеть, но на слабом сигнале
-    // через 3 секунды мгновенно отдаём локальную оболочку.
+    // Навигация: свежая версия с сервера имеет приоритет.
+    // При действительно слабой/пропавшей сети через 8 секунд используем
+    // локальную оболочку, чтобы приложение всё равно запускалось.
     if (request.mode === 'navigate') {
         event.respondWith((async function() {
             const cached = await caches.match('/index.php');
-
             const network = fetch(request, { cache: 'no-store' })
                 .then(async function(response) {
                     if (response && response.ok) {
@@ -99,13 +99,12 @@ self.addEventListener('fetch', function(event) {
             }
 
             const timeout = new Promise(function(resolve) {
-                setTimeout(function() { resolve(null); }, 3000);
+                setTimeout(function() { resolve(null); }, 8000);
             });
 
             const fresh = await Promise.race([network, timeout]);
             if (fresh) return fresh;
 
-            // Сеть продолжит обновлять кэш в фоне, текущий запуск не ждёт.
             event.waitUntil(network.then(function() {}).catch(function() {}));
             return cached;
         })());
