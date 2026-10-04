@@ -1,0 +1,38 @@
+name: Live player smoke test
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/live-smoke.yml"
+      - "index.php"
+      - "script.js"
+      - "style.css"
+      - "api.php"
+      - "manifest.json"
+      - "sw.js"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Locate Chrome
+        run: |
+          set -e
+          which google-chrome || which chromium || which chromium-browser
+          google-chrome --version || chromium --version || chromium-browser --version
+
+      - name: Install browser test dependency
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Run live browser smoke test
+        env:
+          PLAYER_URL: https://player.dagstudio.ru/
+        run: node .github/live-smoke.mjs
