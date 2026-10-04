@@ -35,6 +35,47 @@ jobs:
           node --check sw.js
           python -m json.tool manifest.json > /dev/null
 
+      - name: Local auth and playlist integration test
+        run: |
+          set -e
+          rm -f player.db player.db-* /tmp/dag-cookie.txt
+          rm -rf sessions
+          php -S 127.0.0.1:8765 >/tmp/dag-php.log 2>&1 &
+          PHP_PID=$!
+          trap 'kill $PHP_PID 2>/dev/null || true; rm -f player.db player.db-*; rm -rf sessions' EXIT
+          sleep 1
+
+          USER="smoke_$GITHUB_RUN_ID"
+          PASS="SmokePass_$GITHUB_RUN_ID"
+
+          REGISTER="$(curl --fail --silent --show-error -c /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"register\",\"name\":\"$USER\",\"pass\":\"$PASS\"}" http://127.0.0.1:8765/api.php)"
+          echo "$REGISTER" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True and d.get("username")'
+
+          AUTH1="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"check_auth"}' http://127.0.0.1:8765/api.php)"
+          echo "$AUTH1" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("logged_in") is True'
+
+          CREATE="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"create_playlist","name":"Smoke Playlist","type":"standard"}' http://127.0.0.1:8765/api.php)"
+          PL_ID="$(echo "$CREATE" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True; print(d["id"])')"
+
+          ADD="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"add_track\",\"playlist_id\":$PL_ID,\"track\":{\"title\":\"Smoke Track\",\"artist\":\"DAGSTUDIO\",\"url\":\"https://example.com/smoke.mp3\",\"thumb\":\"\",\"type\":\"audio\"}}" http://127.0.0.1:8765/api.php)"
+          echo "$ADD" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True'
+
+          DATA="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"get_data"}' http://127.0.0.1:8765/api.php)"
+          echo "$DATA" | python -c 'import sys,json; d=json.load(sys.stdin); assert len(d)==1 and d[0]["name"]=="Smoke Playlist" and len(d[0]["tracks"])==1'
+
+          LOGOUT="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -c /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"logout"}' http://127.0.0.1:8765/api.php)"
+          echo "$LOGOUT" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True'
+
+          LOGIN="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -c /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"login\",\"name\":\"$USER\",\"pass\":\"$PASS\"}" http://127.0.0.1:8765/api.php)"
+          echo "$LOGIN" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True'
+
+          echo "Local auth and playlist integration passed"
+          kill $PHP_PID
+          wait $PHP_PID 2>/dev/null || true
+          trap - EXIT
+          rm -f player.db player.db-* /tmp/dag-cookie.txt
+          rm -rf sessions
+
       - name: Create deployment marker
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
         run: printf '%s' "$GITHUB_SHA" > deploy-version.txt

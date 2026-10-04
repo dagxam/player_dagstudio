@@ -118,6 +118,55 @@ try {
 
   console.log('CONSOLE_ERRORS', JSON.stringify(consoleErrors));
 
+  // Live search + audio relay smoke test. Read only the first streamed chunk.
+  const searchSmoke = await page.evaluate(async () => {
+    const result = await window.api('search_global', { query: 'Miyagi', page: 1 });
+    const data = result && Array.isArray(result.data) ? result.data : [];
+    return {
+      success: !!(result && result.success),
+      count: data.length,
+      first: data[0] ? {
+        url: data[0].url || '',
+        source: data[0].source || '',
+        title: data[0].title || ''
+      } : null,
+      error: result && result.error ? result.error : ''
+    };
+  });
+  console.log('SEARCH_SMOKE', JSON.stringify(searchSmoke));
+  if (!searchSmoke.success || searchSmoke.count < 1 || !searchSmoke.first?.url) {
+    throw new Error('Live search returned no playable results: ' + JSON.stringify(searchSmoke));
+  }
+
+  const relaySmoke = await page.evaluate(async (track) => {
+    const params = new URLSearchParams();
+    params.set('url', track.url);
+    if (track.source) params.set('source', track.source);
+    params.set('weak', '1');
+    const response = await fetch('/proxy.php?' + params.toString(), {
+      headers: { 'Range': 'bytes=0-4095' },
+      cache: 'no-store'
+    });
+    let bytes = 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      const first = await reader.read();
+      bytes = first.value ? first.value.byteLength : 0;
+      await reader.cancel();
+    }
+    return {
+      status: response.status,
+      ok: response.ok,
+      bytes,
+      contentType: response.headers.get('content-type') || '',
+      streamHeader: response.headers.get('x-dag-stream') || ''
+    };
+  }, searchSmoke.first);
+  console.log('RELAY_SMOKE', JSON.stringify(relaySmoke));
+  if (!relaySmoke.ok || relaySmoke.bytes < 1 || ![200, 206].includes(relaySmoke.status)) {
+    throw new Error('Audio relay smoke failed: ' + JSON.stringify(relaySmoke));
+  }
+
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   const yandexErrors = [];
