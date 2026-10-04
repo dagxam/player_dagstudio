@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/live-smoke.yml"
+      - ".github/live-smoke.mjs"
       - "index.php"
       - "script.js"
       - "style.css"
