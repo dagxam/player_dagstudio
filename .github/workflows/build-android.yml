@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dagstudio-player-android
@@ -74,24 +74,89 @@ jobs:
             --splashBackgroundColor "#0b0b0b" \
             --splashBackgroundColorDark "#0b0b0b"
 
-      - name: Build APK
+      - name: Restore or create permanent Preview signing key
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if gh release view android-preview-signing >/dev/null 2>&1; then
+            gh release download android-preview-signing --pattern 'dagstudio-preview.jks' --dir android/app
+          else
+            keytool -genkeypair -v \
+              -keystore android/app/dagstudio-preview.jks \
+              -storepass dagstudio-preview \
+              -keypass dagstudio-preview \
+              -alias dagstudio-preview \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=DAGSTUDIO PLAYER Preview, OU=DAGSTUDIO, O=DAGSTUDIO, L=Preview, ST=Preview, C=RU"
+            gh release create android-preview-signing android/app/dagstudio-preview.jks \
+              --title "DAGSTUDIO PLAYER Preview signing key" \
+              --notes "Служебный ключ только для Preview package ru.dagstudio.player.preview. Не используется для production." \
+              --prerelease
+          fi
+          test -f android/app/dagstudio-preview.jks
+
+      - name: Configure permanent Preview signing
+        run: |
+          cat >> android/app/build.gradle <<'GRADLE'
+
+          android {
+              signingConfigs {
+                  dagstudioPreview {
+                      storeFile file("dagstudio-preview.jks")
+                      storePassword "dagstudio-preview"
+                      keyAlias "dagstudio-preview"
+                      keyPassword "dagstudio-preview"
+                  }
+              }
+              buildTypes {
+                  debug {
+                      applicationIdSuffix ".preview"
+                      versionNameSuffix "-preview"
+                      signingConfig signingConfigs.dagstudioPreview
+                  }
+              }
+          }
+          GRADLE
+
+      - name: Build Preview APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Prepare artifact
+      - name: Verify Preview APK
         run: |
+          set -e
           test -f android/app/build/outputs/apk/debug/app-debug.apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk DAGSTUDIO-PLAYER.apk
-          sha256sum DAGSTUDIO-PLAYER.apk > DAGSTUDIO-PLAYER.apk.sha256
-          unzip -t DAGSTUDIO-PLAYER.apk >/dev/null
-          ls -lh DAGSTUDIO-PLAYER.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk DAGSTUDIO-PLAYER-Preview.apk
+          sha256sum DAGSTUDIO-PLAYER-Preview.apk > DAGSTUDIO-PLAYER-Preview.apk.sha256
+          unzip -t DAGSTUDIO-PLAYER-Preview.apk >/dev/null
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs DAGSTUDIO-PLAYER-Preview.apk
+          ls -lh DAGSTUDIO-PLAYER-Preview.apk
 
-      - name: Upload APK
+      - name: Upload Preview APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DAGSTUDIO-PLAYER-Android
+          name: DAGSTUDIO-PLAYER-Android-Preview
           path: |
-            DAGSTUDIO-PLAYER.apk
-            DAGSTUDIO-PLAYER.apk.sha256
+            DAGSTUDIO-PLAYER-Preview.apk
+            DAGSTUDIO-PLAYER-Preview.apk.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
+
+      - name: Publish permanent GitHub Preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          NOTES="Автоматическая Preview-сборка DAGSTUDIO PLAYER. Package: ru.dagstudio.player.preview. Commit: $GITHUB_SHA"
+          if gh release view android-preview >/dev/null 2>&1; then
+            gh release upload android-preview DAGSTUDIO-PLAYER-Preview.apk DAGSTUDIO-PLAYER-Preview.apk.sha256 --clobber
+            gh release edit android-preview --title "DAGSTUDIO PLAYER Android Preview" --notes "$NOTES" --prerelease
+          else
+            gh release create android-preview DAGSTUDIO-PLAYER-Preview.apk DAGSTUDIO-PLAYER-Preview.apk.sha256 \
+              --title "DAGSTUDIO PLAYER Android Preview" \
+              --notes "$NOTES" \
+              --prerelease
+          fi

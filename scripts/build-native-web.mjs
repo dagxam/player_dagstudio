@@ -24,6 +24,10 @@ html = html
     '<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">'
   )
   .replace(
+    /<a id="android-apk-download-btn"[\s\S]*?<\/a>/i,
+    ''
+  )
+  .replace(
     /<button id="pwa-install-btn"[\s\S]*?<\/button>/i,
     ''
   )

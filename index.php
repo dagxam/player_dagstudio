@@ -127,7 +127,8 @@
             </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
-        <button id="pwa-install-btn" class="menu-list-btn pwa-install-btn" onclick="triggerInstall()" style="margin-top:18px;" aria-live="polite"><i class="fas fa-mobile-screen-button"></i> Установить приложение</button>
+        <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="margin-top:18px; text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
+        <button id="pwa-install-btn" class="menu-list-btn pwa-install-btn" onclick="triggerInstall()" aria-live="polite"><i class="fas fa-mobile-screen-button"></i> Установить веб-версию</button>
     </div>
 </div>
 
