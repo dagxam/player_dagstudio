@@ -12,7 +12,7 @@ if (!class_exists('DOMDocument')) {
 // --- 1. БЕЗОПАСНОСТЬ CORS ---
 $allowed_origins = [
     'https://dagstudio.ru',
-    'https://player.dagstudio.ru',
+    'https://pl.dagstudio.ru',
     'https://localhost',
     'capacitor://localhost',
     'ionic://localhost',

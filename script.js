@@ -1,6 +1,6 @@
 // script.js - V2218 (web + Capacitor native shell)
 
-const DAG_SERVER_ORIGIN = 'https://player.dagstudio.ru';
+const DAG_SERVER_ORIGIN = 'https://pl.dagstudio.ru';
 const NATIVE_SESSION_KEY = 'dag_native_session';
 const IS_NATIVE_APP = window.DAG_NATIVE_APP === true ||
     (!!window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() !== 'web');
@@ -214,7 +214,7 @@ function buildProxyUrl(trackOrUrl, options = {}) {
     const resolvedUrl = resolveMediaUrl(track.url);
     if (!resolvedUrl) return '';
 
-    // Файлы, загруженные самим пользователем на player.dagstudio.ru,
+    // Файлы, загруженные самим пользователем на pl.dagstudio.ru,
     // в нативном приложении можно воспроизводить напрямую.
     if (isDagServerMedia(resolvedUrl)) return resolvedUrl;
 
@@ -412,7 +412,7 @@ function showInstallHelpForCurrentBrowser() {
     } else if (info.androidWebView) {
         help.innerHTML =
             '<b>Встроенный браузер Android / WebView не даёт сайту системный install prompt.</b><br><br>' +
-            'Откройте player.dagstudio.ru в Chrome, Edge, Яндекс Браузере или Samsung Internet.';
+            'Откройте pl.dagstudio.ru в Chrome, Edge, Яндекс Браузере или Samsung Internet.';
     } else if (info.safari && info.mac) {
         help.innerHTML = 'В Safari выберите <b>Файл → Добавить в Dock</b>.';
     } else if (info.firefox && (info.windows || info.mac || info.linux)) {
@@ -578,15 +578,15 @@ async function api(action, data = {}) {
         }
 
         if (/UnknownHost|NAME_NOT_RESOLVED|resolve host|dns|No address associated/i.test(detail)) {
-            return { error: 'Не найден сервер player.dagstudio.ru. Ошибка DNS или интернет-соединения.' };
+            return { error: 'Не найден сервер pl.dagstudio.ru. Ошибка DNS или интернет-соединения.' };
         }
 
         if (/SSL|certificate|CERT_/i.test(detail)) {
-            return { error: 'Не удалось установить защищённое соединение с player.dagstudio.ru.' };
+            return { error: 'Не удалось установить защищённое соединение с pl.dagstudio.ru.' };
         }
 
         if (/timeout|timed out/i.test(detail)) {
-            return { error: 'Сервер player.dagstudio.ru не ответил вовремя.' };
+            return { error: 'Сервер pl.dagstudio.ru не ответил вовремя.' };
         }
 
         return {

@@ -4,7 +4,7 @@
 // включая слабый мобильный интернет и старые WebView.
 
 $allowedOrigins = [
-    'https://player.dagstudio.ru',
+    'https://pl.dagstudio.ru',
     'https://localhost',
     'capacitor://localhost',
     'ionic://localhost',

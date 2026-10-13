@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer-core';
 
-const url = process.env.PLAYER_URL || 'https://player.dagstudio.ru/';
+const url = process.env.PLAYER_URL || 'https://pl.dagstudio.ru/';
 const executablePath = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 
 const browser = await puppeteer.launch({

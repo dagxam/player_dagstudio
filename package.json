@@ -1,6 +1,6 @@
 {
   "name": "dagstudio-player-native",
-  "version": "1.0.0",
+  "version": "1.0.8",
   "private": true,
   "description": "Native Capacitor shell for DAGSTUDIO PLAYER",
   "scripts": {

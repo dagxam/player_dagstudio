@@ -1,6 +1,6 @@
 # DAGSTUDIO PLAYER — нативное приложение
 
-В репозитории используется Capacitor 8. Интерфейс HTML/CSS/JS упаковывается внутрь Android/iOS-приложения, а серверные функции остаются на https://player.dagstudio.ru.
+В репозитории используется Capacitor 8. Интерфейс HTML/CSS/JS упаковывается внутрь Android/iOS-приложения, а серверные функции остаются на https://pl.dagstudio.ru.
 
 ## Что хранится внутри приложения
 
@@ -10,7 +10,7 @@
 - изображения и иконки;
 - Font Awesome.
 
-PHP, SQLite, поиск по внешним источникам и потоковый proxy внутрь APK/IPA не копируются. Приложение обращается к production API на player.dagstudio.ru.
+PHP, SQLite, поиск по внешним источникам и потоковый proxy внутрь APK/IPA не копируются. Приложение обращается к production API на pl.dagstudio.ru.
 
 ## Android
 
