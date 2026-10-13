@@ -17,7 +17,8 @@
   },
   "devDependencies": {
     "@capacitor/assets": "3.0.5",
-    "@capacitor/cli": "^8.0.0"
+    "@capacitor/cli": "^8.0.0",
+    "esbuild": "^0.25.0"
   },
   "engines": {
     "node": ">=22"

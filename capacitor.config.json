@@ -18,6 +18,9 @@
       "resetWhenUpdate": true,
       "autoDeleteFailed": true,
       "autoDeletePrevious": true
+    },
+    "CapacitorHttp": {
+      "enabled": true
     }
   }
 }

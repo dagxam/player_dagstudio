@@ -10,6 +10,9 @@ on:
       - "style.css"
       - "images/**"
       - "scripts/build-native-web.mjs"
+      - "native/**"
+      - "package.json"
+      - "capacitor.config.json"
       - ".github/workflows/build-web-update.yml"
   workflow_dispatch:
 
@@ -46,7 +49,9 @@ jobs:
           test -f www/index.html
           test -f www/script.js
           test -f www/style.css
+          test -f www/native-bridge.js
           node --check www/script.js
+          node --check www/native-bridge.js
           grep -q 'DAG_NATIVE_APP' www/index.html
           grep -q "$GITHUB_SHA" www/index.html
 

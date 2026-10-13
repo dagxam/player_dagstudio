@@ -1,6 +1,7 @@
 import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build as esbuild } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'www');
@@ -34,7 +35,7 @@ html = html
   )
   .replace(
     /<script src="script\.js\?v=[^"]+" defer><\/script>/i,
-    '<script src="script.js" defer></script>'
+    '<script src="native-bridge.js"></script>\n<script src="script.js" defer></script>'
   );
 
 // Root-relative images should stay inside the APK web root.
@@ -43,6 +44,16 @@ html = html.replace(/(href|src)="\/images\//g, '$1="images/');
 await writeFile(join(out, 'index.html'), html, 'utf8');
 await copyFile(join(root, 'script.js'), join(out, 'script.js'));
 await copyFile(join(root, 'style.css'), join(out, 'style.css'));
+
+await esbuild({
+  entryPoints: [join(root, 'native', 'native-bridge.js')],
+  bundle: true,
+  minify: true,
+  platform: 'browser',
+  format: 'iife',
+  target: ['es2017'],
+  outfile: join(out, 'native-bridge.js')
+});
 await cp(join(root, 'images'), join(out, 'images'), { recursive: true });
 
 const faRoot = join(root, 'node_modules', '@fortawesome', 'fontawesome-free');

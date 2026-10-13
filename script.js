@@ -44,11 +44,31 @@ function getCapacitorPlugin(name) {
 }
 
 async function nativeHttpRequest(options) {
-    const http = getCapacitorPlugin('CapacitorHttp');
-    if (!http || typeof http.request !== 'function') {
-        throw new Error('CapacitorHttp недоступен');
+    if (window.DAG_NATIVE_BRIDGE && typeof window.DAG_NATIVE_BRIDGE.httpRequest === 'function') {
+        return window.DAG_NATIVE_BRIDGE.httpRequest(options);
     }
-    return http.request(options);
+
+    const http = getCapacitorPlugin('CapacitorHttp');
+    if (http && typeof http.request === 'function') {
+        return http.request(options);
+    }
+
+    // Если CapacitorHttp.enabled=true, обычный fetch уже патчится нативной реализацией.
+    const response = await fetch(options.url, {
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        body: options.data ? JSON.stringify(options.data) : undefined,
+        cache: 'no-store'
+    });
+
+    let data;
+    const text = await response.text();
+    try { data = JSON.parse(text); } catch (e) { data = text; }
+    return {
+        status: response.status,
+        data: data,
+        headers: {}
+    };
 }
 
 const NATIVE_UPDATE_META_URL =
@@ -57,7 +77,9 @@ const NATIVE_UPDATE_META_URL =
 async function checkNativeLiveUpdate() {
     if (!IS_NATIVE_APP) return;
 
-    const updater = getCapacitorPlugin('CapacitorUpdater');
+    const updater = (window.DAG_NATIVE_BRIDGE && window.DAG_NATIVE_BRIDGE.updater)
+        ? window.DAG_NATIVE_BRIDGE.updater
+        : getCapacitorPlugin('CapacitorUpdater');
     if (!updater) return;
 
     try {
@@ -110,7 +132,7 @@ async function checkNativeLiveUpdate() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2219', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2220', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -122,8 +144,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2219') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2219', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2220') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2220', '1');
         window.location.reload();
     });
 }
@@ -493,7 +515,7 @@ async function api(action, data = {}) {
     try {
         let parsed;
 
-        if (IS_NATIVE_APP && getCapacitorPlugin('CapacitorHttp')) {
+        if (IS_NATIVE_APP) {
             const response = await nativeHttpRequest({
                 url: appServerUrl('/api.php?t=' + Date.now()),
                 method: 'POST',
@@ -546,10 +568,30 @@ async function api(action, data = {}) {
         return parsed || {};
     } catch (e) {
         console.error('API request failed:', action, e);
+
+        const detail = String(
+            (e && (e.message || e.error || (e.data && e.data.message))) || e || ''
+        );
+
         if (e && e.name === 'AbortError') {
             return { error: 'Сервер отвечает слишком долго. Проверьте интернет и повторите.' };
         }
-        return { error: 'Ошибка соединения с сервером. Повторите попытку.' };
+
+        if (/UnknownHost|NAME_NOT_RESOLVED|resolve host|dns|No address associated/i.test(detail)) {
+            return { error: 'Не найден сервер player.dagstudio.ru. Ошибка DNS или интернет-соединения.' };
+        }
+
+        if (/SSL|certificate|CERT_/i.test(detail)) {
+            return { error: 'Не удалось установить защищённое соединение с player.dagstudio.ru.' };
+        }
+
+        if (/timeout|timed out/i.test(detail)) {
+            return { error: 'Сервер player.dagstudio.ru не ответил вовремя.' };
+        }
+
+        return {
+            error: 'Ошибка соединения с сервером.' + (detail ? ' ' + detail.slice(0, 140) : '')
+        };
     }
 }
 

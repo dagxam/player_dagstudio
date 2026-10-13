@@ -8,6 +8,7 @@ on:
       - "package.json"
       - "capacitor.config.json"
       - "scripts/build-native-web.mjs"
+      - "native/**"
       - ".github/workflows/build-android.yml"
   workflow_dispatch:
 
