@@ -106,20 +106,36 @@ async function checkNativeLiveUpdate() {
 
         if (!meta || !meta.version || !meta.url) return;
 
-        const bundledVersion = String(window.DAG_NATIVE_BUILD_VERSION || '');
-        const installedVersion = localStorage.getItem('dag_native_bundle_version') || bundledVersion;
+        let installedVersion = String(window.DAG_NATIVE_BUILD_VERSION || '');
+
+        if (typeof updater.current === 'function') {
+            try {
+                const currentInfo = await updater.current();
+                if (currentInfo && currentInfo.bundle && currentInfo.bundle.version) {
+                    installedVersion = String(currentInfo.bundle.version);
+                }
+            } catch (error) {
+                console.warn('Cannot read current native bundle version:', error);
+            }
+        }
 
         if (installedVersion === String(meta.version)) return;
 
-        const bundle = await updater.download({
+        const downloadOptions = {
             url: String(meta.url),
             version: String(meta.version)
-        });
+        };
+        if (meta.checksum) {
+            downloadOptions.checksum = String(meta.checksum);
+        }
 
-        if (!bundle || !bundle.id) return;
+        const bundle = await updater.download(downloadOptions);
+        if (!bundle || !bundle.id) {
+            throw new Error('Updater did not return bundle id');
+        }
 
+        // set() выбирает новый bundle; reload() сразу перезапускает web-слой.
         await updater.set({ id: bundle.id });
-        localStorage.setItem('dag_native_bundle_version', String(meta.version));
 
         if (typeof updater.reload === 'function') {
             await updater.reload();
@@ -132,7 +148,7 @@ async function checkNativeLiveUpdate() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2220', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2221', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -144,8 +160,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2220') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2220', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2221') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2221', '1');
         window.location.reload();
     });
 }
