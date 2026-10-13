@@ -54,43 +54,28 @@ jobs:
           node --check www/native-bridge.js
           grep -q 'DAG_NATIVE_APP' www/index.html
           grep -q "$GITHUB_SHA" www/index.html
+          grep -q 'https://pl.dagstudio.ru' www/script.js
 
       - name: Package live update with Capgo CLI
         run: |
           set -e
           VERSION="1.0.$GITHUB_RUN_NUMBER"
-          rm -f ./*.zip DAGSTUDIO-PLAYER-web.zip
+          rm -f DAGSTUDIO-PLAYER-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json
 
-          npx @capgo/cli@latest bundle zip ru.dagstudio.player.preview \
-            --path www \
-            --bundle "$VERSION" \
-            --name DAGSTUDIO-PLAYER-web \
-            --no-code-check
+          npx @capgo/cli@latest bundle zip ru.dagstudio.player.preview             --path www             --bundle "$VERSION"             --name DAGSTUDIO-PLAYER-web             --no-code-check
 
-          GENERATED="$(find . -maxdepth 2 -type f -name '*.zip' | head -n 1)"
-          test -n "$GENERATED"
-          if [ "$GENERATED" != "./DAGSTUDIO-PLAYER-web.zip" ]; then
+          if [ -f DAGSTUDIO-PLAYER-web ]; then
+            mv DAGSTUDIO-PLAYER-web DAGSTUDIO-PLAYER-web.zip
+          elif [ -f DAGSTUDIO-PLAYER-web.zip ]; then
+            true
+          else
+            GENERATED="$(find . -maxdepth 2 -type f -name '*.zip' | head -n 1)"
+            test -n "$GENERATED"
             mv "$GENERATED" DAGSTUDIO-PLAYER-web.zip
           fi
 
           unzip -t DAGSTUDIO-PLAYER-web.zip >/dev/null
-          unzip -Z1 DAGSTUDIO-PLAYER-web.zip | grep -Eq '(^|/)index\.html
-      - name: Publish permanent live-update release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          NOTES="Автоматический web-layer update DAGSTUDIO PLAYER. Commit: $GITHUB_SHA"
-          if gh release view android-web >/dev/null 2>&1; then
-            gh release upload android-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json --clobber
-            gh release edit android-web --title "DAGSTUDIO PLAYER Web Update" --notes "$NOTES" --prerelease
-          else
-            gh release create android-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json \
-              --title "DAGSTUDIO PLAYER Web Update" \
-              --notes "$NOTES" \
-              --prerelease
-          fi
-
+          unzip -Z1 DAGSTUDIO-PLAYER-web.zip | grep -Eq '(^|/)index\.html$'
 
           CHECKSUM="$(sha256sum DAGSTUDIO-PLAYER-web.zip | awk '{print $1}')"
           cat > DAGSTUDIO-PLAYER-web-version.json <<JSON
@@ -102,6 +87,7 @@ jobs:
             "commit": "$GITHUB_SHA"
           }
           JSON
+
           python -m json.tool DAGSTUDIO-PLAYER-web-version.json >/dev/null
           echo "Live update version: $VERSION"
           echo "Live update checksum: $CHECKSUM"
@@ -114,10 +100,7 @@ jobs:
           NOTES="Автоматический web-layer update DAGSTUDIO PLAYER. Commit: $GITHUB_SHA"
           if gh release view android-web >/dev/null 2>&1; then
             gh release upload android-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json --clobber
-            gh release edit android-web --title "DAGSTUDIO PLAYER Web Update" --notes "$NOTES" --prerelease
+            gh release edit android-web               --title "DAGSTUDIO PLAYER Web Update"               --notes "$NOTES"               --prerelease
           else
-            gh release create android-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json \
-              --title "DAGSTUDIO PLAYER Web Update" \
-              --notes "$NOTES" \
-              --prerelease
+            gh release create android-web               DAGSTUDIO-PLAYER-web.zip               DAGSTUDIO-PLAYER-web-version.json               --title "DAGSTUDIO PLAYER Web Update"               --notes "$NOTES"               --prerelease
           fi
