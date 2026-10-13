@@ -98,6 +98,16 @@ jobs:
             **/.git*
             **/.git*/**
             **/.github/**
+            package.json
+            package-lock.json
+            capacitor.config.json
+            NATIVE_APP.md
+            scripts/**
+            node_modules/**
+            www/**
+            android/**
+            ios/**
+            assets/**
             player.db
             player.db-*
             sessions/**
