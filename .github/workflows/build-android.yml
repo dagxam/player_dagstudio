@@ -7,13 +7,7 @@ on:
     paths:
       - "package.json"
       - "capacitor.config.json"
-      - "scripts/**"
-      - "index.php"
-      - "script.js"
-      - "style.css"
-      - "images/**"
-      - "api.php"
-      - "proxy.php"
+      - "scripts/build-native-web.mjs"
       - ".github/workflows/build-android.yml"
   workflow_dispatch:
 
@@ -120,6 +114,15 @@ jobs:
               }
           }
           GRADLE
+
+      - name: Set Preview application version
+        run: |
+          set -e
+          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
+          VERSION_NAME="1.0.$GITHUB_RUN_NUMBER-preview"
+          sed -i -E "s/versionCode [0-9]+/versionCode $VERSION_CODE/" android/app/build.gradle
+          sed -i -E "s/versionName \"[^\"]+\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+          grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Build Preview APK
         working-directory: android

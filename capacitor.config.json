@@ -11,5 +11,13 @@
   },
   "android": {
     "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": "off",
+      "resetWhenUpdate": true,
+      "autoDeleteFailed": true,
+      "autoDeletePrevious": true
+    }
   }
 }

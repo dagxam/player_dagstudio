@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'www');
 const assetsDir = join(root, 'assets');
+const buildVersion = process.env.GITHUB_SHA || process.env.DAG_NATIVE_BUILD_VERSION || 'dev';
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
@@ -17,7 +18,7 @@ if (html.includes('<?php')) {
 // PWA-only metadata is unnecessary inside Capacitor.
 html = html
   .replace('<html lang="ru">', '<html lang="ru" class="native-app">')
-  .replace('</head>', '    <script>window.DAG_NATIVE_APP = true;</script>\n</head>')
+  .replace('</head>', `    <script>window.DAG_NATIVE_APP = true; window.DAG_NATIVE_BUILD_VERSION = ${JSON.stringify(buildVersion)};</script>\n</head>`)
   .replace(/\s*<link rel="manifest"[^>]*>\s*/i, '\n')
   .replace(
     /<link rel="stylesheet" href="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/[^"]+\/css\/all\.min\.css">/i,

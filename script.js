@@ -38,10 +38,79 @@ function nativeSessionToken() {
     return IS_NATIVE_APP ? (localStorage.getItem(NATIVE_SESSION_KEY) || '') : '';
 }
 
+function getCapacitorPlugin(name) {
+    if (!IS_NATIVE_APP || !window.Capacitor || !window.Capacitor.Plugins) return null;
+    return window.Capacitor.Plugins[name] || null;
+}
+
+async function nativeHttpRequest(options) {
+    const http = getCapacitorPlugin('CapacitorHttp');
+    if (!http || typeof http.request !== 'function') {
+        throw new Error('CapacitorHttp недоступен');
+    }
+    return http.request(options);
+}
+
+const NATIVE_UPDATE_META_URL =
+    'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
+
+async function checkNativeLiveUpdate() {
+    if (!IS_NATIVE_APP) return;
+
+    const updater = getCapacitorPlugin('CapacitorUpdater');
+    if (!updater) return;
+
+    try {
+        if (typeof updater.notifyAppReady === 'function') {
+            await updater.notifyAppReady();
+        }
+
+        const metaResponse = await nativeHttpRequest({
+            url: NATIVE_UPDATE_META_URL + '?t=' + Date.now(),
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            connectTimeout: 10000,
+            readTimeout: 15000
+        });
+
+        if (!metaResponse || metaResponse.status < 200 || metaResponse.status >= 300) return;
+
+        const meta = typeof metaResponse.data === 'string'
+            ? JSON.parse(metaResponse.data)
+            : metaResponse.data;
+
+        if (!meta || !meta.version || !meta.url) return;
+
+        const bundledVersion = String(window.DAG_NATIVE_BUILD_VERSION || '');
+        const installedVersion = localStorage.getItem('dag_native_bundle_version') || bundledVersion;
+
+        if (installedVersion === String(meta.version)) return;
+
+        const bundle = await updater.download({
+            url: String(meta.url),
+            version: String(meta.version)
+        });
+
+        if (!bundle || !bundle.id) return;
+
+        await updater.set({ id: bundle.id });
+        localStorage.setItem('dag_native_bundle_version', String(meta.version));
+
+        if (typeof updater.reload === 'function') {
+            await updater.reload();
+        }
+    } catch (error) {
+        console.warn('Native live update skipped:', error);
+    }
+}
+
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2218', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2219', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -53,8 +122,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2218') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2218', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2219') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2219', '1');
         window.location.reload();
     });
 }
@@ -413,8 +482,6 @@ document.addEventListener('DOMContentLoaded', setInstallButtonState);
 // --- API & AUTH ---
 async function api(action, data = {}) {
     const payload = Object.assign({}, data, { action: action });
-    const controller = new AbortController();
-    const timeout = setTimeout(function() { controller.abort(); }, action === 'search_global' ? 30000 : 15000);
     const headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -424,42 +491,65 @@ async function api(action, data = {}) {
     if (sessionToken) headers['X-DAG-Session'] = sessionToken;
 
     try {
-        const res = await fetch(appServerUrl('/api.php?t=' + Date.now()), {
-            method: 'POST',
-            credentials: IS_NATIVE_APP ? 'omit' : 'same-origin',
-            cache: 'no-store',
-            headers: headers,
-            body: JSON.stringify(payload),
-            signal: controller.signal
-        });
+        let parsed;
 
-        const text = await res.text();
-        if (!res.ok) {
-            throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 180));
+        if (IS_NATIVE_APP && getCapacitorPlugin('CapacitorHttp')) {
+            const response = await nativeHttpRequest({
+                url: appServerUrl('/api.php?t=' + Date.now()),
+                method: 'POST',
+                headers: headers,
+                data: payload,
+                connectTimeout: action === 'search_global' ? 15000 : 10000,
+                readTimeout: action === 'search_global' ? 30000 : 15000
+            });
+
+            if (!response || response.status < 200 || response.status >= 300) {
+                throw new Error('HTTP ' + (response ? response.status : 0));
+            }
+
+            parsed = typeof response.data === 'string'
+                ? JSON.parse(response.data)
+                : response.data;
+        } else {
+            const controller = new AbortController();
+            const timeout = setTimeout(function() {
+                controller.abort();
+            }, action === 'search_global' ? 30000 : 15000);
+
+            try {
+                const res = await fetch(appServerUrl('/api.php?t=' + Date.now()), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: headers,
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+
+                const text = await res.text();
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 180));
+                }
+                parsed = JSON.parse(text);
+            } finally {
+                clearTimeout(timeout);
+            }
         }
 
-        try {
-            const parsed = JSON.parse(text);
-
-            if (IS_NATIVE_APP && (action === 'login' || action === 'register') && parsed && parsed.session_token) {
-                localStorage.setItem(NATIVE_SESSION_KEY, parsed.session_token);
-            }
-            if (IS_NATIVE_APP && action === 'logout') {
-                localStorage.removeItem(NATIVE_SESSION_KEY);
-            }
-            return parsed;
-        } catch (e) {
-            console.error('JSON Parse Error:', text);
-            return { error: 'Сервер вернул некорректный ответ.' };
+        if (IS_NATIVE_APP && (action === 'login' || action === 'register') && parsed && parsed.session_token) {
+            localStorage.setItem(NATIVE_SESSION_KEY, String(parsed.session_token));
         }
+        if (IS_NATIVE_APP && action === 'logout') {
+            localStorage.removeItem(NATIVE_SESSION_KEY);
+        }
+
+        return parsed || {};
     } catch (e) {
         console.error('API request failed:', action, e);
         if (e && e.name === 'AbortError') {
             return { error: 'Сервер отвечает слишком долго. Проверьте интернет и повторите.' };
         }
-        return { error: 'Ошибка сети или сервера.' };
-    } finally {
-        clearTimeout(timeout);
+        return { error: 'Ошибка соединения с сервером. Повторите попытку.' };
     }
 }
 
@@ -1446,3 +1536,9 @@ window.handleLogout = handleLogout;
 });
 
 checkAuth();
+
+if (IS_NATIVE_APP) {
+    setTimeout(function() {
+        checkNativeLiveUpdate();
+    }, 1200);
+}

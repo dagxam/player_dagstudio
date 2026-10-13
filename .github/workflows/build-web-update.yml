@@ -1,0 +1,85 @@
+name: Publish Android Web Update
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "index.php"
+      - "script.js"
+      - "style.css"
+      - "images/**"
+      - "scripts/build-native-web.mjs"
+      - ".github/workflows/build-web-update.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dagstudio-player-web-update
+  cancel-in-progress: true
+
+jobs:
+  publish-web:
+    name: Publish live web bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install web dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build native web bundle
+        run: npm run native:web
+
+      - name: Validate bundle
+        run: |
+          set -e
+          test -f www/index.html
+          test -f www/script.js
+          test -f www/style.css
+          node --check www/script.js
+          grep -q 'DAG_NATIVE_APP' www/index.html
+          grep -q "$GITHUB_SHA" www/index.html
+
+      - name: Package live update
+        run: |
+          set -e
+          (
+            cd www
+            zip -qr ../DAGSTUDIO-PLAYER-web.zip .
+          )
+          SHA256="$(sha256sum DAGSTUDIO-PLAYER-web.zip | awk '{print $1}')"
+          cat > DAGSTUDIO-PLAYER-web-version.json <<JSON
+          {
+            "version": "$GITHUB_SHA",
+            "url": "https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web.zip",
+            "sha256": "$SHA256"
+          }
+          JSON
+          python -m json.tool DAGSTUDIO-PLAYER-web-version.json >/dev/null
+          unzip -t DAGSTUDIO-PLAYER-web.zip >/dev/null
+
+      - name: Publish permanent live-update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          NOTES="Автоматический web-layer update DAGSTUDIO PLAYER. Commit: $GITHUB_SHA"
+          if gh release view android-web >/dev/null 2>&1; then
+            gh release upload android-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json --clobber
+            gh release edit android-web --title "DAGSTUDIO PLAYER Web Update" --notes "$NOTES" --prerelease
+          else
+            gh release create android-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json \
+              --title "DAGSTUDIO PLAYER Web Update" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
