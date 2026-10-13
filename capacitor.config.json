@@ -1,0 +1,15 @@
+{
+  "appId": "ru.dagstudio.player",
+  "appName": "DAGSTUDIO PLAYER",
+  "webDir": "www",
+  "backgroundColor": "#0b0b0b",
+  "appendUserAgent": " DAGSTUDIO-NATIVE/1.0",
+  "server": {
+    "hostname": "localhost",
+    "androidScheme": "https",
+    "iosScheme": "capacitor"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -11,3 +11,11 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+
+# Native Capacitor build output
+/node_modules/
+/www/
+/android/
+/ios/
+/assets/

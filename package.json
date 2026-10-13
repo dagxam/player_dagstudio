@@ -1,0 +1,24 @@
+{
+  "name": "dagstudio-player-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native Capacitor shell for DAGSTUDIO PLAYER",
+  "scripts": {
+    "native:web": "node scripts/build-native-web.mjs",
+    "native:android:sync": "npm run native:web && npx cap sync android",
+    "native:ios:sync": "npm run native:web && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@fortawesome/fontawesome-free": "6.7.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

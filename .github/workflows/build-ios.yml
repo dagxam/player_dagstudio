@@ -1,0 +1,51 @@
+name: Prepare iOS App
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-ios:
+    name: Build iOS simulator app
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install native dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build local web shell
+        run: npm run native:web
+
+      - name: Create iOS project
+        run: |
+          rm -rf ios
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Generate DAGSTUDIO icons and splash
+        run: |
+          npx @capacitor/assets generate --ios \
+            --iconBackgroundColor "#0b0b0b" \
+            --iconBackgroundColorDark "#0b0b0b" \
+            --splashBackgroundColor "#0b0b0b" \
+            --splashBackgroundColorDark "#0b0b0b"
+
+      - name: Validate iOS build without signing
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build

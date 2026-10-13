@@ -3,6 +3,26 @@
 // Цель: одинаково устойчиво обслуживать все музыкальные источники на Android,
 // включая слабый мобильный интернет и старые WebView.
 
+$allowedOrigins = [
+    'https://player.dagstudio.ru',
+    'https://localhost',
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost'
+];
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
+    header('Access-Control-Allow-Credentials: true');
+}
+header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
+header('Access-Control-Allow-Headers: Range, Content-Type');
+header('Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length, Content-Type, X-DAG-Stream, X-DAG-Network-Mode');
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 $url = trim($_GET['url'] ?? '');
 $source = strtolower(trim($_GET['source'] ?? ''));
 $forceNoRange = (string)($_GET['norange'] ?? '') === '1';

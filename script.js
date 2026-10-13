@@ -1,9 +1,47 @@
-// script.js - V2208 (universal Android streaming resilience)
+// script.js - V2218 (web + Capacitor native shell)
+
+const DAG_SERVER_ORIGIN = 'https://player.dagstudio.ru';
+const NATIVE_SESSION_KEY = 'dag_native_session';
+const IS_NATIVE_APP = window.DAG_NATIVE_APP === true ||
+    (!!window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() !== 'web');
+
+function appServerUrl(path) {
+    const value = String(path || '');
+    if (/^https?:\/\//i.test(value)) return value;
+    if (!IS_NATIVE_APP) return value;
+    return DAG_SERVER_ORIGIN + (value.startsWith('/') ? value : '/' + value);
+}
+
+function resolveMediaUrl(url) {
+    const value = String(url || '').trim();
+    if (!value) return '';
+    if (/^(https?:|blob:|data:)/i.test(value)) return value;
+    if (IS_NATIVE_APP) return DAG_SERVER_ORIGIN + '/' + value.replace(/^\/+/, '');
+    return value;
+}
+
+function isRemoteMediaUrl(url) {
+    return /^https?:\/\//i.test(resolveMediaUrl(url));
+}
+
+function isDagServerMedia(url) {
+    const value = resolveMediaUrl(url);
+    return value.startsWith(DAG_SERVER_ORIGIN + '/uploads/');
+}
+
+function shouldProxyMedia(url) {
+    const value = resolveMediaUrl(url);
+    return /^https?:\/\//i.test(value) && !isDagServerMedia(value);
+}
+
+function nativeSessionToken() {
+    return IS_NATIVE_APP ? (localStorage.getItem(NATIVE_SESSION_KEY) || '') : '';
+}
 
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
-if ('serviceWorker' in navigator) {
+if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2216', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2218', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -15,8 +53,8 @@ if ('serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2216') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2216', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2218') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2218', '1');
         window.location.reload();
     });
 }
@@ -82,16 +120,22 @@ function isWeakConnection() {
 
 function buildProxyUrl(trackOrUrl, options = {}) {
     const track = typeof trackOrUrl === 'string' ? { url: trackOrUrl } : (trackOrUrl || {});
-    if (!track.url) return '';
+    const resolvedUrl = resolveMediaUrl(track.url);
+    if (!resolvedUrl) return '';
+
+    // Файлы, загруженные самим пользователем на player.dagstudio.ru,
+    // в нативном приложении можно воспроизводить напрямую.
+    if (isDagServerMedia(resolvedUrl)) return resolvedUrl;
+
     const params = new URLSearchParams();
-    params.set('url', track.url);
+    params.set('url', resolvedUrl);
     if (track.source) {
         params.set('source', String(track.source).replace(/[^A-Za-z0-9_\[\]]/g, ''));
     }
     if (options.weak || isWeakConnection()) params.set('weak', '1');
     if (options.norange) params.set('norange', '1');
     if (options.retry) params.set('retry', String(options.retry));
-    return 'proxy.php?' + params.toString();
+    return appServerUrl('/proxy.php?' + params.toString());
 }
 const titleEl = document.getElementById('track-title'); 
 const artistEl = document.getElementById('track-artist'); 
@@ -103,7 +147,8 @@ const durTimeEl = document.getElementById('dur-time');
 
 // --- УМНОЕ ЦЕЛЕВОЕ КЭШИРОВАНИЕ ---
 async function cacheTrackSilently(url) {
-    if (!url || !url.startsWith('http') || !navigator.onLine || !('caches' in window)) return;
+    const resolvedUrl = resolveMediaUrl(url);
+    if (IS_NATIVE_APP || !resolvedUrl || !/^https?:\/\//i.test(resolvedUrl) || !navigator.onLine || !('caches' in window)) return;
 
     // На слабом интернете фоновое скачивание удваивает трафик и мешает
     // текущему воспроизведению. Кэшируем только когда сеть нормальная
@@ -123,9 +168,18 @@ async function cacheTrackSilently(url) {
 }
 
 async function getDeviceCachedAudio(url) {
-    if (!url || !url.startsWith('http')) return { url: url, isBlob: false, inCache: false };
+    const resolvedUrl = resolveMediaUrl(url);
+    if (!resolvedUrl) return { url: resolvedUrl, isBlob: false, inCache: false };
 
-    if ('caches' in window) {
+    if (isDagServerMedia(resolvedUrl)) {
+        return { url: resolvedUrl, isBlob: false, inCache: false };
+    }
+
+    if (!/^https?:\/\//i.test(resolvedUrl)) {
+        return { url: resolvedUrl, isBlob: false, inCache: false };
+    }
+
+    if (!IS_NATIVE_APP && 'caches' in window) {
         try {
             const cache = await caches.open('dag-audio-cache');
             const normalProxy = buildProxyUrl(url);
@@ -172,7 +226,7 @@ window.downloadTrack = function(index) {
     if (!track || !track.url) return;
     const safeTitle = `${track.artist} - ${track.title}`;
     showNotification(`Начинаем скачивание: ${safeTitle}`);
-    const downloadUrl = `download.php?url=${encodeURIComponent(track.url)}&title=${encodeURIComponent(safeTitle)}`;
+    const downloadUrl = appServerUrl(`/download.php?url=${encodeURIComponent(resolveMediaUrl(track.url))}&title=${encodeURIComponent(safeTitle)}`);
     const a = document.createElement('a');
     a.href = downloadUrl;
     a.setAttribute('download', safeTitle + '.mp3'); 
@@ -194,7 +248,7 @@ const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
 const isAndroid = /Android/i.test(navigator.userAgent);
 
 function isAppStandalone() {
-    return appInstalledThisSession ||
+    return IS_NATIVE_APP || appInstalledThisSession ||
         window.matchMedia('(display-mode: standalone)').matches ||
         window.matchMedia('(display-mode: fullscreen)').matches ||
         window.navigator.standalone === true ||
@@ -361,16 +415,20 @@ async function api(action, data = {}) {
     const payload = Object.assign({}, data, { action: action });
     const controller = new AbortController();
     const timeout = setTimeout(function() { controller.abort(); }, action === 'search_global' ? 30000 : 15000);
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    };
+
+    const sessionToken = nativeSessionToken();
+    if (sessionToken) headers['X-DAG-Session'] = sessionToken;
 
     try {
-        const res = await fetch('/api.php?t=' + Date.now(), {
+        const res = await fetch(appServerUrl('/api.php?t=' + Date.now()), {
             method: 'POST',
-            credentials: 'same-origin',
+            credentials: IS_NATIVE_APP ? 'omit' : 'same-origin',
             cache: 'no-store',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify(payload),
             signal: controller.signal
         });
@@ -381,7 +439,15 @@ async function api(action, data = {}) {
         }
 
         try {
-            return JSON.parse(text);
+            const parsed = JSON.parse(text);
+
+            if (IS_NATIVE_APP && (action === 'login' || action === 'register') && parsed && parsed.session_token) {
+                localStorage.setItem(NATIVE_SESSION_KEY, parsed.session_token);
+            }
+            if (IS_NATIVE_APP && action === 'logout') {
+                localStorage.removeItem(NATIVE_SESSION_KEY);
+            }
+            return parsed;
         } catch (e) {
             console.error('JSON Parse Error:', text);
             return { error: 'Сервер вернул некорректный ответ.' };
@@ -404,7 +470,11 @@ async function checkAuth() {
         if(res.theme) setTheme(res.theme, false);
         await loadUserData(); 
     } 
-    else { currentUser = null; await loadUserData(); } 
+    else {
+        currentUser = null;
+        if (IS_NATIVE_APP) localStorage.removeItem(NATIVE_SESSION_KEY);
+        await loadUserData();
+    } 
 }
 
 async function loadUserData() { 
@@ -609,7 +679,17 @@ async function handleLocalFileSelect(input) {
             formData.append('playlist_id', activePlIdForUpload);
             formData.append('file', input.files[i]);
             try {
-                const res = await fetch('api.php', { method: 'POST', body: formData });
+                const uploadHeaders = {};
+                const sessionToken = nativeSessionToken();
+                if (sessionToken) uploadHeaders['X-DAG-Session'] = sessionToken;
+
+                const res = await fetch(appServerUrl('/api.php'), {
+                    method: 'POST',
+                    credentials: IS_NATIVE_APP ? 'omit' : 'same-origin',
+                    cache: 'no-store',
+                    headers: uploadHeaders,
+                    body: formData
+                });
                 const data = await res.json();
                 if(data.success) successCount++;
             } catch(e) {}
@@ -675,7 +755,7 @@ async function recoverCurrentStream(reason) {
 
     clearStreamRecoveryTimer();
 
-    if (!navigator.onLine && track.url.startsWith('http')) {
+    if (!navigator.onLine && isRemoteMediaUrl(track.url)) {
         networkRetryPending = true;
         showLoader(true);
         titleEl.textContent = track.title;
@@ -707,9 +787,9 @@ async function recoverCurrentStream(reason) {
 
     const retry = track._streamRetries;
     const useNoRange = retry >= 3;
-    let retryUrl = track.url;
+    let retryUrl = resolveMediaUrl(track.url);
 
-    if (track.url.startsWith('http')) {
+    if (shouldProxyMedia(track.url)) {
         // Последняя попытка может идти напрямую: это помогает источникам,
         // которые не дружат с relay, но сначала всегда используем наш устойчивый proxy.
         if (retry < MAX_STREAM_RETRIES) {
@@ -869,10 +949,10 @@ async function playTrack(index) {
     mainAudio.load();
 
     try {
-        let finalUrl = track.url;
+        let finalUrl = resolveMediaUrl(track.url);
         let isCached = false;
 
-        if (track.url && track.url.startsWith('http')) {
+        if (track.url && shouldProxyMedia(track.url)) {
             if (currentTab !== 'search') {
                 const cachedRes = await getDeviceCachedAudio(track.url);
                 if (token !== currentPlaybackToken) return;
@@ -889,7 +969,7 @@ async function playTrack(index) {
             }
         }
 
-        if (!navigator.onLine && !isCached && track.url && track.url.startsWith('http')) {
+        if (!navigator.onLine && !isCached && track.url && isRemoteMediaUrl(track.url)) {
             networkRetryPending = true;
             showLoader(true);
             titleEl.textContent = track.title;
@@ -1199,7 +1279,7 @@ function renderPlaylist() {
             iconHtml = `<div class="track-icon-box link" style="margin-right:12px;"><i class="fas fa-music"></i></div>`;
         }
         
-        const downloadBtn = (t.url && t.url.startsWith('http')) 
+        const downloadBtn = (t.url && isRemoteMediaUrl(t.url)) 
             ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>` 
             : '';
 
@@ -1268,7 +1348,7 @@ async function addToPlaylist(plId) {
     await loadUserData(); 
     
     // Как только трек добавлен в плейлист, даем команду на его кэширование в фоне!
-    if (navigator.onLine && trackData.url.startsWith('http')) {
+    if (navigator.onLine && isRemoteMediaUrl(trackData.url)) {
         cacheTrackSilently(trackData.url);
     }
 }

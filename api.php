@@ -13,6 +13,9 @@ if (!class_exists('DOMDocument')) {
 $allowed_origins = [
     'https://dagstudio.ru',
     'https://player.dagstudio.ru',
+    'https://localhost',
+    'capacitor://localhost',
+    'ionic://localhost',
     'http://localhost',
     'http://127.0.0.1'
 ];
@@ -25,7 +28,7 @@ if (in_array($origin, $allowed_origins)) {
 }
 
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, X-DAG-Session");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
@@ -53,6 +56,13 @@ session_set_cookie_params([
     'httponly' => true,
     'samesite' => 'Lax'
 ]);
+
+// Нативный Capacitor-клиент передаёт тот же PHP session id в отдельном заголовке.
+// Это не зависит от third-party cookies внутри Android/iOS WebView.
+$native_session_id = trim($_SERVER['HTTP_X_DAG_SESSION'] ?? '');
+if ($native_session_id !== '' && preg_match('/^[A-Za-z0-9,-]{16,128}$/', $native_session_id)) {
+    session_id($native_session_id);
+}
 
 // Важно для скорости! Снимаем блокировку сессии, чтобы параллельные запросы не висли
 session_start();
@@ -103,7 +113,8 @@ if ($action === 'register') {
             echo json_encode([
                 'success' => true,
                 'username' => $name,
-                'theme' => 'brown'
+                'theme' => 'brown',
+                'session_token' => session_id()
             ]);
         } else {
             echo json_encode(['error' => 'Ошибка базы данных. Попробуйте позже.']);
@@ -121,7 +132,12 @@ elseif ($action === 'login') {
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
-            echo json_encode(['success' => true, 'username' => $user['username'], 'theme' => $user['theme'] ?? 'brown']);
+            echo json_encode([
+                'success' => true,
+                'username' => $user['username'],
+                'theme' => $user['theme'] ?? 'brown',
+                'session_token' => session_id()
+            ]);
         } else { echo json_encode(['error' => 'Неверный логин или пароль']); }
     } catch (Exception $e) { echo json_encode(['error' => 'Произошла внутренняя ошибка сервера.']); }
 }

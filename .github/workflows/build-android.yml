@@ -1,0 +1,95 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "package.json"
+      - "capacitor.config.json"
+      - "scripts/**"
+      - "index.php"
+      - "script.js"
+      - "style.css"
+      - "images/**"
+      - "api.php"
+      - "proxy.php"
+      - ".github/workflows/build-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dagstudio-player-android
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install native dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build local web shell
+        run: npm run native:web
+
+      - name: Create Android project
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+
+      - name: Generate DAGSTUDIO icons and splash
+        run: |
+          npx @capacitor/assets generate --android \
+            --iconBackgroundColor "#0b0b0b" \
+            --iconBackgroundColorDark "#0b0b0b" \
+            --splashBackgroundColor "#0b0b0b" \
+            --splashBackgroundColorDark "#0b0b0b"
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Prepare artifact
+        run: |
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk DAGSTUDIO-PLAYER.apk
+          sha256sum DAGSTUDIO-PLAYER.apk > DAGSTUDIO-PLAYER.apk.sha256
+          unzip -t DAGSTUDIO-PLAYER.apk >/dev/null
+          ls -lh DAGSTUDIO-PLAYER.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DAGSTUDIO-PLAYER-Android
+          path: |
+            DAGSTUDIO-PLAYER.apk
+            DAGSTUDIO-PLAYER.apk.sha256
+          if-no-files-found: error
+          retention-days: 30

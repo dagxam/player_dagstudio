@@ -49,7 +49,11 @@ jobs:
           PASS="SmokePass_$GITHUB_RUN_ID"
 
           REGISTER="$(curl --fail --silent --show-error -c /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"register\",\"name\":\"$USER\",\"pass\":\"$PASS\"}" http://127.0.0.1:8765/api.php)"
-          echo "$REGISTER" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True and d.get("username")'
+          echo "$REGISTER" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True and d.get("username") and d.get("session_token")'
+          NATIVE_SESSION="$(echo "$REGISTER" | python -c 'import sys,json; print(json.load(sys.stdin)["session_token"])')"
+
+          AUTH_NATIVE="$(curl --fail --silent --show-error -H "X-DAG-Session: $NATIVE_SESSION" -H 'Content-Type: application/json' --data '{"action":"check_auth"}' http://127.0.0.1:8765/api.php)"
+          echo "$AUTH_NATIVE" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("logged_in") is True'
 
           AUTH1="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"check_auth"}' http://127.0.0.1:8765/api.php)"
           echo "$AUTH1" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("logged_in") is True'
@@ -115,7 +119,7 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2216'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2218'
 
           MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/manifest.json?v=$EXPECTED")"
           echo "$MANIFEST_JSON" | python -m json.tool > /dev/null
