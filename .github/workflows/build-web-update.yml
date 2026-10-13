@@ -59,7 +59,7 @@ jobs:
       - name: Package live update with Capgo CLI
         run: |
           set -e
-          VERSION="1.0.$GITHUB_RUN_NUMBER"
+          VERSION="1000.0.$GITHUB_RUN_NUMBER"
           rm -f DAGSTUDIO-PLAYER-web DAGSTUDIO-PLAYER-web.zip DAGSTUDIO-PLAYER-web-version.json
 
           npx @capgo/cli@latest bundle zip ru.dagstudio.player.preview             --path www             --bundle "$VERSION"             --name DAGSTUDIO-PLAYER-web             --no-code-check

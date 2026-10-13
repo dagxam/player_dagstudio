@@ -74,8 +74,19 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 
-async function checkNativeLiveUpdate() {
-    if (!IS_NATIVE_APP) return;
+let nativeUpdateCheckInFlight = false;
+let nativeLastUpdateCheckAt = 0;
+
+async function checkNativeLiveUpdate(force = false) {
+    if (!IS_NATIVE_APP || nativeUpdateCheckInFlight) return;
+
+    const now = Date.now();
+    if (!force && nativeLastUpdateCheckAt && (now - nativeLastUpdateCheckAt) < 5 * 60 * 1000) {
+        return;
+    }
+
+    nativeUpdateCheckInFlight = true;
+    nativeLastUpdateCheckAt = now;
 
     const updater = (window.DAG_NATIVE_BRIDGE && window.DAG_NATIVE_BRIDGE.updater)
         ? window.DAG_NATIVE_BRIDGE.updater
@@ -142,6 +153,8 @@ async function checkNativeLiveUpdate() {
         }
     } catch (error) {
         console.warn('Native live update skipped:', error);
+    } finally {
+        nativeUpdateCheckInFlight = false;
     }
 }
 
@@ -1597,6 +1610,20 @@ checkAuth();
 
 if (IS_NATIVE_APP) {
     setTimeout(function() {
-        checkNativeLiveUpdate();
+        checkNativeLiveUpdate(true);
     }, 1200);
+
+    // Вторая попытка после запуска полезна на слабом мобильном интернете.
+    setTimeout(function() {
+        checkNativeLiveUpdate(true);
+    }, 10000);
+
+    // При возврате в приложение повторяем проверку, но не чаще раза в 5 минут.
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            setTimeout(function() {
+                checkNativeLiveUpdate(false);
+            }, 600);
+        }
+    });
 }
