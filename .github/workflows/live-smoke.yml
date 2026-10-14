@@ -34,6 +34,22 @@ jobs:
       - name: Install browser test dependency
         run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
 
+      - name: Wait for this commit on production
+        run: |
+          set -e
+          EXPECTED="$GITHUB_SHA"
+          for attempt in $(seq 1 36); do
+            ACTUAL="$(curl --fail --silent --show-error --location --max-time 10 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "https://pl.dagstudio.ru/deploy-$EXPECTED.txt" || true)"
+            if [ "$ACTUAL" = "$EXPECTED" ]; then
+              echo "Production is ready at $EXPECTED"
+              exit 0
+            fi
+            echo "Waiting for production deploy ($attempt/36)..."
+            sleep 5
+          done
+          echo "Production did not reach commit $EXPECTED"
+          exit 1
+
       - name: Run live browser smoke test
         env:
           PLAYER_URL: https://pl.dagstudio.ru/

@@ -92,7 +92,40 @@ jobs:
           printf '%s' "$GITHUB_SHA" > "deploy-$GITHUB_SHA.txt"
 
       - name: Deploy site over FTP
+        id: ftp_primary
+        continue-on-error: true
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ env.FTP_SERVER }}
+          username: ${{ env.FTP_USERNAME }}
+          password: ${{ env.FTP_PASSWORD }}
+          server-dir: ${{ env.FTP_SERVER_DIR }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            package.json
+            package-lock.json
+            capacitor.config.json
+            NATIVE_APP.md
+            scripts/**
+            node_modules/**
+            www/**
+            android/**
+            ios/**
+            assets/**
+            player.db
+            player.db-*
+            sessions/**
+            uploads/**
+            cache/**
+            *.log
+
+      - name: Retry FTP deploy after connection timeout
+        if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' && steps.ftp_primary.outcome != 'success' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ env.FTP_SERVER }}
