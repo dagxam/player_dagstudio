@@ -144,8 +144,8 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2228'
-          echo "$INDEX_HTML" | grep -q 'style.css?v=2224'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2229'
+          echo "$INDEX_HTML" | grep -q 'style.css?v=2225'
           echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'
           echo "$INDEX_HTML" | grep -q 'id="app-update-btn"'
           echo "$INDEX_HTML" | grep -q 'id="app-version-footer"'

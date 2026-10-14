@@ -76,7 +76,7 @@ async function nativeHttpRequest(options) {
 
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const WEB_BUILD_LABEL = '2228';
+const WEB_BUILD_LABEL = '2229';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -163,6 +163,21 @@ async function getInstalledBundleVersion() {
     return '';
 }
 
+// Не устанавливаем более старую OTA-версию поверх новой.
+// Для стандартных номеров X.Y.Z достаточно сравнения чисел по компонентам.
+function compareOtaVersions(installed, available) {
+    const pattern = /^(\d+)\.(\d+)\.(\d+)$/;
+    const current = String(installed || '').match(pattern);
+    const next = String(available || '').match(pattern);
+    if (!current || !next) return null;
+    for (let i = 1; i <= 3; i++) {
+        const a = Number(current[i]);
+        const b = Number(next[i]);
+        if (a !== b) return a > b ? 1 : -1;
+    }
+    return 0;
+}
+
 function setManualUpdateButtonState(state, text) {
     const btn = document.getElementById('app-update-btn');
     if (!btn) return;
@@ -227,20 +242,27 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
         }
 
         const meta = await fetchUpdateJson(NATIVE_UPDATE_META_URL);
-        if (!meta || !meta.version || !meta.url) {
-            throw new Error('Некорректные данные обновления');
+        if (!meta || !meta.version || !meta.url ||
+            !/^\d+\.\d+\.\d+$/.test(String(meta.version)) ||
+            !/^https:\/\/github\.com\/dagxam\/player_dagstudio\/releases\/download\/android-web\/DAGSTUDIO-PLAYER-web\.zip$/.test(String(meta.url)) ||
+            !/^[a-f0-9]{64}$/i.test(String(meta.checksum || ''))) {
+            throw new Error('Некорректные данные или контрольная сумма OTA-обновления');
         }
 
-        let installedVersion = await getInstalledBundleVersion();
-        if (!installedVersion) {
-            installedVersion = String(window.DAG_NATIVE_BUILD_VERSION || 'builtin');
-        }
+        const installedBundleVersion = await getInstalledBundleVersion();
+        const installedVersion = installedBundleVersion || String(window.DAG_NATIVE_BUILD_VERSION || 'builtin');
+        const latestVersion = String(meta.version);
+        const builtInCommit = String(window.DAG_NATIVE_BUILD_VERSION || '');
 
-        if (installedVersion === String(meta.version)) {
+        // Свежесобранный APK уже содержит этот же интерфейс; повторный ZIP не нужен.
+        const sameBuiltInFiles = !installedBundleVersion && /^[a-f0-9]{40}$/i.test(builtInCommit) &&
+            builtInCommit === String(meta.commit || '');
+        const order = compareOtaVersions(installedBundleVersion, latestVersion);
+        if (sameBuiltInFiles || installedVersion === latestVersion || (order !== null && order >= 0)) {
             return {
                 status: 'current',
                 installedVersion,
-                latestVersion: String(meta.version)
+                latestVersion
             };
         }
 
@@ -275,6 +297,8 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
             latestVersion: String(meta.version)
         };
     } catch (error) {
+        // При временной ошибке разрешаем повторную автоматическую попытку.
+        nativeLastUpdateCheckAt = 0;
         console.warn('Native live update skipped:', error);
         return {
             status: 'error',
@@ -292,12 +316,29 @@ window.manualUpdateApplication = async function() {
         // В веб/PWA ничего не скачиваем как APK: обновляем Service Worker
         // и перезагружаем приложение с актуальными файлами сайта.
         if (!IS_NATIVE_APP) {
+            // Сначала убеждаемся, что сервер доступен. При отсутствии сети
+            // офлайн-оболочку не трогаем и не ломаем проигрывание музыки.
+            const response = await fetch('/index.php?ota-check=' + Date.now(), {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache' }
+            });
+            if (!response.ok) throw new Error('Сервер обновлений недоступен: HTTP ' + response.status);
+
             const registration = await serviceWorkerRegistrationPromise;
             if (registration && typeof registration.update === 'function') {
-                try { await registration.update(); } catch (error) {}
+                await registration.update();
             }
 
             setManualUpdateButtonState('is-checking', 'Применяем обновление…');
+            // Старый SW может отдавать устаревшие script.js/style.css из cache-first.
+            // Удаляем ТОЛЬКО кэш интерфейса; загруженные треки и данные не затрагиваем.
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                const shellKeys = keys.filter(function(key) {
+                    return key.indexOf('dagstudio-player-shell-') === 0;
+                });
+                await Promise.all(shellKeys.map(function(key) { return caches.delete(key); }));
+            }
             const url = new URL(window.location.href);
             url.searchParams.set('update', Date.now().toString());
             window.location.replace(url.toString());
@@ -325,7 +366,8 @@ window.manualUpdateApplication = async function() {
         }
 
         if (result.status === 'busy') {
-            setManualUpdateButtonState('is-checking', 'Обновление уже выполняется…');
+            // Автоматическая проверка уже работает: не блокируем кнопку навсегда.
+            setManualUpdateButtonState('is-ready', 'Обновление уже выполняется · Проверить ещё раз');
             return;
         }
 
@@ -344,7 +386,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2228', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2229', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -356,8 +398,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2228') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2228', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2229') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2229', '1');
         window.location.reload();
     });
 }

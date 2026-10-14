@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2224" as="style">
-    <link rel="stylesheet" href="style.css?v=2224">
+    <link rel="preload" href="style.css?v=2225" as="style">
+    <link rel="stylesheet" href="style.css?v=2225">
 </head>
 <body>
 
@@ -173,7 +173,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2228" defer></script>
+<script src="script.js?v=2229" defer></script>
 
 </body>
 </html>

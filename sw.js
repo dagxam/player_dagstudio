@@ -1,12 +1,12 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2228';
-const RUNTIME_CACHE = 'dagstudio-player-runtime-v2228';
+const CACHE_NAME = 'dagstudio-player-shell-v2229';
+const RUNTIME_CACHE = 'dagstudio-player-runtime-v2229';
 
 const CORE_ASSETS = [
     '/',
     '/index.php',
-    '/style.css?v=2224',
-    '/script.js?v=2228',
+    '/style.css?v=2225',
+    '/script.js?v=2229',
     '/manifest.json?v=2216',
     '/images/faviconch.png',
     '/images/icon-192.png',
@@ -124,7 +124,34 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // Локальная статика: cache-first, затем сеть.
+    // CSS/JS/manifest: сначала пробуем свежий файл. В офлайне и на слабом
+    // интернете быстро возвращаем сохранённую копию без долгой блокировки.
+    if (url.origin === self.location.origin &&
+        /\.(css|js|json)$/.test(url.pathname)) {
+        event.respondWith((async function() {
+            const cached = await caches.match(request);
+            const network = fetch(request, { cache: 'no-store' })
+                .then(async function(response) {
+                    if (response && response.ok) {
+                        const cache = await caches.open(CACHE_NAME);
+                        await cache.put(request, response.clone());
+                    }
+                    return response;
+                })
+                .catch(function() { return null; });
+            if (!cached) return (await network) || Response.error();
+            const timeout = new Promise(function(resolve) {
+                setTimeout(function() { resolve(null); }, 1600);
+            });
+            const fresh = await Promise.race([network, timeout]);
+            if (fresh) return fresh;
+            event.waitUntil(network.then(function() {}).catch(function() {}));
+            return cached;
+        })());
+        return;
+    }
+
+    // Остальная локальная статика: cache-first, затем сеть.
     event.respondWith(
         caches.match(request).then(function(cached) {
             if (cached) return cached;
