@@ -76,11 +76,7 @@ async function nativeHttpRequest(options) {
 
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const NATIVE_APK_META_URL =
-    'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-native-version.json';
-const NATIVE_APK_DIRECT_URL =
-    'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2227';
+const WEB_BUILD_LABEL = '2228';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -208,26 +204,6 @@ async function refreshAppVersionInfo() {
     }
 }
 
-async function openExternalUpdateUrl(url) {
-    if (IS_NATIVE_APP &&
-        window.DAG_NATIVE_BRIDGE &&
-        typeof window.DAG_NATIVE_BRIDGE.openExternal === 'function') {
-        try {
-            await window.DAG_NATIVE_BRIDGE.openExternal({ url: String(url) });
-            return;
-        } catch (error) {
-            // Старые APK ещё могут не содержать Browser plugin. В этом случае
-            // пытаемся открыть ссылку обычным способом, чтобы обновление не тупиковало.
-            console.warn('Native external browser unavailable, using fallback:', error);
-        }
-    }
-
-    const opened = window.open(String(url), '_blank', 'noopener,noreferrer');
-    if (!opened) {
-        window.location.href = String(url);
-    }
-}
-
 async function checkNativeLiveUpdate(force = false, manual = false) {
     if (!IS_NATIVE_APP) return { status: 'web' };
     if (nativeUpdateCheckInFlight) return { status: 'busy' };
@@ -289,11 +265,9 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
             setManualUpdateButtonState('is-checking', 'Устанавливаем обновление…');
         }
 
+        // По документации CapacitorUpdater.set() сразу переключает bundle
+        // и перезапускает WebView. Код после этой строки может уже не выполниться.
         await updater.set({ id: bundle.id });
-
-        if (typeof updater.reload === 'function') {
-            await updater.reload();
-        }
 
         return {
             status: 'updated',
@@ -315,42 +289,35 @@ window.manualUpdateApplication = async function() {
     setManualUpdateButtonState('is-checking', 'Проверяем обновления…');
 
     try {
+        // В веб/PWA ничего не скачиваем как APK: обновляем Service Worker
+        // и перезагружаем приложение с актуальными файлами сайта.
         if (!IS_NATIVE_APP) {
-            setManualUpdateButtonState('is-ready', 'Скачать последнюю версию');
-            await openExternalUpdateUrl(NATIVE_APK_DIRECT_URL);
+            const registration = await serviceWorkerRegistrationPromise;
+            if (registration && typeof registration.update === 'function') {
+                try { await registration.update(); } catch (error) {}
+            }
+
+            setManualUpdateButtonState('is-checking', 'Применяем обновление…');
+            const url = new URL(window.location.href);
+            url.searchParams.set('update', Date.now().toString());
+            window.location.replace(url.toString());
             return;
         }
 
-        const appInfo = await getNativeAppInfoSafe();
-
-        // Сначала проверяем нативную APK-версию. Если versionCode выше,
-        // web-обновлением её заменить нельзя — открываем системную загрузку APK.
-        try {
-            const nativeMeta = await fetchUpdateJson(NATIVE_APK_META_URL);
-            const currentBuild = Number.parseInt(String(appInfo.build || '0'), 10) || 0;
-            const latestBuild = Number.parseInt(String(nativeMeta?.version_code || '0'), 10) || 0;
-
-            if (latestBuild > currentBuild && nativeMeta?.url) {
-                setManualUpdateButtonState('is-ready', 'Доступна версия ' + String(nativeMeta.version || 'новая'));
-                showNotification('Доступна новая версия приложения ' +
-                    String(nativeMeta.version || '') + '. Открываю загрузку обновления.');
-                await openExternalUpdateUrl(String(nativeMeta.url));
-                return;
-            }
-        } catch (nativeMetaError) {
-            console.warn('Native APK update metadata unavailable:', nativeMetaError);
-        }
-
+        // Нативное Android-приложение обновляется только встроенным OTA bundle.
+        // Никаких переходов в браузер и автоматических скачиваний APK.
         const result = await checkNativeLiveUpdate(true, true);
 
         if (result.status === 'updated') {
+            // Обычно сюда управление уже не вернётся: updater.set()
+            // сразу перезапускает приложение с новой версией.
             return;
         }
 
         if (result.status === 'current' || result.status === 'throttled') {
             setManualUpdateButtonState('is-current', 'Установлена последняя версия');
             await refreshAppVersionInfo();
-            showNotification('У вас установлена последняя версия DAGSTUDIO PLAYER.');
+            showNotification('У вас уже установлена последняя версия DAGSTUDIO PLAYER.');
             setTimeout(function() {
                 setManualUpdateButtonState('', 'Обновить приложение');
             }, 2600);
@@ -362,18 +329,22 @@ window.manualUpdateApplication = async function() {
             return;
         }
 
+        if (result.status === 'unavailable') {
+            throw new Error('В этой сборке недоступен встроенный модуль обновления.');
+        }
+
         throw new Error(result.error || 'Не удалось проверить обновление');
     } catch (error) {
-        console.error('Manual update failed:', error);
+        console.error('Manual OTA update failed:', error);
         setManualUpdateButtonState('is-error', 'Повторить обновление');
-        showNotification('Не удалось обновить приложение. Проверьте интернет и повторите.');
+        showNotification('Не удалось обновить приложение автоматически. Проверьте интернет и повторите.');
     }
 };
 
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2227', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2228', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -385,8 +356,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2227') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2225', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2228') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2228', '1');
         window.location.reload();
     });
 }
