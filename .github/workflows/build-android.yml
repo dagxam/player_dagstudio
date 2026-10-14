@@ -53,6 +53,8 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Build local web shell
+        env:
+          DAG_NATIVE_BUILD_VERSION: "1.0.${{ github.run_number }}-preview"
         run: npm run native:web
 
       - name: Create Android project
@@ -120,9 +122,12 @@ jobs:
         run: |
           set -e
           VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
-          VERSION_NAME="1.0.$GITHUB_RUN_NUMBER-preview"
+          VERSION_NAME_BASE="1.0.$GITHUB_RUN_NUMBER"
+          VERSION_DISPLAY="$VERSION_NAME_BASE-preview"
+          echo "DAG_NATIVE_VERSION=$VERSION_DISPLAY" >> "$GITHUB_ENV"
+          echo "DAG_NATIVE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           sed -i -E "s/versionCode [0-9]+/versionCode $VERSION_CODE/" android/app/build.gradle
-          sed -i -E "s/versionName \"[^\"]+\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+          sed -i -E "s/versionName \"[^\"]+\"/versionName \"$VERSION_NAME_BASE\"/" android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Build Preview APK
@@ -139,6 +144,21 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs DAGSTUDIO-PLAYER-Preview.apk
           ls -lh DAGSTUDIO-PLAYER-Preview.apk
 
+      - name: Create native update metadata
+        run: |
+          set -e
+          APK_SHA="$(awk '{print $1}' DAGSTUDIO-PLAYER-Preview.apk.sha256)"
+          cat > DAGSTUDIO-PLAYER-native-version.json <<JSON
+          {
+            "version": "$DAG_NATIVE_VERSION",
+            "version_code": $DAG_NATIVE_VERSION_CODE,
+            "url": "https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk",
+            "sha256": "$APK_SHA",
+            "commit": "$GITHUB_SHA"
+          }
+          JSON
+          python -m json.tool DAGSTUDIO-PLAYER-native-version.json >/dev/null
+
       - name: Upload Preview APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -146,6 +166,7 @@ jobs:
           path: |
             DAGSTUDIO-PLAYER-Preview.apk
             DAGSTUDIO-PLAYER-Preview.apk.sha256
+            DAGSTUDIO-PLAYER-native-version.json
           if-no-files-found: error
           retention-days: 90
 
@@ -154,12 +175,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          NOTES="Автоматическая Preview-сборка DAGSTUDIO PLAYER. Package: ru.dagstudio.player.preview. Commit: $GITHUB_SHA"
+          NOTES="Автоматическая Preview-сборка DAGSTUDIO PLAYER $DAG_NATIVE_VERSION. Package: ru.dagstudio.player.preview. Commit: $GITHUB_SHA"
           if gh release view android-preview >/dev/null 2>&1; then
-            gh release upload android-preview DAGSTUDIO-PLAYER-Preview.apk DAGSTUDIO-PLAYER-Preview.apk.sha256 --clobber
+            gh release upload android-preview DAGSTUDIO-PLAYER-Preview.apk DAGSTUDIO-PLAYER-Preview.apk.sha256 DAGSTUDIO-PLAYER-native-version.json --clobber
             gh release edit android-preview --title "DAGSTUDIO PLAYER Android Preview" --notes "$NOTES" --prerelease
           else
-            gh release create android-preview DAGSTUDIO-PLAYER-Preview.apk DAGSTUDIO-PLAYER-Preview.apk.sha256 \
+            gh release create android-preview DAGSTUDIO-PLAYER-Preview.apk DAGSTUDIO-PLAYER-Preview.apk.sha256 DAGSTUDIO-PLAYER-native-version.json \
               --title "DAGSTUDIO PLAYER Android Preview" \
               --notes "$NOTES" \
               --prerelease

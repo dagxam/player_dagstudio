@@ -37,8 +37,12 @@ try {
     openEqualizer: typeof window.openEqualizer,
     toggleEqualizerPower: typeof window.toggleEqualizerPower,
     resetEqualizer: typeof window.resetEqualizer,
+    manualUpdateApplication: typeof window.manualUpdateApplication,
+    refreshAppVersionInfo: typeof window.refreshAppVersionInfo,
     downloadButton: !!document.getElementById('android-apk-download-btn'),
     equalizerButton: !!document.querySelector('.eq-menu-btn'),
+    updateButton: !!document.getElementById('app-update-btn'),
+    versionFooter: !!document.getElementById('app-version-footer'),
     installButtonAbsent: !document.getElementById('pwa-install-btn'),
     fullscreenButtonAbsent: !document.querySelector('[onclick="toggleFullScreen()"]'),
     menuButton: !!document.querySelector('.menu-btn'),
@@ -49,12 +53,13 @@ try {
   const requiredFunctions = [
     'openMenu','handleAuth','toggleAuthMode','playTrack','togglePlay',
     'playNext','playPrev','downloadTrack','openEqualizer',
-    'toggleEqualizerPower','resetEqualizer'
+    'toggleEqualizerPower','resetEqualizer','manualUpdateApplication',
+    'refreshAppVersionInfo'
   ];
   for (const name of requiredFunctions) {
     if (basics[name] !== 'function') throw new Error('Missing function: ' + name);
   }
-  for (const name of ['downloadButton','equalizerButton','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
+  for (const name of ['downloadButton','equalizerButton','updateButton','versionFooter','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
     if (!basics[name]) throw new Error('Missing/incorrect UI state: ' + name);
   }
 

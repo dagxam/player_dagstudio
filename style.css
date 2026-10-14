@@ -521,3 +521,55 @@ body, html {
         align-items: flex-start;
     }
 }
+
+
+/* --- APP UPDATE / VERSION --- */
+.app-update-btn {
+    margin-top: 10px;
+    position: relative;
+    overflow: hidden;
+}
+.app-update-btn.is-checking {
+    pointer-events: none;
+    opacity: .82;
+}
+.app-update-btn.is-checking i {
+    animation: dag-update-spin .9s linear infinite;
+}
+.app-update-btn.is-ready {
+    border-color: rgba(var(--theme-rgb), .55);
+    background: linear-gradient(135deg, rgba(var(--theme-rgb), .22), rgba(var(--theme-rgb), .08));
+}
+.app-update-btn.is-current i {
+    color: #6fdc8c;
+}
+.app-update-btn.is-error i {
+    color: #ff7b7b;
+}
+.app-version-footer {
+    margin-top: 14px;
+    padding: 13px 14px 2px;
+    border-top: 1px solid rgba(255,255,255,.07);
+    text-align: center;
+    color: #707070;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.45;
+}
+.app-version-main {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+}
+.app-version-main i {
+    margin-right: 5px;
+    color: var(--main-color);
+}
+.app-version-extra {
+    min-height: 16px;
+    margin-top: 4px;
+    color: #565656;
+    font-size: .64rem;
+}
+@keyframes dag-update-spin {
+    to { transform: rotate(360deg); }
+}

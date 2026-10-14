@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2223" as="style">
-    <link rel="stylesheet" href="style.css?v=2223">
+    <link rel="preload" href="style.css?v=2224" as="style">
+    <link rel="stylesheet" href="style.css?v=2224">
 </head>
 <body>
 
@@ -127,7 +127,15 @@
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
         <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
-        <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="margin-top:18px; text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
+        <button id="app-update-btn" class="menu-list-btn app-update-btn" onclick="manualUpdateApplication()" type="button">
+            <i class="fas fa-rotate"></i>
+            <span>Обновить приложение</span>
+        </button>
+        <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
+        <div class="app-version-footer" id="app-version-footer">
+            <div class="app-version-main"><i class="fas fa-code-branch"></i> <span id="app-version-text">Версия: определяем…</span></div>
+            <div class="app-version-extra" id="app-version-extra"></div>
+        </div>
     </div>
 </div>
 
@@ -165,7 +173,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2223" defer></script>
+<script src="script.js?v=2224" defer></script>
 
 </body>
 </html>

@@ -6,7 +6,7 @@ import { build as esbuild } from 'esbuild';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'www');
 const assetsDir = join(root, 'assets');
-const buildVersion = process.env.GITHUB_SHA || process.env.DAG_NATIVE_BUILD_VERSION || 'dev';
+const buildVersion = process.env.DAG_NATIVE_BUILD_VERSION || process.env.GITHUB_SHA || 'dev';
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });

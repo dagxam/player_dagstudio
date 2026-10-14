@@ -76,64 +76,201 @@ async function nativeHttpRequest(options) {
 
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
+const NATIVE_APK_META_URL =
+    'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-native-version.json';
+const NATIVE_APK_DIRECT_URL =
+    'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
+const WEB_BUILD_LABEL = '2224';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
 
-async function checkNativeLiveUpdate(force = false) {
-    if (!IS_NATIVE_APP || nativeUpdateCheckInFlight) return;
+function nativeUpdaterBridge() {
+    return (window.DAG_NATIVE_BRIDGE && window.DAG_NATIVE_BRIDGE.updater)
+        ? window.DAG_NATIVE_BRIDGE.updater
+        : getCapacitorPlugin('CapacitorUpdater');
+}
+
+async function fetchUpdateJson(url) {
+    if (IS_NATIVE_APP) {
+        const response = await nativeHttpRequest({
+            url: url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(),
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            connectTimeout: 12000,
+            readTimeout: 20000
+        });
+
+        if (!response || response.status < 200 || response.status >= 300) {
+            throw new Error('HTTP ' + (response ? response.status : 0));
+        }
+        return typeof response.data === 'string'
+            ? JSON.parse(response.data)
+            : response.data;
+    }
+
+    const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+}
+
+async function getNativeAppInfoSafe() {
+    if (!IS_NATIVE_APP) {
+        return {
+            version: 'WEB ' + WEB_BUILD_LABEL,
+            build: WEB_BUILD_LABEL,
+            native: false
+        };
+    }
+
+    try {
+        if (window.DAG_NATIVE_BRIDGE && typeof window.DAG_NATIVE_BRIDGE.appInfo === 'function') {
+            const info = await window.DAG_NATIVE_BRIDGE.appInfo();
+            return {
+                version: String(info?.version || window.DAG_NATIVE_BUILD_VERSION || 'Preview'),
+                build: String(info?.build || ''),
+                native: true
+            };
+        }
+    } catch (error) {
+        console.warn('Cannot read native app info:', error);
+    }
+
+    return {
+        version: String(window.DAG_NATIVE_BUILD_VERSION || 'Preview'),
+        build: '',
+        native: true
+    };
+}
+
+async function getInstalledBundleVersion() {
+    if (!IS_NATIVE_APP) return '';
+
+    const updater = nativeUpdaterBridge();
+    if (!updater || typeof updater.current !== 'function') return '';
+
+    try {
+        const currentInfo = await updater.current();
+        if (currentInfo && currentInfo.bundle && currentInfo.bundle.version) {
+            const version = String(currentInfo.bundle.version);
+            if (version && version !== 'builtin') return version;
+        }
+    } catch (error) {
+        console.warn('Cannot read current OTA bundle:', error);
+    }
+    return '';
+}
+
+function setManualUpdateButtonState(state, text) {
+    const btn = document.getElementById('app-update-btn');
+    if (!btn) return;
+
+    btn.classList.remove('is-checking', 'is-ready', 'is-current', 'is-error');
+    if (state) btn.classList.add(state);
+
+    const icon = btn.querySelector('i');
+    const label = btn.querySelector('span');
+    if (label && text) label.textContent = text;
+
+    if (icon) {
+        icon.className = state === 'is-current'
+            ? 'fas fa-circle-check'
+            : state === 'is-error'
+                ? 'fas fa-triangle-exclamation'
+                : 'fas fa-rotate';
+    }
+    btn.disabled = state === 'is-checking';
+}
+
+async function refreshAppVersionInfo() {
+    const main = document.getElementById('app-version-text');
+    const extra = document.getElementById('app-version-extra');
+    if (!main) return;
+
+    const info = await getNativeAppInfoSafe();
+    const bundleVersion = await getInstalledBundleVersion();
+
+    if (IS_NATIVE_APP) {
+        main.textContent = 'Версия: ' + (info.version || 'Preview');
+        const details = [];
+        if (info.build) details.push('сборка ' + info.build);
+        if (bundleVersion) details.push('OTA ' + bundleVersion);
+        extra.textContent = details.join(' · ');
+    } else {
+        main.textContent = 'Версия сайта: ' + WEB_BUILD_LABEL;
+        extra.textContent = 'Android-приложение обновляется отдельно';
+    }
+}
+
+async function openExternalUpdateUrl(url) {
+    if (IS_NATIVE_APP &&
+        window.DAG_NATIVE_BRIDGE &&
+        typeof window.DAG_NATIVE_BRIDGE.openExternal === 'function') {
+        try {
+            await window.DAG_NATIVE_BRIDGE.openExternal({ url: String(url) });
+            return;
+        } catch (error) {
+            // Старые APK ещё могут не содержать Browser plugin. В этом случае
+            // пытаемся открыть ссылку обычным способом, чтобы обновление не тупиковало.
+            console.warn('Native external browser unavailable, using fallback:', error);
+        }
+    }
+
+    const opened = window.open(String(url), '_blank', 'noopener,noreferrer');
+    if (!opened) {
+        window.location.href = String(url);
+    }
+}
+
+async function checkNativeLiveUpdate(force = false, manual = false) {
+    if (!IS_NATIVE_APP) return { status: 'web' };
+    if (nativeUpdateCheckInFlight) return { status: 'busy' };
 
     const now = Date.now();
     if (!force && nativeLastUpdateCheckAt && (now - nativeLastUpdateCheckAt) < 5 * 60 * 1000) {
-        return;
+        return { status: 'throttled' };
+    }
+
+    const updater = nativeUpdaterBridge();
+    if (!updater) {
+        return { status: 'unavailable', error: 'Модуль обновлений недоступен.' };
     }
 
     nativeUpdateCheckInFlight = true;
     nativeLastUpdateCheckAt = now;
-
-    const updater = (window.DAG_NATIVE_BRIDGE && window.DAG_NATIVE_BRIDGE.updater)
-        ? window.DAG_NATIVE_BRIDGE.updater
-        : getCapacitorPlugin('CapacitorUpdater');
-    if (!updater) return;
 
     try {
         if (typeof updater.notifyAppReady === 'function') {
             await updater.notifyAppReady();
         }
 
-        const metaResponse = await nativeHttpRequest({
-            url: NATIVE_UPDATE_META_URL + '?t=' + Date.now(),
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Cache-Control': 'no-cache'
-            },
-            connectTimeout: 10000,
-            readTimeout: 15000
-        });
-
-        if (!metaResponse || metaResponse.status < 200 || metaResponse.status >= 300) return;
-
-        const meta = typeof metaResponse.data === 'string'
-            ? JSON.parse(metaResponse.data)
-            : metaResponse.data;
-
-        if (!meta || !meta.version || !meta.url) return;
-
-        let installedVersion = String(window.DAG_NATIVE_BUILD_VERSION || '');
-
-        if (typeof updater.current === 'function') {
-            try {
-                const currentInfo = await updater.current();
-                if (currentInfo && currentInfo.bundle && currentInfo.bundle.version) {
-                    installedVersion = String(currentInfo.bundle.version);
-                }
-            } catch (error) {
-                console.warn('Cannot read current native bundle version:', error);
-            }
+        const meta = await fetchUpdateJson(NATIVE_UPDATE_META_URL);
+        if (!meta || !meta.version || !meta.url) {
+            throw new Error('Некорректные данные обновления');
         }
 
-        if (installedVersion === String(meta.version)) return;
+        let installedVersion = await getInstalledBundleVersion();
+        if (!installedVersion) {
+            installedVersion = String(window.DAG_NATIVE_BUILD_VERSION || 'builtin');
+        }
+
+        if (installedVersion === String(meta.version)) {
+            return {
+                status: 'current',
+                installedVersion,
+                latestVersion: String(meta.version)
+            };
+        }
+
+        if (manual) {
+            setManualUpdateButtonState('is-checking', 'Скачиваем обновление…');
+        }
 
         const downloadOptions = {
             url: String(meta.url),
@@ -148,23 +285,95 @@ async function checkNativeLiveUpdate(force = false) {
             throw new Error('Updater did not return bundle id');
         }
 
-        // set() выбирает новый bundle; reload() сразу перезапускает web-слой.
+        if (manual) {
+            setManualUpdateButtonState('is-checking', 'Устанавливаем обновление…');
+        }
+
         await updater.set({ id: bundle.id });
 
         if (typeof updater.reload === 'function') {
             await updater.reload();
         }
+
+        return {
+            status: 'updated',
+            installedVersion,
+            latestVersion: String(meta.version)
+        };
     } catch (error) {
         console.warn('Native live update skipped:', error);
+        return {
+            status: 'error',
+            error: String(error?.message || error || 'Ошибка обновления')
+        };
     } finally {
         nativeUpdateCheckInFlight = false;
     }
 }
 
+window.manualUpdateApplication = async function() {
+    setManualUpdateButtonState('is-checking', 'Проверяем обновления…');
+
+    try {
+        if (!IS_NATIVE_APP) {
+            setManualUpdateButtonState('is-ready', 'Скачать последнюю версию');
+            await openExternalUpdateUrl(NATIVE_APK_DIRECT_URL);
+            return;
+        }
+
+        const appInfo = await getNativeAppInfoSafe();
+
+        // Сначала проверяем нативную APK-версию. Если versionCode выше,
+        // web-обновлением её заменить нельзя — открываем системную загрузку APK.
+        try {
+            const nativeMeta = await fetchUpdateJson(NATIVE_APK_META_URL);
+            const currentBuild = Number.parseInt(String(appInfo.build || '0'), 10) || 0;
+            const latestBuild = Number.parseInt(String(nativeMeta?.version_code || '0'), 10) || 0;
+
+            if (latestBuild > currentBuild && nativeMeta?.url) {
+                setManualUpdateButtonState('is-ready', 'Доступна версия ' + String(nativeMeta.version || 'новая'));
+                showNotification('Доступна новая версия приложения ' +
+                    String(nativeMeta.version || '') + '. Открываю загрузку обновления.');
+                await openExternalUpdateUrl(String(nativeMeta.url));
+                return;
+            }
+        } catch (nativeMetaError) {
+            console.warn('Native APK update metadata unavailable:', nativeMetaError);
+        }
+
+        const result = await checkNativeLiveUpdate(true, true);
+
+        if (result.status === 'updated') {
+            return;
+        }
+
+        if (result.status === 'current' || result.status === 'throttled') {
+            setManualUpdateButtonState('is-current', 'Установлена последняя версия');
+            await refreshAppVersionInfo();
+            showNotification('У вас установлена последняя версия DAGSTUDIO PLAYER.');
+            setTimeout(function() {
+                setManualUpdateButtonState('', 'Обновить приложение');
+            }, 2600);
+            return;
+        }
+
+        if (result.status === 'busy') {
+            setManualUpdateButtonState('is-checking', 'Обновление уже выполняется…');
+            return;
+        }
+
+        throw new Error(result.error || 'Не удалось проверить обновление');
+    } catch (error) {
+        console.error('Manual update failed:', error);
+        setManualUpdateButtonState('is-error', 'Повторить обновление');
+        showNotification('Не удалось обновить приложение. Проверьте интернет и повторите.');
+    }
+};
+
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2223', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2224', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -176,8 +385,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2223') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2223', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2224') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2224', '1');
         window.location.reload();
     });
 }
@@ -2300,7 +2509,19 @@ async function addToPlaylist(plId) {
     }
 }
 
-function openMenu() { if (currentUser) { document.getElementById('auth-section').style.display = 'none'; document.getElementById('user-section').style.display = 'block'; document.getElementById('user-name-disp').innerText = currentUser; } else { document.getElementById('auth-section').style.display = 'block'; document.getElementById('user-section').style.display = 'none'; } document.getElementById('menu-modal').classList.add('show'); }
+function openMenu() {
+    if (currentUser) {
+        document.getElementById('auth-section').style.display = 'none';
+        document.getElementById('user-section').style.display = 'block';
+        document.getElementById('user-name-disp').innerText = currentUser;
+    } else {
+        document.getElementById('auth-section').style.display = 'block';
+        document.getElementById('user-section').style.display = 'none';
+    }
+
+    document.getElementById('menu-modal').classList.add('show');
+    refreshAppVersionInfo();
+}
 function toggleAuthMode() { isRegMode = !isRegMode; const title = document.getElementById('auth-title'); const btn = document.querySelector('#auth-section button'); const toggle = document.querySelector('.auth-toggle'); if (isRegMode) { title.innerText = "РЕГИСТРАЦИЯ"; btn.innerText = "СОЗДАТЬ АККАУНТ"; toggle.innerText = "Уже есть аккаунт? Войти"; } else { title.innerText = "ВХОД"; btn.innerText = "ВОЙТИ"; toggle.innerText = "Нет аккаунта? Зарегистрироваться"; } }
 
 async function handleAuth() {

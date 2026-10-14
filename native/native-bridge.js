@@ -2,6 +2,8 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { FileTransfer } from '@capacitor/file-transfer';
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 
 const updater = {
   notifyAppReady: (options) => CapacitorUpdater.notifyAppReady(options),
@@ -125,7 +127,12 @@ const audioCache = {
 window.DAG_NATIVE_BRIDGE = {
   httpRequest: (options) => CapacitorHttp.request(options),
   updater,
-  audioCache
+  audioCache,
+  appInfo: () => App.getInfo(),
+  openExternal: (options) => Browser.open({
+    url: String(options?.url || ''),
+    toolbarColor: '#0b0b0b'
+  })
 };
 
 CapacitorUpdater.notifyAppReady().catch((error) => {
