@@ -86,7 +86,7 @@ if (!$data) {
 }
 
 // Открываем сессию обратно только для действий, где она нужна
-if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'delete_playlist', 'add_track', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
+if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'delete_playlist', 'add_track', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
     @session_start();
 }
 
@@ -174,6 +174,60 @@ elseif ($action === 'get_data') {
         }
         echo json_encode($playlists);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка получения данных.']); }
+}
+elseif ($action === 'update_track_url') {
+    if (!isset($_SESSION['user_id'])) { echo json_encode(['error' => 'Нет авторизации']); exit; }
+
+    $trackId = (int)($data['track_id'] ?? 0);
+    $url = trim((string)($data['url'] ?? ''));
+    $thumb = trim((string)($data['thumb'] ?? ''));
+
+    if ($trackId <= 0 || $url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+        echo json_encode(['error' => 'Некорректный источник трека']);
+        exit;
+    }
+
+    $parts = parse_url($url);
+    $host = strtolower((string)($parts['host'] ?? ''));
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $allowedTrackHosts = [
+        'api.audius.co',
+        'slider.kz', 'ru.hitmoz.org', 'hitmoz.org', 'muzofond.fm', 'zvooq.net',
+        'muzvox.org', 'storage.muzvox.org', 'static.muzvox.org', 'muzca.net'
+    ];
+
+    $allowed = false;
+    if (in_array($scheme, ['http', 'https'], true) && $host !== '') {
+        foreach ($allowedTrackHosts as $domain) {
+            if ($host === $domain || str_ends_with($host, '.' . $domain)) {
+                $allowed = true;
+                break;
+            }
+        }
+    }
+
+    if (!$allowed) {
+        echo json_encode(['error' => 'Источник трека не разрешён']);
+        exit;
+    }
+
+    try {
+        $stmt = $pdo->prepare(
+            "UPDATE tracks
+             SET url = ?, thumb = CASE WHEN ? <> '' THEN ? ELSE thumb END
+             WHERE id = ? AND playlist_id IN (SELECT id FROM playlists WHERE user_id = ?)"
+        );
+        $stmt->execute([
+            mb_substr($url, 0, 2000),
+            $thumb,
+            mb_substr($thumb, 0, 2000),
+            $trackId,
+            $_SESSION['user_id']
+        ]);
+        echo json_encode(['success' => $stmt->rowCount() > 0]);
+    } catch (Exception $e) {
+        echo json_encode(['error' => 'Не удалось обновить источник трека']);
+    }
 }
 elseif ($action === 'create_playlist') {
     if (!isset($_SESSION['user_id'])) { echo json_encode(['error' => 'Нет авторизации']); exit; }

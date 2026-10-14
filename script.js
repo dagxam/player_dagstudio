@@ -80,7 +80,7 @@ const NATIVE_APK_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-native-version.json';
 const NATIVE_APK_DIRECT_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2225';
+const WEB_BUILD_LABEL = '2227';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -373,7 +373,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2225', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2227', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -385,7 +385,7 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2225') === '1') return;
+        if (sessionStorage.getItem('dag_sw_reloaded_2227') === '1') return;
         sessionStorage.setItem('dag_sw_reloaded_2225', '1');
         window.location.reload();
     });
@@ -1978,6 +1978,98 @@ let currentPlaybackToken = 0;
 let networkRetryPending = false;
 const MAX_STREAM_RETRIES = 4;
 
+function normalizeTrackIdentity(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/\[[^\]]+\]/g, ' ')
+        .replace(/[^a-zа-яё0-9]+/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function scoreReplacementTrack(saved, candidate) {
+    const savedTitle = normalizeTrackIdentity(saved.title);
+    const savedArtist = normalizeTrackIdentity(saved.artist);
+    const title = normalizeTrackIdentity(candidate.title);
+    const artist = normalizeTrackIdentity(candidate.artist);
+
+    if (!savedTitle || !title) return -1;
+
+    let score = 0;
+    if (title === savedTitle) score += 100;
+    else if (title.includes(savedTitle) || savedTitle.includes(title)) score += 55;
+
+    if (savedArtist && artist) {
+        if (artist === savedArtist) score += 70;
+        else if (artist.includes(savedArtist) || savedArtist.includes(artist)) score += 35;
+    }
+
+    // Audius хранит стабильный ID трека и лучше подходит для долгоживущего плейлиста.
+    if (String(candidate.source || '').toUpperCase().includes('AUDIUS')) score += 8;
+
+    return score;
+}
+
+async function refreshSavedTrackSource(track) {
+    if (!track || !track.id || track._refreshAttempted || navigator.onLine === false) return false;
+    track._refreshAttempted = true;
+
+    const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
+    if (!query) return false;
+
+    artistEl.textContent = 'Обновляем источник трека…';
+
+    const result = await api('search_global', {
+        query: query,
+        page: 1,
+        network: isWeakConnection() ? 'weak' : 'normal'
+    });
+
+    const candidates = result && Array.isArray(result.data) ? result.data : [];
+    if (!candidates.length) return false;
+
+    const ranked = candidates
+        .map(candidate => ({ candidate, score: scoreReplacementTrack(track, candidate) }))
+        .filter(item => item.score >= 70 && item.candidate && item.candidate.url)
+        .sort((a, b) => b.score - a.score);
+
+    if (!ranked.length) return false;
+
+    const replacement = ranked[0].candidate;
+    const newUrl = String(replacement.url || '').trim();
+    if (!newUrl || newUrl === String(track.url || '').trim()) return false;
+
+    const update = await api('update_track_url', {
+        track_id: track.id,
+        url: newUrl,
+        thumb: replacement.thumb || track.thumb || ''
+    });
+
+    if (!update || update.success !== true) return false;
+
+    track.url = newUrl;
+    if (replacement.thumb) track.thumb = replacement.thumb;
+    track.source = replacement.source || track.source || '';
+    track._streamRetries = 0;
+    track._playingFromCache = false;
+
+    // Синхронизируем тот же объект в пользовательском списке и локальном снимке.
+    const ownerPlaylist = playlists.find(pl =>
+        Array.isArray(pl.tracks) && pl.tracks.some(t => String(t.id) === String(track.id))
+    );
+    if (ownerPlaylist) {
+        const stored = ownerPlaylist.tracks.find(t => String(t.id) === String(track.id));
+        if (stored) {
+            stored.url = newUrl;
+            if (replacement.thumb) stored.thumb = replacement.thumb;
+            stored.source = replacement.source || stored.source || '';
+        }
+    }
+    if (currentUser) saveOfflinePlaylistsSnapshot(playlists);
+
+    return true;
+}
+
 function clearStreamRecoveryTimer() {
     if (streamRecoveryTimer) {
         clearTimeout(streamRecoveryTimer);
@@ -2059,13 +2151,23 @@ async function recoverCurrentStream(reason) {
     track._streamRetries = (track._streamRetries || 0) + 1;
 
     if (track._streamRetries > MAX_STREAM_RETRIES) {
+        // Для сохранённого трека сначала восстанавливаем устаревшую ссылку.
+        // Только если найти новый источник не удалось, оставляем трек остановленным.
+        const refreshed = await refreshSavedTrackSource(track);
+        if (refreshed && playlist[currentIndex] === track) {
+            artistEl.textContent = 'Источник обновлён — запускаем…';
+            track._streamRetries = 0;
+            pendingResumeTime = 0;
+            setTimeout(function() {
+                if (playlist[currentIndex] === track) playTrack(currentIndex);
+            }, 150);
+            return;
+        }
+
         showLoader(false);
         updateState(false);
         titleEl.textContent = track.title;
         artistEl.textContent = 'Источник временно недоступен';
-        setTimeout(function() {
-            if (playlist[currentIndex] === track && navigator.onLine) playNext();
-        }, 3500);
         return;
     }
 
@@ -2230,6 +2332,7 @@ async function playTrack(index) {
     const token = currentPlaybackToken;
 
     track._streamRetries = 0;
+    track._refreshAttempted = false;
     track._resumeTime = 0;
     track._playingFromCache = false;
     track._cacheQueuedForPlay = false;
