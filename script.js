@@ -2287,7 +2287,7 @@ function bufferedSecondsAhead() {
 
 function scheduleStreamRecovery(reason, delay) {
     const track = playlist[currentIndex];
-    if (!track || !track.url || mainAudio.ended || streamRecoveryInFlight) return;
+    if (!track || !track.url || mainAudio.ended) return;
     clearStreamRecoveryTimer();
 
     const token = currentPlaybackToken;
