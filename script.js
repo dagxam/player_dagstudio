@@ -1827,8 +1827,8 @@ async function submitCreateTab() {
     if(!currentUser) return showNotification("Авторизуйтесь для создания плейлистов"); 
     const res = await api('create_playlist', { name: name, type: 'standard' }); 
     if (res.success) {
-        await loadUserData(); 
-        showNotification("Создано");
+        const synced = await loadUserData(true);
+        showNotification(synced ? 'Плейлист создан' : 'Плейлист создан на сервере. Список обновится при синхронизации.');
         closeModal('input-modal'); 
         const pl = playlists.find(p => p.id == res.id);
         if(pl) openTrackManager(pl.id, pl.name, pl.type);
@@ -1869,8 +1869,15 @@ async function deletePlaylistFromManager(id) {
             ? deleting.tracks.map(track => normalizeCacheTrack(track))
             : [];
 
-        await api('delete_playlist', { id: id });
-        await loadUserData();
+        const response = await api('delete_playlist', { id: id });
+        if (!response.success) {
+            showNotification(response.error || 'Не удалось удалить плейлист. Изменения не сохранены.');
+            return;
+        }
+        playlists = playlists.filter(p => String(p.id) !== String(id));
+        saveOfflinePlaylistsSnapshot(playlists);
+        renderCurrentPlaylistFromAccountData();
+        await loadUserData(true);
 
         for (const track of deletingTracks) {
             await deleteDeviceCachedTrack(track, false);
@@ -1898,8 +1905,15 @@ async function savePlaylistName() {
     if(!newName) return;
     const pl = playlists.find(p => p.id == editingPlaylistId);
     if(pl && pl.name !== newName) {
-        await api('rename_playlist', { id: editingPlaylistId, name: newName });
-        await loadUserData();
+        const response = await api('rename_playlist', { id: editingPlaylistId, name: newName });
+        if (!response.success) {
+            document.getElementById('tm-rename-input').value = pl.name;
+            showNotification(response.error || 'Не удалось переименовать плейлист.');
+            return;
+        }
+        pl.name = newName;
+        saveOfflinePlaylistsSnapshot(playlists);
+        await loadUserData(true);
         if(currentTab == editingPlaylistId) {
              const label = document.getElementById('active-tab-name');
              if(label) label.innerText = newName.toUpperCase();
@@ -1957,11 +1971,13 @@ async function addLinkToPlaylist(plId) {
     const nameVal = document.getElementById('tm-link-name').value.trim() || 'Сетевой трек';
     if(!url) return;
     const trackData = { title: nameVal, artist: 'Web Link', url: url, thumb: '', type: 'audio' };
-    await api('add_track', { playlist_id: plId, track: trackData });
-    await loadUserData();
+    const response = await api('add_track', { playlist_id: plId, track: trackData });
+    if (!response.success) return showNotification(response.error || 'Не удалось добавить трек.');
+    const synced = await loadUserData(true);
     cacheTrackSilently(trackData, { reason: 'playlist', priority: true });
     document.getElementById('tm-add-link-area').style.display = 'none';
-    renderTrackManagerList(playlists.find(p => p.id == plId));
+    if (synced) renderTrackManagerList(playlists.find(p => p.id == plId));
+    else showNotification('Трек добавлен на сервер, список обновится при следующей синхронизации.');
 }
 
 async function handleLocalFileSelect(input) { 
@@ -1988,7 +2004,7 @@ async function handleLocalFileSelect(input) {
                 if(data.success) successCount++;
             } catch(e) {}
         }
-        await loadUserData();
+        await loadUserData(true);
         const updatedPl = playlists.find(p => p.id == activePlIdForUpload);
         if (updatedPl) renderTrackManagerList(updatedPl);
         showLoader(false);
@@ -2002,13 +2018,14 @@ async function deleteTrackFromPlaylist(plId, trackId) {
         ? plBefore.tracks.find(track => String(track.id) === String(trackId))
         : null;
 
-    await api('delete_track', {track_id: trackId});
-    await loadUserData();
+    const response = await api('delete_track', {track_id: trackId});
+    if (!response.success) return showNotification(response.error || 'Не удалось удалить трек.');
+    if (plBefore) plBefore.tracks = (plBefore.tracks || []).filter(t => String(t.id) !== String(trackId));
+    saveOfflinePlaylistsSnapshot(playlists);
+    renderCurrentPlaylistFromAccountData();
+    await loadUserData(true);
 
-    if (deletedTrack) {
-        await deleteDeviceCachedTrack(deletedTrack, false);
-    }
-
+    if (deletedTrack) await deleteDeviceCachedTrack(deletedTrack, false);
     renderTrackManagerList(playlists.find(p => p.id == plId));
 }
 
@@ -2018,12 +2035,14 @@ window.deleteTrackGeneral = async function(trackId, plId) {
         ? plBefore.tracks.find(track => String(track.id) === String(trackId))
         : null;
 
-    await api('delete_track', {track_id: trackId});
-    await loadUserData();
+    const response = await api('delete_track', {track_id: trackId});
+    if (!response.success) return showNotification(response.error || 'Не удалось удалить трек.');
+    if (plBefore) plBefore.tracks = (plBefore.tracks || []).filter(t => String(t.id) !== String(trackId));
+    saveOfflinePlaylistsSnapshot(playlists);
+    renderCurrentPlaylistFromAccountData();
+    await loadUserData(true);
 
-    if (deletedTrack) {
-        await deleteDeviceCachedTrack(deletedTrack, false);
-    }
+    if (deletedTrack) await deleteDeviceCachedTrack(deletedTrack, false);
 }
 
 // --- УСТОЙЧИВЫЙ PLAYBACK ДЛЯ СЛАБОЙ СЕТИ ---
@@ -2837,10 +2856,13 @@ async function addToPlaylist(plId) {
     const track = selectedTrackForSave; const pl = playlists.find(p => p.id == plId); 
     if(pl.tracks.some(t => t.url === track.url)) { showNotification("Уже есть"); return; } 
     const trackData = { title: track.title, artist: track.artist, url: track.url || track.file, thumb: track.thumb, type: 'audio' }; 
-    await api('add_track', { playlist_id: plId, track: trackData }); 
-    closeModal('save-modal'); 
-    showNotification("Добавлено! Кэшируем для оффлайна..."); 
-    await loadUserData(); 
+    const response = await api('add_track', { playlist_id: plId, track: trackData });
+    if (!response.success) return showNotification(response.error || 'Не удалось добавить трек.');
+    closeModal('save-modal');
+    const synced = await loadUserData(true);
+    showNotification(synced
+        ? 'Трек добавлен! Сохраним его офлайн при доступном интернете.'
+        : 'Трек добавлен на сервер. Список обновится после восстановления сети.'); 
     
     // Как только трек добавлен в плейлист, даем команду на его кэширование в фоне!
     if (navigator.onLine && isRemoteMediaUrl(trackData.url)) {
