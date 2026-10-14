@@ -82,7 +82,9 @@ jobs:
 
       - name: Create deployment marker
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
-        run: printf '%s' "$GITHUB_SHA" > deploy-version.txt
+        run: |
+          printf '%s' "$GITHUB_SHA" > deploy-version.txt
+          printf '%s' "$GITHUB_SHA" > "deploy-$GITHUB_SHA.txt"
 
       - name: Deploy site over FTP
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
@@ -119,12 +121,20 @@ jobs:
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
         run: |
           EXPECTED="$GITHUB_SHA"
-          ACTUAL="$(curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "https://pl.dagstudio.ru/deploy-version.txt?v=$EXPECTED")"
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "Production verification failed."
+
+          UNIQUE_URL="https://pl.dagstudio.ru/deploy-$EXPECTED.txt"
+          UNIQUE_ACTUAL="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$UNIQUE_URL" || true)"
+          if [ "$UNIQUE_ACTUAL" != "$EXPECTED" ]; then
+            echo "Unique production probe is not visible at pl.dagstudio.ru."
+            echo "FTP upload succeeded, but the configured FTP_SERVER_DIR is not the active document root for pl.dagstudio.ru, or the hosting proxy is serving a different origin."
             echo "Expected commit: $EXPECTED"
-            echo "Received marker: $ACTUAL"
+            echo "Unique probe response: $UNIQUE_ACTUAL"
             exit 1
+          fi
+
+          ACTUAL="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "https://pl.dagstudio.ru/deploy-version.txt?v=$EXPECTED")"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Unique probe is current, but deploy-version.txt is cached. Continuing because the uncached unique probe verified the deployment."
           fi
           echo "Production verified at commit $EXPECTED"
 
