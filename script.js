@@ -499,6 +499,13 @@ function armPlaybackWatchdog(token, reason) {
     playWatchdog = setTimeout(function() {
         if (token !== currentPlaybackToken || mainAudio.ended) return;
         if (mainAudio.readyState < 3 || mainAudio.currentTime <= 0) {
+            if (mainAudio.paused && mainAudio.error === null && !networkRetryPending) {
+                // Пауза может означать запрет autoplay — повторить можно только по нажатию.
+                showLoader(false);
+                updateState(false);
+                artistEl.textContent = 'Нажмите ▶ для запуска';
+                return;
+            }
             recoverCurrentStream(reason || 'startup-timeout');
         }
     }, timeout);
@@ -2391,14 +2398,16 @@ mainAudio.addEventListener('ended', function() {
 
 mainAudio.addEventListener('waiting', function() {
     if (mainAudio.ended) return;
+    if (mainAudio.paused) return;
     showLoader(true);
-    if (!mainAudio.paused) scheduleStreamRecovery('waiting');
+    scheduleStreamRecovery('waiting');
 });
 
 mainAudio.addEventListener('stalled', function() {
     if (mainAudio.ended) return;
+    if (mainAudio.paused) return;
     showLoader(true);
-    if (!mainAudio.paused) scheduleStreamRecovery('stalled');
+    scheduleStreamRecovery('stalled');
 });
 
 mainAudio.addEventListener('canplay', function() {
@@ -2426,7 +2435,14 @@ mainAudio.addEventListener('timeupdate', function() {
 mainAudio.addEventListener('error', function() {
     const track = playlist[currentIndex];
     if (!track || !track.url) return;
-    showLoader(true);
+    const mediaCode = mainAudio.error?.code || 0;
+    console.warn('Audio media error', { code: mediaCode, source: track.source || '', retries: track._streamRetries || 0 });
+    showLoader(false);
+    if (mediaCode === 4 && (track._streamRetries || 0) >= MAX_STREAM_RETRIES) {
+        artistEl.textContent = 'Источник не поддерживается на устройстве';
+        updateState(false);
+        return;
+    }
     scheduleStreamRecovery('media-error', getNetworkProfile().weak ? 2500 : 1200);
 });
 
@@ -2519,7 +2535,6 @@ async function playTrack(index) {
 
         const immediateLegacyStart =
             AUDIO_COMPAT_PROFILE.legacyAndroid &&
-            !IS_NATIVE_APP &&
             navigator.onLine !== false &&
             track.url &&
             isRemoteMediaUrl(track.url);
@@ -2578,6 +2593,7 @@ async function playTrack(index) {
         clearPlaybackWatchdog();
         if (token !== currentPlaybackToken) return;
 
+        console.warn('Audio startup failed', { reason: String(error?.message || error || ''), url: finalUrl?.split('?')[0] });
         if (error && error.name === 'NotAllowedError') {
             showLoader(false);
             updateState(false);
