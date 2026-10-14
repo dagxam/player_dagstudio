@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2230', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2231', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -43,6 +43,7 @@ try {
     toggleEqualizerPower: typeof window.toggleEqualizerPower,
     resetEqualizer: typeof window.resetEqualizer,
     manualUpdateApplication: typeof window.manualUpdateApplication,
+    manualSyncPlaylists: typeof window.manualSyncPlaylists,
     refreshAppVersionInfo: typeof window.refreshAppVersionInfo,
     downloadButton: !!document.getElementById('android-apk-download-btn'),
     equalizerButton: !!document.querySelector('.eq-menu-btn'),
@@ -59,7 +60,7 @@ try {
     'openMenu','handleAuth','toggleAuthMode','playTrack','togglePlay',
     'playNext','playPrev','downloadTrack','openEqualizer',
     'toggleEqualizerPower','resetEqualizer','manualUpdateApplication',
-    'refreshAppVersionInfo'
+    'refreshAppVersionInfo','manualSyncPlaylists'
   ];
   for (const name of requiredFunctions) {
     if (basics[name] !== 'function') throw new Error('Missing function: ' + name);
@@ -233,7 +234,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2230', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2231', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
