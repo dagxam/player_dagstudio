@@ -80,7 +80,7 @@ const NATIVE_APK_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-native-version.json';
 const NATIVE_APK_DIRECT_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2224';
+const WEB_BUILD_LABEL = '2225';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -373,7 +373,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2224', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2225', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -385,8 +385,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2224') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2224', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2225') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2225', '1');
         window.location.reload();
     });
 }
@@ -705,13 +705,20 @@ const durTimeEl = document.getElementById('dur-time');
 
 // --- УМНОЕ ЦЕЛЕВОЕ КЭШИРОВАНИЕ ---
 const NATIVE_AUDIO_INDEX_KEY = 'dag_native_audio_index_v1';
-const LOCAL_PLAYLISTS_PREFIX = 'dag_offline_playlists_v1:';
+const LOCAL_PLAYLISTS_PREFIX = 'dag_offline_playlists_v2:';
+const LEGACY_LOCAL_PLAYLISTS_PREFIX = 'dag_offline_playlists_v1:';
 const LAST_NATIVE_USER_KEY = 'dag_last_native_user';
+const LAST_DEVICE_USER_KEY = 'dag_last_device_user';
 
 const nativeCacheQueue = [];
 const nativeCacheQueuedUrls = new Set();
 let nativeCacheWorkerRunning = false;
 let nativeCacheRetryTimer = null;
+
+const webCacheQueue = [];
+const webCacheQueuedUrls = new Set();
+let webCacheWorkerRunning = false;
+let webCacheRetryTimer = null;
 
 function normalizeCacheTrack(trackOrUrl) {
     if (typeof trackOrUrl === 'string') {
@@ -754,7 +761,12 @@ function writeNativeAudioIndex(index) {
 }
 
 function currentCacheOwner() {
-    return String(currentUser || localStorage.getItem(LAST_NATIVE_USER_KEY) || 'guest');
+    return String(
+        currentUser ||
+        localStorage.getItem(LAST_DEVICE_USER_KEY) ||
+        localStorage.getItem(LAST_NATIVE_USER_KEY) ||
+        'guest'
+    );
 }
 
 function playlistSnapshotKey(username = currentUser) {
@@ -762,16 +774,28 @@ function playlistSnapshotKey(username = currentUser) {
 }
 
 function saveOfflinePlaylistsSnapshot(data) {
-    if (!IS_NATIVE_APP || !currentUser || !Array.isArray(data)) return;
+    if (!currentUser || !Array.isArray(data)) return;
     try {
         localStorage.setItem(playlistSnapshotKey(), JSON.stringify(data));
+        localStorage.setItem(LAST_DEVICE_USER_KEY, String(currentUser));
     } catch (error) {}
 }
 
 function loadOfflinePlaylistsSnapshot(username = currentUser) {
-    if (!IS_NATIVE_APP || !username) return [];
+    if (!username) return [];
     try {
-        const parsed = JSON.parse(localStorage.getItem(playlistSnapshotKey(username)) || '[]');
+        const currentKey = playlistSnapshotKey(username);
+        let raw = localStorage.getItem(currentKey);
+
+        // Перенос старого локального снимка нативного приложения без потери данных.
+        if (raw === null) {
+            raw = localStorage.getItem(LEGACY_LOCAL_PLAYLISTS_PREFIX + String(username));
+            if (raw !== null) {
+                try { localStorage.setItem(currentKey, raw); } catch (error) {}
+            }
+        }
+
+        const parsed = JSON.parse(raw || '[]');
         return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
         return [];
@@ -972,6 +996,114 @@ async function processNativeCacheQueue() {
     }
 }
 
+function scheduleWebCacheWorker(delay = 0) {
+    clearTimeout(webCacheRetryTimer);
+    webCacheRetryTimer = setTimeout(function() {
+        processWebCacheQueue();
+    }, Math.max(0, delay));
+}
+
+function enqueueWebTrackCache(trackOrUrl, reason = 'playlist', priority = false) {
+    if (IS_NATIVE_APP || !('caches' in window) || navigator.onLine === false) return;
+
+    const track = normalizeCacheTrack(trackOrUrl);
+    const resolved = canonicalTrackUrl(track);
+    if (!resolved || !/^https?:\/\//i.test(resolved) || webCacheQueuedUrls.has(resolved)) return;
+
+    webCacheQueuedUrls.add(resolved);
+    const job = { track, reason, attempts: 0, resolved };
+    if (priority) webCacheQueue.unshift(job);
+    else webCacheQueue.push(job);
+    scheduleWebCacheWorker(priority ? 0 : 400);
+}
+
+async function webTrackAlreadyCached(trackOrUrl) {
+    if (!('caches' in window)) return false;
+    const track = normalizeCacheTrack(trackOrUrl);
+    const resolved = canonicalTrackUrl(track);
+    if (!resolved) return false;
+
+    try {
+        const cache = await caches.open('dag-audio-cache');
+        const candidates = [];
+        if (isDagServerMedia(resolved)) candidates.push(resolved);
+        if (shouldProxyMedia(track)) {
+            candidates.push(buildProxyUrl(track, { norange: true }));
+            candidates.push(buildProxyUrl(track));
+            candidates.push(buildProxyUrl(track, { weak: true }));
+        }
+
+        for (const key of candidates) {
+            if (key && await cache.match(key)) return true;
+        }
+    } catch (error) {}
+    return false;
+}
+
+async function processWebCacheQueue() {
+    if (IS_NATIVE_APP || webCacheWorkerRunning || !('caches' in window)) return;
+    if (navigator.onLine === false) return;
+
+    // Кэширование плейлистов никогда не должно мешать текущему воспроизведению.
+    if (mainAudio && !mainAudio.paused) {
+        scheduleWebCacheWorker(12000);
+        return;
+    }
+
+    webCacheWorkerRunning = true;
+    try {
+        while (webCacheQueue.length > 0 && navigator.onLine !== false) {
+            if (mainAudio && !mainAudio.paused) {
+                scheduleWebCacheWorker(12000);
+                break;
+            }
+
+            const job = webCacheQueue.shift();
+            if (!job) break;
+
+            try {
+                if (!await webTrackAlreadyCached(job.track)) {
+                    const resolved = canonicalTrackUrl(job.track);
+                    const cacheUrl = isDagServerMedia(resolved)
+                        ? resolved
+                        : buildProxyUrl(job.track, { norange: true });
+
+                    const response = await fetch(cacheUrl, {
+                        cache: 'no-store',
+                        credentials: 'same-origin'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+
+                    const cache = await caches.open('dag-audio-cache');
+                    await cache.put(cacheUrl, response.clone());
+                }
+
+                webCacheQueuedUrls.delete(job.resolved);
+
+                // На слабой сети качаем строго по одному треку и даём каналу передышку.
+                if (getNetworkProfile().weak) {
+                    scheduleWebCacheWorker(2500);
+                    break;
+                }
+            } catch (error) {
+                job.attempts += 1;
+                if (job.attempts < 3) {
+                    webCacheQueue.push(job);
+                    scheduleWebCacheWorker(job.attempts * 8000);
+                    break;
+                }
+                webCacheQueuedUrls.delete(job.resolved);
+                console.warn('PWA audio cache download failed:', job.resolved, error);
+            }
+        }
+    } finally {
+        webCacheWorkerRunning = false;
+    }
+}
+
 async function cacheTrackSilently(trackOrUrl, options = {}) {
     const track = normalizeCacheTrack(trackOrUrl);
     const resolvedUrl = canonicalTrackUrl(track);
@@ -984,20 +1116,9 @@ async function cacheTrackSilently(trackOrUrl, options = {}) {
 
     if (!('caches' in window)) return;
 
-    const net = getNetworkProfile();
-    if (net.weak || net.saveData || (mainAudio && !mainAudio.paused)) return;
-
-    try {
-        const cacheUrl = isDagServerMedia(resolvedUrl)
-            ? resolvedUrl
-            : buildProxyUrl(track, { norange: true });
-        const cache = await caches.open('dag-audio-cache');
-        const match = await cache.match(cacheUrl);
-        if (!match) {
-            const res = await fetch(cacheUrl, { cache: 'no-store' });
-            if (res.ok) await cache.put(cacheUrl, res.clone());
-        }
-    } catch (e) {}
+    // В PWA всегда используем одну последовательную очередь: так фоновая
+    // синхронизация не забивает слабый интернет магнитолы параллельными загрузками.
+    enqueueWebTrackCache(track, options.reason || 'played', !!options.priority);
 }
 
 async function getDeviceCachedAudio(trackOrUrl) {
@@ -1026,9 +1147,11 @@ async function getDeviceCachedAudio(trackOrUrl) {
         try {
             const cache = await caches.open('dag-audio-cache');
             const direct = isDagServerMedia(resolvedUrl) ? resolvedUrl : '';
+            const noRangeProxy = buildProxyUrl(track, { norange: true });
             const normalProxy = buildProxyUrl(track);
             const weakProxy = buildProxyUrl(track, { weak: true });
             const res = (direct ? await cache.match(direct) : null) ||
+                (noRangeProxy ? await cache.match(noRangeProxy) : null) ||
                 (await cache.match(normalProxy)) ||
                 (await cache.match(weakProxy));
             if (res) {
@@ -1101,14 +1224,25 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
 }
 
 function syncPlaylistOfflineCache() {
-    if (!IS_NATIVE_APP || navigator.onLine === false) return;
+    if (navigator.onLine === false) return;
+
+    // Просим браузер хранить кэш устойчивее к автоматической очистке.
+    if (!IS_NATIVE_APP && navigator.storage && typeof navigator.storage.persist === 'function') {
+        navigator.storage.persist().catch(function() {});
+    }
+
     const seen = new Set();
     playlists.forEach(pl => {
         (pl.tracks || []).forEach(track => {
             const resolved = canonicalTrackUrl(track);
             if (!resolved || seen.has(resolved)) return;
             seen.add(resolved);
-            enqueueNativeTrackCache(track, 'playlist', false);
+
+            if (IS_NATIVE_APP) {
+                enqueueNativeTrackCache(track, 'playlist', false);
+            } else {
+                enqueueWebTrackCache(track, 'playlist', false);
+            }
         });
     });
 }
@@ -1452,14 +1586,44 @@ async function api(action, data = {}) {
     }
 }
 
-async function checkAuth() {
-    const lastNativeUser = IS_NATIVE_APP
-        ? String(localStorage.getItem(LAST_NATIVE_USER_KEY) || '')
-        : '';
+function renderCurrentPlaylistFromAccountData() {
+    if (currentTab !== 'search') {
+        const pl = playlists.find(p => p.id == currentTab);
+        if (pl) {
+            playlist = [...(pl.tracks || [])];
+            renderPlaylist();
+        } else {
+            switchTab('search');
+        }
+    }
+}
 
-    if (IS_NATIVE_APP && navigator.onLine === false && lastNativeUser) {
-        currentUser = lastNativeUser;
-        await loadUserData();
+function hydrateCachedAccount(username) {
+    if (!username) return false;
+    const cached = loadOfflinePlaylistsSnapshot(username);
+    if (!Array.isArray(cached)) return false;
+
+    currentUser = username;
+    playlists = [...cached];
+    renderCurrentPlaylistFromAccountData();
+    return cached.length > 0;
+}
+
+async function checkAuth() {
+    const lastKnownUser = String(
+        localStorage.getItem(LAST_DEVICE_USER_KEY) ||
+        localStorage.getItem(LAST_NATIVE_USER_KEY) ||
+        ''
+    );
+
+    // Сразу показываем последнюю локальную копию аккаунта. Проверка сервера идёт
+    // следом и обновит её, но медленный интернет больше не оставляет пустой экран.
+    if (lastKnownUser) {
+        hydrateCachedAccount(lastKnownUser);
+    }
+
+    if (navigator.onLine === false && lastKnownUser) {
+        currentUser = lastKnownUser;
         return;
     }
 
@@ -1467,75 +1631,73 @@ async function checkAuth() {
 
     if (res && res.logged_in) {
         currentUser = res.username;
-        if (IS_NATIVE_APP && currentUser) {
+        localStorage.setItem(LAST_DEVICE_USER_KEY, currentUser);
+        if (IS_NATIVE_APP) {
             localStorage.setItem(LAST_NATIVE_USER_KEY, currentUser);
         }
-        if(res.theme) setTheme(res.theme, false);
+        if (res.theme) setTheme(res.theme, false);
         await loadUserData();
         return;
     }
 
-    // При временной сетевой ошибке не выкидываем пользователя из нативного
-    // приложения: офлайн-плейлисты и локальная музыка должны остаться доступны.
-    if (IS_NATIVE_APP && res && res.error && lastNativeUser) {
-        currentUser = lastNativeUser;
-        await loadUserData();
+    // Сетевой сбой не уничтожает локальный профиль/плейлисты.
+    if (res && res.error && lastKnownUser) {
+        currentUser = lastKnownUser;
+        hydrateCachedAccount(lastKnownUser);
         return;
     }
 
     currentUser = null;
+    localStorage.removeItem(LAST_DEVICE_USER_KEY);
     if (IS_NATIVE_APP) {
         localStorage.removeItem(NATIVE_SESSION_KEY);
         localStorage.removeItem(LAST_NATIVE_USER_KEY);
     }
-    await loadUserData();
+    playlists = [];
+    renderCurrentPlaylistFromAccountData();
 }
 
 async function loadUserData() {
     let dbPlaylists = [];
     let loadedFromServer = false;
 
-    if(currentUser) {
+    if (currentUser) {
+        // Сначала локальный снимок — мгновенный интерфейс даже на 2G/плохом Wi‑Fi.
+        const cached = loadOfflinePlaylistsSnapshot(currentUser);
+        if (Array.isArray(cached)) {
+            dbPlaylists = cached;
+            playlists = [...dbPlaylists];
+            renderCurrentPlaylistFromAccountData();
+        }
+
         if (navigator.onLine !== false && (!IS_NATIVE_APP || nativeApiReachable)) {
             const data = await api('get_data');
-            if(!data.error && Array.isArray(data)) {
+            if (!data.error && Array.isArray(data)) {
                 dbPlaylists = data;
                 loadedFromServer = true;
                 saveOfflinePlaylistsSnapshot(dbPlaylists);
             }
         }
-
-        if (!loadedFromServer && IS_NATIVE_APP) {
-            dbPlaylists = loadOfflinePlaylistsSnapshot(currentUser);
-        }
     }
 
     playlists = [...dbPlaylists];
+    renderCurrentPlaylistFromAccountData();
 
-    if (IS_NATIVE_APP) {
-        if (navigator.onLine !== false) {
-            syncPlaylistOfflineCache();
-        }
-
-        if (currentTab === 'search' && navigator.onLine === false) {
-            const offlineTracks = getOfflineCachedTracks();
-            if (offlineTracks.length > 0) {
-                searchPlaylistCache = offlineTracks;
-                playlist = [...offlineTracks];
-                renderPlaylist();
-            }
-        }
+    if (currentUser && navigator.onLine !== false) {
+        // Не ждём загрузки музыки: список уже готов, треки докачиваются последовательно.
+        syncPlaylistOfflineCache();
     }
 
-    if(currentTab !== 'search') {
-        const pl = playlists.find(p => p.id == currentTab);
-        if(pl) {
-            playlist = [...pl.tracks];
+    if (currentTab === 'search' && navigator.onLine === false && IS_NATIVE_APP) {
+        const offlineTracks = getOfflineCachedTracks();
+        if (offlineTracks.length > 0) {
+            searchPlaylistCache = offlineTracks;
+            playlist = [...offlineTracks];
             renderPlaylist();
-        } else {
-            switchTab('search');
         }
     }
+
+    return loadedFromServer;
 }
 
 // --- WAKE LOCK ---
@@ -1555,6 +1717,25 @@ document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible' && !mainAudio.paused && !mainAudio.ended) {
         requestWakeLock();
     }
+});
+
+if (mainAudio) {
+    mainAudio.addEventListener('pause', function() {
+        if (IS_NATIVE_APP) scheduleNativeCacheWorker(500);
+        else scheduleWebCacheWorker(500);
+    });
+    mainAudio.addEventListener('ended', function() {
+        if (IS_NATIVE_APP) scheduleNativeCacheWorker(500);
+        else scheduleWebCacheWorker(500);
+    });
+}
+
+window.addEventListener('online', function() {
+    if (currentUser) {
+        loadUserData().catch(function() {});
+    }
+    if (IS_NATIVE_APP) scheduleNativeCacheWorker(500);
+    else scheduleWebCacheWorker(500);
 });
 
 // --- UI HELPERS ---
@@ -2551,8 +2732,11 @@ async function handleAuth() {
             // Сервер после регистрации сразу создаёт сессию, поэтому вход и
             // регистрация завершаются одинаково и без промежуточного тупика.
             currentUser = res.username || name;
-            if (IS_NATIVE_APP && currentUser) {
-                localStorage.setItem(LAST_NATIVE_USER_KEY, currentUser);
+            if (currentUser) {
+                localStorage.setItem(LAST_DEVICE_USER_KEY, currentUser);
+                if (IS_NATIVE_APP) {
+                    localStorage.setItem(LAST_NATIVE_USER_KEY, currentUser);
+                }
             }
             isRegMode = false;
             closeModal('menu-modal');
@@ -2577,6 +2761,7 @@ async function handleAuth() {
 async function handleLogout() {
     await api('logout');
     currentUser = null;
+    localStorage.removeItem(LAST_DEVICE_USER_KEY);
     if (IS_NATIVE_APP) {
         localStorage.removeItem(LAST_NATIVE_USER_KEY);
     }

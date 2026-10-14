@@ -173,7 +173,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2224" defer></script>
+<script src="script.js?v=2225" defer></script>
 
 </body>
 </html>

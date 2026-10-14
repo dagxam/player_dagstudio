@@ -1,12 +1,12 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2224';
-const RUNTIME_CACHE = 'dagstudio-player-runtime-v2224';
+const CACHE_NAME = 'dagstudio-player-shell-v2225';
+const RUNTIME_CACHE = 'dagstudio-player-runtime-v2225';
 
 const CORE_ASSETS = [
     '/',
     '/index.php',
     '/style.css?v=2224',
-    '/script.js?v=2224',
+    '/script.js?v=2225',
     '/manifest.json?v=2216',
     '/images/faviconch.png',
     '/images/icon-192.png',
@@ -77,9 +77,8 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // Навигация: свежая версия с сервера имеет приоритет.
-    // При действительно слабой/пропавшей сети через 8 секунд используем
-    // локальную оболочку, чтобы приложение всё равно запускалось.
+    // Навигация: сеть получает короткий шанс обновить оболочку, но установленная
+    // PWA не ждёт долгий таймаут на слабом интернете магнитолы.
     if (request.mode === 'navigate') {
         event.respondWith((async function() {
             const cached = await caches.match('/index.php');
@@ -99,7 +98,7 @@ self.addEventListener('fetch', function(event) {
             }
 
             const timeout = new Promise(function(resolve) {
-                setTimeout(function() { resolve(null); }, 8000);
+                setTimeout(function() { resolve(null); }, 1200);
             });
 
             const fresh = await Promise.race([network, timeout]);
