@@ -82,12 +82,25 @@ const audioCache = {
       path
     });
 
-    await FileTransfer.downloadFile({
-      url,
-      path: uriInfo.uri,
-      headers: options?.headers || {},
-      progress: false
-    });
+    try {
+      await FileTransfer.downloadFile({
+        url,
+        path: uriInfo.uri,
+        headers: options?.headers || {},
+        progress: false
+      });
+    } catch (error) {
+      // На старых Android (часто встречаются в автомагнитолах) FileTransfer
+      // может некорректно запросить доступ к storage даже для app-private URI.
+      // Filesystem.downloadFile пока оставляем как совместимый fallback.
+      await Filesystem.downloadFile({
+        url,
+        path,
+        directory: Directory.Data,
+        recursive: true,
+        headers: options?.headers || {}
+      });
+    }
 
     const stored = await statCached(path);
     if (!stored) throw new Error('Audio file was not stored after download');
