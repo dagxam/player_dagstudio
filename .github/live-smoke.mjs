@@ -6,14 +6,14 @@ const executablePath = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 const browser = await puppeteer.launch({
   executablePath,
   headless: true,
-  args: ['--no-sandbox', '--disable-dev-shm-usage']
+  args: ['--no-sandbox', '--disable-dev-shm-usage', '--autoplay-policy=no-user-gesture-required']
 });
 
 const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2231', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2232', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -67,6 +67,27 @@ try {
   }
   for (const name of ['downloadButton','equalizerButton','updateButton','versionFooter','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
     if (!basics[name]) throw new Error('Missing/incorrect UI state: ' + name);
+  }
+
+  // Compatibility regression: old Android WebView may return undefined from audio.play().
+  // The wrapper must never crash by blindly calling .then() on that value.
+  const legacyPlayShim = await page.evaluate(async () => {
+    const audio = document.getElementById('main-audio');
+    const originalPlay = audio.play;
+    let called = 0;
+    audio.play = function() { called += 1; return undefined; };
+    try {
+      await window.requestAudioPlay();
+      return {ok:true, called};
+    } catch (error) {
+      return {ok:false, called, error:String(error)};
+    } finally {
+      audio.play = originalPlay;
+    }
+  });
+  console.log('LEGACY_PLAY_SHIM', JSON.stringify(legacyPlayShim));
+  if (!legacyPlayShim.ok || legacyPlayShim.called !== 1) {
+    throw new Error('Old WebView play() compatibility failed: ' + JSON.stringify(legacyPlayShim));
   }
 
   await page.click('.menu-btn');
@@ -230,11 +251,99 @@ try {
   if (!relaySmoke.ok || relaySmoke.bytes < 1 || ![200, 206].includes(relaySmoke.status)) {
     throw new Error('Audio relay smoke failed: ' + JSON.stringify(relaySmoke));
   }
+  if (relaySmoke.status === 206 && !relaySmoke.contentType.toLowerCase().startsWith('audio/')) {
+    throw new Error('Partial audio response has incompatible MIME: ' + JSON.stringify(relaySmoke));
+  }
+
+  // Compatibility path used by old Android/head units: ignore Range upstream and
+  // start playback from a full 200 stream. Read only the first chunk and cancel.
+  const noRangeSmoke = await page.evaluate(async (track) => {
+    const params = new URLSearchParams();
+    params.set('url', track.url);
+    if (track.source) params.set('source', String(track.source).replace(/[^A-Za-z0-9_]/g, ''));
+    params.set('weak', '1');
+    params.set('norange', '1');
+    const response = await fetch('/proxy.php?' + params.toString(), {
+      headers: { 'Range': 'bytes=0-4095' },
+      cache: 'no-store'
+    });
+    let bytes = 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      const first = await reader.read();
+      bytes = first.value ? first.value.byteLength : 0;
+      await reader.cancel();
+    }
+    return {
+      status: response.status,
+      ok: response.ok,
+      bytes,
+      contentType: response.headers.get('content-type') || '',
+      acceptRanges: response.headers.get('accept-ranges') || '',
+      rangeMode: response.headers.get('x-dag-range-mode') || ''
+    };
+  }, searchSmoke.first);
+  console.log('NO_RANGE_SMOKE', JSON.stringify(noRangeSmoke));
+  if (!noRangeSmoke.ok || noRangeSmoke.bytes < 1 ||
+      !noRangeSmoke.contentType.toLowerCase().startsWith('audio/') ||
+      noRangeSmoke.rangeMode !== 'full') {
+    throw new Error('Android no-Range compatibility relay failed: ' + JSON.stringify(noRangeSmoke));
+  }
+
+  // Real HTMLMediaElement start against the compatibility stream.
+  const mediaStart = await page.evaluate(async (track) => {
+    const audio = document.getElementById('main-audio');
+    const params = new URLSearchParams();
+    params.set('url', track.url);
+    if (track.source) params.set('source', String(track.source).replace(/[^A-Za-z0-9_]/g, ''));
+    params.set('weak', '1');
+    params.set('norange', '1');
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.src = '/proxy.php?' + params.toString();
+    audio.preload = 'metadata';
+    audio.muted = true;
+    audio.load();
+
+    return await new Promise(resolve => {
+      let done = false;
+      const finish = value => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        audio.pause();
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish({
+        ok:false, event:'timeout', readyState:audio.readyState,
+        networkState:audio.networkState, mediaError:audio.error ? audio.error.code : 0
+      }), 18000);
+      audio.addEventListener('playing', () => finish({
+        ok:true, event:'playing', readyState:audio.readyState, currentTime:audio.currentTime
+      }), {once:true});
+      audio.addEventListener('error', () => finish({
+        ok:false, event:'error', readyState:audio.readyState,
+        networkState:audio.networkState, mediaError:audio.error ? audio.error.code : 0
+      }), {once:true});
+      try {
+        const playResult = audio.play();
+        if (playResult && typeof playResult.catch === 'function') {
+          playResult.catch(error => finish({ok:false,event:'play-reject',error:String(error)}));
+        }
+      } catch (error) {
+        finish({ok:false,event:'play-throw',error:String(error)});
+      }
+    });
+  }, searchSmoke.first);
+  console.log('MEDIA_START', JSON.stringify(mediaStart));
+  if (!mediaStart.ok) {
+    throw new Error('Live HTMLMediaElement playback did not start: ' + JSON.stringify(mediaStart));
+  }
 
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2231', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2232', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

@@ -144,7 +144,7 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2231'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2232'
           echo "$INDEX_HTML" | grep -q 'style.css?v=2226'
           echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'
           echo "$INDEX_HTML" | grep -q 'id="app-update-btn"'
@@ -181,8 +181,20 @@ jobs:
           rm -f /tmp/dag-audio.bin /tmp/dag-audio.headers
           curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 40 --range 0-2047 -D /tmp/dag-audio.headers -o /tmp/dag-audio.bin "https://pl.dagstudio.ru/proxy.php?url=$ENCODED_URL&source=$AUDIO_SOURCE&retry=0"
           test -s /tmp/dag-audio.bin
-          grep -Eiq '^content-type: (audio/|application/octet-stream|application/mp3|binary/octet-stream)' /tmp/dag-audio.headers
-          echo "Live search + audio proxy playback smoke check passed"
+          grep -Eiq '^content-type: audio/' /tmp/dag-audio.headers
+
+          RANGE_STATUS="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/dag-audio.headers)"
+          if [ "$RANGE_STATUS" = "206" ]; then
+            grep -Eiq '^content-range: bytes [0-9]+-[0-9]+/([0-9]+|\*)' /tmp/dag-audio.headers
+            grep -Eiq '^x-dag-range-mode: partial' /tmp/dag-audio.headers
+          elif [ "$RANGE_STATUS" = "200" ]; then
+            grep -Eiq '^x-dag-range-mode: full' /tmp/dag-audio.headers
+          else
+            echo "Unexpected audio proxy status: $RANGE_STATUS"
+            cat /tmp/dag-audio.headers
+            exit 1
+          fi
+          echo "Live search + strict audio Range smoke check passed"
 
       - name: Deployment is not configured yet
         if: ${{ env.FTP_SERVER == '' || env.FTP_USERNAME == '' || env.FTP_PASSWORD == '' || env.FTP_SERVER_DIR == '' }}

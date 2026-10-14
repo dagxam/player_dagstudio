@@ -23,7 +23,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate PHP
-        run: php -l api.php
+        run: |
+          php -l api.php
+          php -l proxy.php
 
       - name: Start local player API
         run: |

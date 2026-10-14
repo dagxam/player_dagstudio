@@ -17,7 +17,7 @@ if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
 }
 header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
 header('Access-Control-Allow-Headers: Range, Content-Type');
-header('Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length, Content-Type, X-DAG-Stream, X-DAG-Network-Mode');
+header('Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length, Content-Type, X-DAG-Stream, X-DAG-Network-Mode, X-DAG-Range-Mode');
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -97,6 +97,22 @@ $profiles = [
 $profile = $profiles[$host] ?? ['referer' => $scheme . '://' . $host . '/', 'origin' => $scheme . '://' . $host];
 $isMuzVox = ($source === 'muzvox' || str_ends_with($host, '.muzvox.org') || $host === 'muzvox.org');
 
+// Старые Android MediaPlayer/WebView хуже определяют кодек, если upstream
+// отвечает application/octet-stream или вообще без Content-Type.
+$audioPath = strtolower((string)(parse_url($url, PHP_URL_PATH) ?? ''));
+$audioExt = strtolower(pathinfo($audioPath, PATHINFO_EXTENSION));
+$mimeByExtension = [
+    'mp3' => 'audio/mpeg',
+    'm4a' => 'audio/mp4',
+    'mp4' => 'audio/mp4',
+    'aac' => 'audio/aac',
+    'ogg' => 'audio/ogg',
+    'opus' => 'audio/ogg',
+    'wav' => 'audio/wav',
+    'flac' => 'audio/flac',
+];
+$fallbackContentType = $mimeByExtension[$audioExt] ?? 'audio/mpeg';
+
 function buildAudioHeaders(bool $useRange, string $range, array $profile): array {
     $headers = [
         'Accept: audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/*;q=0.9,*/*;q=0.1',
@@ -122,33 +138,34 @@ $headersSent = false;
 $bodyStarted = false;
 $attemptError = false;
 
-$sendHeaders = static function() use (&$responseHeaders, &$currentStatus, &$headersSent) {
+$sendHeaders = static function(bool $useRange) use (
+    &$responseHeaders, &$currentStatus, &$headersSent, $fallbackContentType, $forceNoRange
+) {
     if ($headersSent) return true;
 
     $status = (int)$currentStatus;
-    if ($status < 200 || $status > 599) $status = 200;
+    $lowerHeaders = array_change_key_case($responseHeaders, CASE_LOWER);
+    $contentType = strtolower(trim(explode(';', (string)($lowerHeaders['content-type'] ?? ''))[0]));
+    $contentRange = trim((string)($lowerHeaders['content-range'] ?? ''));
 
-    $contentType = '';
-    foreach ($responseHeaders as $name => $value) {
-        if (strtolower($name) === 'content-type') {
-            $contentType = strtolower(trim(explode(';', $value)[0]));
-            break;
-        }
-    }
-
-    // Не превращаем HTML-страницу ошибки/антибота в "MP3".
-    $validType = ($contentType === '' || str_starts_with($contentType, 'audio/') ||
-        in_array($contentType, ['application/octet-stream', 'application/mp3', 'binary/octet-stream'], true));
-
-    if ($status >= 400 || !$validType) {
+    // Для HTML5 media корректный частичный ответ обязан быть 206 + Content-Range.
+    // Некоторые источники присылают битый 206; старый Android на нём зависает навсегда.
+    if (!in_array($status, [200, 206], true)) return false;
+    if ($status === 206 &&
+        !preg_match('/^bytes\s+\d+-\d+\/(?:\d+|\*)$/i', $contentRange)) {
         return false;
     }
 
+    // Не превращаем HTML/JSON-антибот в аудио.
+    $validType = ($contentType === '' || str_starts_with($contentType, 'audio/') ||
+        in_array($contentType, ['application/octet-stream', 'application/mp3', 'binary/octet-stream'], true));
+    if (!$validType) return false;
+
     http_response_code($status);
 
+    // Передаём безопасные метаданные, но Content-Type/Accept-Ranges нормализуем сами.
     $allowedResponse = [
-        'content-type', 'content-length', 'content-range', 'accept-ranges',
-        'etag', 'last-modified', 'expires', 'cache-control'
+        'content-length', 'content-range', 'etag', 'last-modified', 'expires'
     ];
     foreach ($responseHeaders as $name => $value) {
         if (in_array(strtolower($name), $allowedResponse, true)) {
@@ -156,9 +173,26 @@ $sendHeaders = static function() use (&$responseHeaders, &$currentStatus, &$head
         }
     }
 
-    if (!array_key_exists('accept-ranges', array_change_key_case($responseHeaders, CASE_LOWER))) {
+    $effectiveType = ($contentType === '' ||
+        in_array($contentType, ['application/octet-stream', 'application/mp3', 'binary/octet-stream'], true))
+        ? $fallbackContentType
+        : $contentType;
+    header('Content-Type: ' . $effectiveType);
+
+    $upstreamAcceptRanges = strtolower(trim((string)($lowerHeaders['accept-ranges'] ?? '')));
+    if ($forceNoRange || ($useRange && $status === 200)) {
+        // Запросили Range, но upstream его проигнорировал — не обещаем браузеру
+        // поддержку перемотки. Android тогда спокойно играет полный поток 200.
+        header('Accept-Ranges: none');
+        header('X-DAG-Range-Mode: full');
+    } elseif ($status === 206 || $upstreamAcceptRanges === 'bytes') {
         header('Accept-Ranges: bytes');
+        header('X-DAG-Range-Mode: partial');
+    } else {
+        header('Accept-Ranges: none');
+        header('X-DAG-Range-Mode: full');
     }
+
     header('X-Content-Type-Options: nosniff');
     header('Cache-Control: no-store');
     header('X-DAG-Stream: 1');
@@ -219,9 +253,9 @@ $runAttempt = function(bool $useRange) use (
             }
             return strlen($line);
         },
-        CURLOPT_WRITEFUNCTION => function($ch, $data) use (&$bodyStarted, &$attemptError, $sendHeaders) {
+        CURLOPT_WRITEFUNCTION => function($ch, $data) use (&$bodyStarted, &$attemptError, $sendHeaders, $useRange) {
             if (!$bodyStarted) {
-                if (!$sendHeaders()) {
+                if (!$sendHeaders($useRange)) {
                     $attemptError = true;
                     // Важно: если заголовки ещё не ушли клиенту, можно сделать
                     // второй запрос без Range.
@@ -249,7 +283,7 @@ $runAttempt = function(bool $useRange) use (
         $currentStatus = $httpCode;
     }
     if (!$headersSent && !$attemptError) {
-        $sendHeaders();
+        $sendHeaders($useRange);
     }
 
     curl_close($ch);

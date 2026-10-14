@@ -1,4 +1,4 @@
-// script.js - V2218 (web + Capacitor native shell)
+// script.js - V2232 (web + Capacitor native shell)
 
 const DAG_SERVER_ORIGIN = 'https://pl.dagstudio.ru';
 const NATIVE_SESSION_KEY = 'dag_native_session';
@@ -76,7 +76,7 @@ async function nativeHttpRequest(options) {
 
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const WEB_BUILD_LABEL = '2231';
+const WEB_BUILD_LABEL = '2232';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -389,7 +389,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2231', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2232', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -401,8 +401,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2231') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2231', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2232') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2232', '1');
         window.location.reload();
     });
 }
@@ -448,8 +448,62 @@ const colorThemes = {
 const mainAudio = document.getElementById('main-audio');
 if (mainAudio) {
     mainAudio.preload = 'auto';
-    mainAudio.crossOrigin = 'anonymous';
+    // Для обычного HTML5-воспроизведения crossOrigin не нужен: весь внешний
+    // звук и так идёт через наш proxy.php. На старых Android/WebView этот флаг
+    // способен ломать локальные file/content URL и добавлять лишнюю CORS-проверку.
+    mainAudio.removeAttribute('crossorigin');
 }
+
+const AUDIO_COMPAT_PROFILE = (function() {
+    const ua = navigator.userAgent || '';
+    const androidMatch = ua.match(/Android\s+(\d+)(?:\.(\d+))?/i);
+    const androidMajor = androidMatch ? Number(androidMatch[1]) : 0;
+    const android = /Android/i.test(ua);
+    const webView = android && (/\bwv\b/i.test(ua) || /;\s*wv\)/i.test(ua) ||
+        (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua)));
+    // Большая часть автомагнитол работает либо на старом Android, либо на
+    // системном WebView. Здесь приоритет — надёжный HTML5 Audio без WebAudio.
+    const legacyAndroid = android && (webView || (androidMajor > 0 && androidMajor <= 10));
+    return { android, androidMajor, webView, legacyAndroid };
+})();
+
+function requestAudioPlay() {
+    try {
+        const result = mainAudio.play();
+        // Старые WebView (особенно магнитолы) возвращают undefined вместо Promise.
+        if (result && typeof result.then === 'function') return result;
+        return Promise.resolve();
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+function clearPlaybackWatchdog() {
+    if (playWatchdog) {
+        clearTimeout(playWatchdog);
+        playWatchdog = null;
+    }
+}
+
+function armPlaybackWatchdog(token, reason) {
+    clearPlaybackWatchdog();
+    const net = getNetworkProfile();
+    let timeout = net.veryWeak ? 60000 : (net.weak ? 45000 : 25000);
+
+    if (AUDIO_COMPAT_PROFILE.legacyAndroid) {
+        // На старой магнитоле бессмысленно крутить загрузку десятки секунд:
+        // быстро переходим на совместимый no-Range поток.
+        timeout = net.weak ? 18000 : 12000;
+    }
+
+    playWatchdog = setTimeout(function() {
+        if (token !== currentPlaybackToken || mainAudio.ended) return;
+        if (mainAudio.readyState < 3 || mainAudio.currentTime <= 0) {
+            recoverCurrentStream(reason || 'startup-timeout');
+        }
+    }, timeout);
+}
+
 const connectionInfo = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
 
 // --- DAGSTUDIO SOUND / ЭКВАЛАЙЗЕР ---
@@ -524,6 +578,14 @@ function applyEqualizerState() {
 
 async function ensureEqualizerGraph() {
     if (!mainAudio || eqGraphFailed) return false;
+
+    // Не подключаем MediaElementSource на старых Android/WebView. Если создание
+    // WebAudio-графа там завершится наполовину, <audio> может стать полностью
+    // беззвучным до перезагрузки страницы.
+    if (AUDIO_COMPAT_PROFILE.legacyAndroid) {
+        eqGraphFailed = true;
+        return false;
+    }
     if (eqGraphReady && eqAudioContext) {
         if (eqAudioContext.state === 'suspended') {
             try { await eqAudioContext.resume(); } catch (error) {}
@@ -2166,7 +2228,11 @@ function scheduleStreamRecovery(reason, delay) {
 
     const token = currentPlaybackToken;
     const net = getNetworkProfile();
-    const wait = typeof delay === 'number' ? delay : (net.veryWeak ? 26000 : (net.weak ? 16000 : 8000));
+    let wait = typeof delay === 'number' ? delay : (net.veryWeak ? 26000 : (net.weak ? 16000 : 8000));
+
+    if (typeof delay !== 'number' && AUDIO_COMPAT_PROFILE.legacyAndroid) {
+        wait = net.weak ? 6500 : 4500;
+    }
 
     streamRecoveryTimer = setTimeout(function() {
         if (token !== currentPlaybackToken || mainAudio.ended) return;
@@ -2199,10 +2265,9 @@ async function recoverCurrentStream(reason) {
             mainAudio.load();
 
             try {
-                await mainAudio.play();
+                armPlaybackWatchdog(currentPlaybackToken, 'cache-recovery-timeout');
+                await requestAudioPlay();
                 restorePendingPosition();
-                showLoader(false);
-                updateState(true);
                 artistEl.textContent = track.artist || 'Офлайн';
                 return;
             } catch (error) {
@@ -2246,7 +2311,7 @@ async function recoverCurrentStream(reason) {
     }
 
     const retry = track._streamRetries;
-    const useNoRange = retry >= 3;
+    const useNoRange = AUDIO_COMPAT_PROFILE.legacyAndroid || retry >= 2;
     let retryUrl = resolveMediaUrl(track.url);
 
     if (shouldProxyMedia(track)) {
@@ -2263,11 +2328,13 @@ async function recoverCurrentStream(reason) {
     mainAudio.load();
 
     try {
-        await mainAudio.play();
+        armPlaybackWatchdog(currentPlaybackToken, 'retry-timeout');
+        await requestAudioPlay();
+        // Состояние "играет" ставит только реальное событие playing.
+        // Это важно для старых WebView, где play() возвращает undefined.
         restorePendingPosition();
-        showLoader(false);
-        updateState(true);
     } catch (error) {
+        clearPlaybackWatchdog();
         if (error && error.name === 'NotAllowedError') {
             showLoader(false);
             updateState(false);
@@ -2280,6 +2347,7 @@ async function recoverCurrentStream(reason) {
 
 mainAudio.addEventListener('playing', function() {
     clearStreamRecoveryTimer();
+    clearPlaybackWatchdog();
     showLoader(false);
     networkRetryPending = false;
     window.skipCounter = 0;
@@ -2413,11 +2481,13 @@ async function playTrack(index) {
     networkRetryPending = false;
     pendingResumeTime = 0;
     clearStreamRecoveryTimer();
+    clearPlaybackWatchdog();
 
     updateActiveTrackInList(index);
     titleEl.textContent = track.title;
     artistEl.textContent = track.artist;
     showLoader(true);
+    updateState(false);
 
     if ('mediaSession' in navigator) {
         try {
@@ -2434,8 +2504,6 @@ async function playTrack(index) {
         } catch(e) {}
     }
 
-    clearTimeout(playWatchdog);
-
     if (currentBlobUrl) {
         URL.revokeObjectURL(currentBlobUrl);
         currentBlobUrl = null;
@@ -2449,7 +2517,21 @@ async function playTrack(index) {
         let finalUrl = resolveMediaUrl(track.url);
         let isCached = false;
 
-        if (track.url && isRemoteMediaUrl(track.url)) {
+        const immediateLegacyStart =
+            AUDIO_COMPAT_PROFILE.legacyAndroid &&
+            !IS_NATIVE_APP &&
+            navigator.onLine !== false &&
+            track.url &&
+            isRemoteMediaUrl(track.url);
+
+        if (immediateLegacyStart) {
+            // Не теряем пользовательский жест на ожидании CacheStorage/IndexedDB.
+            // Старому WebView сразу отдаём самый совместимый полный поток.
+            track._playingFromCache = false;
+            finalUrl = shouldProxyMedia(track)
+                ? buildProxyUrl(track, { weak: isWeakConnection(), norange: true, retry: 0 })
+                : resolveMediaUrl(track.url);
+        } else if (track.url && isRemoteMediaUrl(track.url)) {
             const cachedRes = await getDeviceCachedAudio(track);
             if (token !== currentPlaybackToken) return;
 
@@ -2464,14 +2546,17 @@ async function playTrack(index) {
             } else {
                 track._playingFromCache = false;
                 finalUrl = shouldProxyMedia(track)
-                    ? buildProxyUrl(track, { weak: isWeakConnection() })
+                    ? buildProxyUrl(track, {
+                        weak: isWeakConnection(),
+                        norange: AUDIO_COMPAT_PROFILE.legacyAndroid
+                    })
                     : resolveMediaUrl(track.url);
             }
         }
 
         if (!navigator.onLine && !isCached && track.url && isRemoteMediaUrl(track.url)) {
             networkRetryPending = true;
-            showLoader(true);
+            showLoader(false);
             titleEl.textContent = track.title;
             artistEl.textContent = 'Нет сети и трек ещё не сохранён на устройстве';
             updateState(false);
@@ -2480,24 +2565,17 @@ async function playTrack(index) {
 
         mainAudio.src = finalUrl;
         mainAudio.loop = false;
-        mainAudio.preload = 'auto';
+        mainAudio.preload = AUDIO_COMPAT_PROFILE.legacyAndroid ? 'metadata' : 'auto';
+        mainAudio.load();
 
-        const net = getNetworkProfile();
-        playWatchdog = setTimeout(function() {
-            if (token !== currentPlaybackToken) return;
-            if (mainAudio.readyState < 3 && !mainAudio.ended) {
-                recoverCurrentStream('startup-timeout');
-            }
-        }, net.veryWeak ? 60000 : (net.weak ? 45000 : 25000));
+        armPlaybackWatchdog(token, 'startup-timeout');
+        await requestAudioPlay();
 
-        await mainAudio.play();
         if (token !== currentPlaybackToken) return;
-        clearTimeout(playWatchdog);
-        showLoader(false);
-        updateState(true);
-
+        // Не рисуем ложное состояние воспроизведения. Событие playing
+        // само выключит loader и включит анимацию только когда пошёл звук.
     } catch (error) {
-        clearTimeout(playWatchdog);
+        clearPlaybackWatchdog();
         if (token !== currentPlaybackToken) return;
 
         if (error && error.name === 'NotAllowedError') {
@@ -2521,11 +2599,16 @@ function updateActiveTrackInList(index) {
 }
 
 function togglePlay() {
-    ensureEqualizerGraph();
     const track = playlist[currentIndex];
     if(!track) return;
 
     window.skipCounter = 0;
+
+    // Не создаём WebAudio-граф просто по нажатию Play. Он нужен только после
+    // явного открытия эквалайзера; это сохраняет звук на старых Android WebView.
+    if (eqGraphReady && eqAudioContext && eqAudioContext.state === 'suspended') {
+        try { eqAudioContext.resume(); } catch (error) {}
+    }
 
     if(mainAudio.paused) {
         if (!mainAudio.src || mainAudio.src.endsWith('null') || mainAudio.src === window.location.href) {
@@ -2533,11 +2616,12 @@ function togglePlay() {
             return;
         }
 
-        mainAudio.play().then(function() {
-            updateState(true);
-            requestWakeLock();
-        }).catch(function(error) {
+        showLoader(true);
+        armPlaybackWatchdog(currentPlaybackToken, 'manual-play-timeout');
+        requestAudioPlay().catch(function(error) {
+            clearPlaybackWatchdog();
             updateState(false);
+            showLoader(false);
             if (error && error.name === 'NotAllowedError') {
                 artistEl.textContent = 'Нажмите ▶ ещё раз для запуска';
                 return;
@@ -2546,9 +2630,11 @@ function togglePlay() {
         });
     } else {
         clearStreamRecoveryTimer();
+        clearPlaybackWatchdog();
         mainAudio.pause();
         releaseWakeLock();
         updateState(false);
+        showLoader(false);
     }
 }
 
