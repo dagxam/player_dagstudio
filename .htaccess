@@ -28,3 +28,12 @@ RedirectMatch 403 ^/sessions(/|$)
     Header always set Pragma "no-cache"
     Header always set Expires "0"
 </FilesMatch>
+
+
+# Нативный Capacitor-клиент и Web Audio API должны иметь доступ к аудио-файлам.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(mp3|m4a|aac|ogg|opus|wav|flac|mp4|webm)$">
+        Header always set Access-Control-Allow-Origin "*"
+        Header always set Accept-Ranges "bytes"
+    </FilesMatch>
+</IfModule>

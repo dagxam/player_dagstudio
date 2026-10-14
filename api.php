@@ -280,6 +280,12 @@ elseif ($action === 'search_global') {
     $page = isset($data['page']) ? (int)$data['page'] : 1;
     if ($page < 1) $page = 1;
 
+    $weak_client = (($data['network'] ?? '') === 'weak') || !empty($data['save_data']);
+    $provider_connect_timeout = $weak_client ? 2 : 3;
+    $provider_timeout = $weak_client ? 4 : 6;
+    $muzca_detail_limit = $weak_client ? 5 : 12;
+    $result_limit = $weak_client ? 30 : 50;
+
     if (empty($query_encode)) {
         echo json_encode(['success' => true, 'data' => []]);
         exit;
@@ -303,9 +309,13 @@ elseif ($action === 'search_global') {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); 
-        curl_setopt($ch, CURLOPT_TIMEOUT, 6); 
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $provider_timeout); 
         curl_setopt($ch, CURLOPT_ENCODING, '');
+        curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, $weak_client ? 64 : 128);
+        curl_setopt($ch, CURLOPT_LOW_SPEED_TIME, $weak_client ? 3 : 4);
+        curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -319,13 +329,31 @@ elseif ($action === 'search_global') {
 
     $active = null;
     do {
-        curl_multi_exec($multi, $active);
-        curl_multi_select($multi);
+        do {
+            $mrc = curl_multi_exec($multi, $active);
+        } while ($mrc === CURLM_CALL_MULTI_PERFORM);
+
+        if ($active > 0) {
+            $selected = curl_multi_select($multi, 0.20);
+            if ($selected === -1) usleep(20000);
+        }
     } while ($active > 0);
 
     $responses = [];
+    $source_status = [];
     foreach ($channels as $key => $ch) {
-        $responses[$key] = curl_multi_getcontent($ch);
+        $body = curl_multi_getcontent($ch);
+        $http = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $errno = curl_errno($ch);
+        $error = curl_error($ch);
+
+        $responses[$key] = ($http >= 200 && $http < 400 && $errno === 0) ? $body : '';
+        $source_status[$key] = [
+            'ok' => ($http >= 200 && $http < 400 && $errno === 0 && strlen((string)$body) > 0),
+            'http' => $http,
+            'error' => $errno ? mb_substr($error, 0, 100) : ''
+        ];
+
         curl_multi_remove_handle($multi, $ch);
         curl_close($ch);
     }
@@ -523,7 +551,7 @@ elseif ($action === 'search_global') {
         }
         libxml_clear_errors();
 
-        $detailUrls = array_slice($detailUrls, 0, 12, true);
+        $detailUrls = array_slice($detailUrls, 0, $muzca_detail_limit, true);
         if ($detailUrls) {
             $m2 = curl_multi_init();
             $detailChannels = [];
@@ -532,8 +560,12 @@ elseif ($action === 'search_global') {
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $weak_client ? 2 : 3);
+                curl_setopt($ch, CURLOPT_TIMEOUT, $weak_client ? 3 : 5);
+                curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, $weak_client ? 64 : 128);
+                curl_setopt($ch, CURLOPT_LOW_SPEED_TIME, $weak_client ? 2 : 4);
+                curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                 curl_setopt($ch, CURLOPT_ENCODING, '');
                 curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36');
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: text/html,application/xhtml+xml', 'Accept-Language: ru-RU,ru;q=0.9']);
@@ -656,7 +688,7 @@ elseif ($action === 'search_global') {
     $order = ['[VK]', '[HITMOZ]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
-    while (count($final_output) < 50) {
+    while (count($final_output) < $result_limit) {
         $added = false;
         foreach ($order as $source) {
             $pos = $positions[$source];
@@ -666,13 +698,24 @@ elseif ($action === 'search_global') {
                 unset($item['relevance']);
                 $final_output[] = $item;
                 $added = true;
-                if (count($final_output) >= 50) break;
+                if (count($final_output) >= $result_limit) break;
             }
         }
         if (!$added) break;
     }
 
-    echo json_encode(['success' => true, 'data' => $final_output], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $source_counts = [];
+    foreach ($by_source as $source => $items) {
+        $source_counts[$source] = count($items);
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data' => $final_output,
+        'network_mode' => $weak_client ? 'weak' : 'normal',
+        'sources' => $source_status,
+        'source_counts' => $source_counts
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
 else {

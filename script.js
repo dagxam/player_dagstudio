@@ -13,6 +13,9 @@ function appServerUrl(path) {
 }
 
 function resolveMediaUrl(url) {
+    if (url && typeof url === 'object') {
+        url = url.url || url.file || '';
+    }
     const value = String(url || '').trim();
     if (!value) return '';
     if (/^(https?:|blob:|data:)/i.test(value)) return value;
@@ -161,7 +164,7 @@ async function checkNativeLiveUpdate(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2222', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2223', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -173,8 +176,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2222') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2222', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2223') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2223', '1');
         window.location.reload();
     });
 }
@@ -218,8 +221,232 @@ const colorThemes = {
 };
 
 const mainAudio = document.getElementById('main-audio');
-if (mainAudio) { mainAudio.preload = 'auto'; }
+if (mainAudio) {
+    mainAudio.preload = 'auto';
+    mainAudio.crossOrigin = 'anonymous';
+}
 const connectionInfo = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+// --- DAGSTUDIO SOUND / ЭКВАЛАЙЗЕР ---
+const EQ_STORAGE_KEY = 'dag_equalizer_v1';
+const EQ_BANDS = [
+    { f: 60, label: '60 Гц', type: 'lowshelf' },
+    { f: 150, label: '150 Гц', type: 'peaking' },
+    { f: 400, label: '400 Гц', type: 'peaking' },
+    { f: 1000, label: '1 кГц', type: 'peaking' },
+    { f: 2400, label: '2.4 кГц', type: 'peaking' },
+    { f: 6000, label: '6 кГц', type: 'peaking' },
+    { f: 12000, label: '12 кГц', type: 'highshelf' }
+];
+const EQ_PRESETS = {
+    flat:    { label: 'Ровный', gains: [0, 0, 0, 0, 0, 0, 0] },
+    bass:    { label: 'Бас', gains: [7, 5, 2, 0, -1, -2, -2] },
+    vocal:   { label: 'Вокал', gains: [-2, -1, 0, 3, 5, 3, 1] },
+    rock:    { label: 'Рок', gains: [4, 2, -1, 1, 3, 4, 3] },
+    electro: { label: 'Электро', gains: [6, 4, 0, -1, 2, 5, 6] }
+};
+
+let eqState = {
+    enabled: true,
+    preset: 'flat',
+    gains: [...EQ_PRESETS.flat.gains]
+};
+let eqAudioContext = null;
+let eqSourceNode = null;
+let eqFilters = [];
+let eqMasterGain = null;
+let eqGraphReady = false;
+let eqGraphFailed = false;
+
+function loadEqualizerState() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(EQ_STORAGE_KEY) || 'null');
+        if (saved && Array.isArray(saved.gains) && saved.gains.length === EQ_BANDS.length) {
+            eqState.enabled = saved.enabled !== false;
+            eqState.preset = saved.preset || 'custom';
+            eqState.gains = saved.gains.map(value => Math.max(-12, Math.min(12, Number(value) || 0)));
+        }
+    } catch (error) {}
+}
+loadEqualizerState();
+
+function saveEqualizerState() {
+    try {
+        localStorage.setItem(EQ_STORAGE_KEY, JSON.stringify(eqState));
+    } catch (error) {}
+}
+
+function applyEqualizerState() {
+    if (!eqGraphReady || !eqFilters.length) return;
+    eqFilters.forEach((filter, index) => {
+        const gain = eqState.enabled ? Number(eqState.gains[index] || 0) : 0;
+        try {
+            filter.gain.setTargetAtTime(gain, eqAudioContext.currentTime, 0.025);
+        } catch (error) {
+            filter.gain.value = gain;
+        }
+    });
+    if (eqMasterGain) {
+        const activeBoost = eqState.enabled ? Math.max(...eqState.gains, 0) : 0;
+        const compensation = activeBoost >= 6 ? 0.72 : (activeBoost >= 3 ? 0.84 : 0.96);
+        try {
+            eqMasterGain.gain.setTargetAtTime(compensation, eqAudioContext.currentTime, 0.025);
+        } catch (error) {
+            eqMasterGain.gain.value = compensation;
+        }
+    }
+}
+
+async function ensureEqualizerGraph() {
+    if (!mainAudio || eqGraphFailed) return false;
+    if (eqGraphReady && eqAudioContext) {
+        if (eqAudioContext.state === 'suspended') {
+            try { await eqAudioContext.resume(); } catch (error) {}
+        }
+        return true;
+    }
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) {
+        eqGraphFailed = true;
+        return false;
+    }
+
+    try {
+        eqAudioContext = new AudioContextCtor();
+        eqSourceNode = eqAudioContext.createMediaElementSource(mainAudio);
+        eqFilters = EQ_BANDS.map((band) => {
+            const filter = eqAudioContext.createBiquadFilter();
+            filter.type = band.type;
+            filter.frequency.value = band.f;
+            if (band.type === 'peaking') filter.Q.value = 1.05;
+            filter.gain.value = 0;
+            return filter;
+        });
+        eqMasterGain = eqAudioContext.createGain();
+        eqMasterGain.gain.value = 0.96;
+
+        let node = eqSourceNode;
+        eqFilters.forEach((filter) => {
+            node.connect(filter);
+            node = filter;
+        });
+        node.connect(eqMasterGain);
+        eqMasterGain.connect(eqAudioContext.destination);
+
+        eqGraphReady = true;
+        applyEqualizerState();
+
+        if (eqAudioContext.state === 'suspended') {
+            try { await eqAudioContext.resume(); } catch (error) {}
+        }
+        return true;
+    } catch (error) {
+        console.warn('Equalizer unavailable:', error);
+        eqGraphFailed = true;
+        return false;
+    }
+}
+
+function renderEqualizer() {
+    const bands = document.getElementById('eq-bands');
+    const power = document.getElementById('eq-power-btn');
+    if (!bands || !power) return;
+
+    power.classList.toggle('active', !!eqState.enabled);
+    power.setAttribute('aria-pressed', eqState.enabled ? 'true' : 'false');
+
+    bands.innerHTML = '';
+    EQ_BANDS.forEach((band, index) => {
+        const row = document.createElement('div');
+        row.className = 'eq-band';
+
+        const label = document.createElement('div');
+        label.className = 'eq-band-label';
+        label.textContent = band.label;
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = '-12';
+        slider.max = '12';
+        slider.step = '1';
+        slider.value = String(eqState.gains[index] || 0);
+        slider.className = 'eq-slider';
+        slider.dataset.eqIndex = String(index);
+
+        const value = document.createElement('div');
+        value.className = 'eq-band-value';
+        const renderValue = () => {
+            const num = Number(slider.value || 0);
+            value.textContent = (num > 0 ? '+' : '') + num + ' дБ';
+        };
+        renderValue();
+
+        slider.addEventListener('input', async () => {
+            eqState.gains[index] = Number(slider.value || 0);
+            eqState.preset = 'custom';
+            renderValue();
+            saveEqualizerState();
+            updateEqualizerPresetButtons();
+            await ensureEqualizerGraph();
+            applyEqualizerState();
+        });
+
+        row.appendChild(label);
+        row.appendChild(slider);
+        row.appendChild(value);
+        bands.appendChild(row);
+    });
+
+    updateEqualizerPresetButtons();
+}
+
+function updateEqualizerPresetButtons() {
+    document.querySelectorAll('[data-eq-preset]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.eqPreset === eqState.preset);
+    });
+}
+
+window.openEqualizer = async function() {
+    closeModal('menu-modal');
+    renderEqualizer();
+    document.getElementById('equalizer-modal').classList.add('show');
+    const ok = await ensureEqualizerGraph();
+    if (!ok) {
+        showNotification('Эквалайзер не поддерживается этим браузером или устройством.');
+    }
+};
+
+window.toggleEqualizerPower = async function() {
+    eqState.enabled = !eqState.enabled;
+    saveEqualizerState();
+    renderEqualizer();
+    await ensureEqualizerGraph();
+    applyEqualizerState();
+};
+
+window.resetEqualizer = async function() {
+    eqState = { enabled: true, preset: 'flat', gains: [...EQ_PRESETS.flat.gains] };
+    saveEqualizerState();
+    renderEqualizer();
+    await ensureEqualizerGraph();
+    applyEqualizerState();
+};
+
+document.addEventListener('click', async function(event) {
+    const button = event.target.closest('[data-eq-preset]');
+    if (!button) return;
+    const preset = EQ_PRESETS[button.dataset.eqPreset];
+    if (!preset) return;
+    eqState.enabled = true;
+    eqState.preset = button.dataset.eqPreset;
+    eqState.gains = [...preset.gains];
+    saveEqualizerState();
+    renderEqualizer();
+    await ensureEqualizerGraph();
+    applyEqualizerState();
+});
+
 
 function getNetworkProfile() {
     const info = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -251,7 +478,8 @@ function buildProxyUrl(trackOrUrl, options = {}) {
     const params = new URLSearchParams();
     params.set('url', resolvedUrl);
     if (track.source) {
-        params.set('source', String(track.source).replace(/[^A-Za-z0-9_\[\]]/g, ''));
+        const normalizedSource = String(track.source).replace(/[^A-Za-z0-9_]/g, '');
+        if (normalizedSource) params.set('source', normalizedSource);
     }
     if (options.weak || isWeakConnection()) params.set('weak', '1');
     if (options.norange) params.set('norange', '1');
@@ -912,10 +1140,7 @@ window.triggerInstall = async function() {
     }
 };
 
-serviceWorkerRegistrationPromise.then(function() {
-    setInstallButtonState();
-});
-document.addEventListener('DOMContentLoaded', setInstallButtonState);
+// PWA-кнопка установки удалена из интерфейса: остаётся только APK-загрузка.
 
 // --- API & AUTH ---
 async function api(action, data = {}) {
@@ -1459,9 +1684,11 @@ async function recoverCurrentStream(reason) {
     let retryUrl = resolveMediaUrl(track.url);
 
     if (shouldProxyMedia(track)) {
-        if (retry < MAX_STREAM_RETRIES) {
-            retryUrl = buildProxyUrl(track, { weak: true, norange: useNoRange, retry: retry });
-        }
+        retryUrl = buildProxyUrl(track, {
+            weak: true,
+            norange: useNoRange,
+            retry: retry
+        });
     }
 
     showLoader(true);
@@ -1727,6 +1954,7 @@ function updateActiveTrackInList(index) {
 }
 
 function togglePlay() {
+    ensureEqualizerGraph();
     const track = playlist[currentIndex];
     if(!track) return;
 
@@ -1873,7 +2101,13 @@ async function performSearch(query, save = false) {
     listEl.innerHTML = '<div class="search-loader-box"><div class="search-spinner"></div><div style="margin-top:15px; font-size:0.9rem; color:#666;">Ищем музыку...</div></div>'; 
     try {
         isSearchLoading = true;
-        const result = await api('search_global', { query: query, page: currentSearchPage });
+        const net = getNetworkProfile();
+        const result = await api('search_global', {
+            query: query,
+            page: currentSearchPage,
+            network: net.weak ? 'weak' : 'normal',
+            save_data: net.saveData ? 1 : 0
+        });
         isSearchLoading = false;
         
         if (result.success && result.data) {
@@ -1892,7 +2126,13 @@ async function loadMoreSearchResults() {
     listEl.appendChild(loader);
 
     try {
-        const result = await api('search_global', { query: currentSearchQuery, page: currentSearchPage });
+        const net = getNetworkProfile();
+        const result = await api('search_global', {
+            query: currentSearchQuery,
+            page: currentSearchPage,
+            network: net.weak ? 'weak' : 'normal',
+            save_data: net.saveData ? 1 : 0
+        });
         loader.remove();
         if (result.success && result.data && result.data.length > 0) {
             playlist = playlist.concat(result.data); searchPlaylistCache = playlist; renderPlaylist(); 
@@ -1915,7 +2155,8 @@ if(mainSearchInput) {
     mainSearchInput.addEventListener('input', (e) => { 
         if(searchHistoryBox) searchHistoryBox.style.display = 'none'; 
         clearTimeout(searchTimeout); 
-        searchTimeout = setTimeout(() => { performSearch(e.target.value, false); }, 400); 
+        const delay = getNetworkProfile().weak ? 750 : 400;
+        searchTimeout = setTimeout(() => { performSearch(e.target.value, false); }, delay); 
     });
     mainSearchInput.addEventListener('keydown', (e) => { 
         if(e.key === 'Enter') { clearTimeout(searchTimeout); performSearch(e.target.value, true); } 

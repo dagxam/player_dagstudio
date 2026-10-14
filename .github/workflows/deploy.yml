@@ -129,7 +129,13 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2222'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2223'
+          echo "$INDEX_HTML" | grep -q 'style.css?v=2223'
+          echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'
+          if echo "$INDEX_HTML" | grep -q 'id="pwa-install-btn"'; then
+            echo "Deprecated PWA install button is still present"
+            exit 1
+          fi
 
           MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/manifest.json?v=$EXPECTED")"
           echo "$MANIFEST_JSON" | python -m json.tool > /dev/null

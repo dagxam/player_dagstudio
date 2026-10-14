@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2216" as="style">
-    <link rel="stylesheet" href="style.css?v=2216">
+    <link rel="preload" href="style.css?v=2223" as="style">
+    <link rel="stylesheet" href="style.css?v=2223">
 </head>
 <body>
 
@@ -39,7 +39,6 @@
         <div class="header-center"></div>
 
         <div class="header-right">
-            <button class="icon-btn" onclick="toggleFullScreen()" aria-label="Полный экран" title="На весь экран"><i class="fas fa-expand"></i></button>
             <button class="mobile-menu-btn" onclick="openMenu()" aria-label="Меню"><i class="fas fa-bars"></i></button>
             <button class="menu-btn" onclick="openMenu()" aria-label="Профиль"><i class="fas fa-user"></i></button>
         </div>
@@ -127,8 +126,8 @@
             </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
+        <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="margin-top:18px; text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
-        <button id="pwa-install-btn" class="menu-list-btn pwa-install-btn" onclick="triggerInstall()" aria-live="polite"><i class="fas fa-mobile-screen-button"></i> Установить веб-версию</button>
     </div>
 </div>
 
@@ -138,27 +137,35 @@
 <div id="input-modal" class="modal-overlay"><div class="modal-box" style="padding-top: 30px;"><span class="modal-close" onclick="closeModal('input-modal')">&times;</span><h3 class="modal-title" style="margin-bottom: 20px;">НОВЫЙ ПЛЕЙЛИСТ</h3><input type="text" id="new-tab-name" class="auth-input" placeholder="Введите название..." style="margin-bottom: 25px; text-align:center; font-weight:bold;"><button class="modal-btn btn-dark" onclick="submitCreateTab()" style="padding: 12px; font-size: 0.9rem;">СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
 
 <input type="file" id="local-file-input" multiple accept="audio/*" style="display:none;" onchange="handleLocalFileSelect(this)">
-<div id="ios-modal" class="modal-overlay">
-    <div class="modal-box">
-        <span class="modal-close" onclick="closeModal('ios-modal')">&times;</span>
-        <h3 class="modal-title">УСТАНОВКА НА IPHONE / IPAD</h3>
-        <p style="color:#ccc; margin:10px 0 20px; line-height:1.6; text-align:left;">
-            Нажмите <b>«Поделиться»</b> <i class="fas fa-arrow-up-from-bracket"></i> и выберите <b>«На экран Домой»</b>.<br><br>
-            На старых версиях iOS/iPadOS, где этот пункт недоступен в стороннем браузере, откройте сайт в <b>Safari</b>.
-        </p>
-        <button class="modal-btn btn-primary" onclick="closeModal('ios-modal')">ПОНЯТНО</button>
-    </div>
-</div>
-<div id="android-modal" class="modal-overlay">
-    <div class="modal-box">
-        <span class="modal-close" onclick="closeModal('android-modal')">&times;</span>
-        <h3 class="modal-title">УСТАНОВКА ПРИЛОЖЕНИЯ</h3>
-        <div id="install-help-text" style="color:#ccc; margin:10px 0 20px; line-height:1.65; font-size:1rem; text-align:left;"></div>
-        <button class="modal-btn btn-primary" onclick="closeModal('android-modal')">ПОНЯТНО</button>
+<div id="equalizer-modal" class="modal-overlay">
+    <div class="modal-box equalizer-modal-box">
+        <span class="modal-close" onclick="closeModal('equalizer-modal')">&times;</span>
+        <div class="eq-head">
+            <div>
+                <div class="eq-kicker">DAGSTUDIO SOUND</div>
+                <h3 class="modal-title eq-title">ЭКВАЛАЙЗЕР</h3>
+            </div>
+            <button id="eq-power-btn" class="eq-power-btn" type="button" onclick="toggleEqualizerPower()" aria-pressed="true">
+                <i class="fas fa-power-off"></i>
+            </button>
+        </div>
+        <div class="eq-subtitle">Настройте звук под музыку и акустику устройства</div>
+        <div id="eq-presets" class="eq-presets">
+            <button type="button" data-eq-preset="flat">Ровный</button>
+            <button type="button" data-eq-preset="bass">Бас</button>
+            <button type="button" data-eq-preset="vocal">Вокал</button>
+            <button type="button" data-eq-preset="rock">Рок</button>
+            <button type="button" data-eq-preset="electro">Электро</button>
+        </div>
+        <div id="eq-bands" class="eq-bands"></div>
+        <div class="eq-footer">
+            <span><i class="fas fa-circle-info"></i> Настройки сохраняются на этом устройстве</span>
+            <button type="button" class="eq-reset-btn" onclick="resetEqualizer()">Сбросить</button>
+        </div>
     </div>
 </div>
 
-<script src="script.js?v=2222" defer></script>
+<script src="script.js?v=2223" defer></script>
 
 </body>
 </html>

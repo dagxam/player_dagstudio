@@ -29,25 +29,33 @@ try {
     openMenu: typeof window.openMenu,
     handleAuth: typeof window.handleAuth,
     toggleAuthMode: typeof window.toggleAuthMode,
-    triggerInstall: typeof window.triggerInstall,
     playTrack: typeof window.playTrack,
     togglePlay: typeof window.togglePlay,
     playNext: typeof window.playNext,
     playPrev: typeof window.playPrev,
     downloadTrack: typeof window.downloadTrack,
-    installButton: !!document.getElementById('pwa-install-btn'),
+    openEqualizer: typeof window.openEqualizer,
+    toggleEqualizerPower: typeof window.toggleEqualizerPower,
+    resetEqualizer: typeof window.resetEqualizer,
+    downloadButton: !!document.getElementById('android-apk-download-btn'),
+    equalizerButton: !!document.querySelector('.eq-menu-btn'),
+    installButtonAbsent: !document.getElementById('pwa-install-btn'),
+    fullscreenButtonAbsent: !document.querySelector('[onclick="toggleFullScreen()"]'),
     menuButton: !!document.querySelector('.menu-btn'),
     audio: !!document.getElementById('main-audio')
   }));
   console.log('BASICS', JSON.stringify(basics));
 
-  for (const [key, value] of Object.entries(basics)) {
-    if (key === 'readyState') continue;
-    if (key.endsWith('Button') || key === 'audio') {
-      if (!value) throw new Error('Missing UI element: ' + key);
-    } else if (value !== 'function') {
-      throw new Error('Missing function: ' + key + ' = ' + value);
-    }
+  const requiredFunctions = [
+    'openMenu','handleAuth','toggleAuthMode','playTrack','togglePlay',
+    'playNext','playPrev','downloadTrack','openEqualizer',
+    'toggleEqualizerPower','resetEqualizer'
+  ];
+  for (const name of requiredFunctions) {
+    if (basics[name] !== 'function') throw new Error('Missing function: ' + name);
+  }
+  for (const name of ['downloadButton','equalizerButton','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
+    if (!basics[name]) throw new Error('Missing/incorrect UI state: ' + name);
   }
 
   await page.click('.menu-btn');
@@ -98,19 +106,32 @@ try {
   }
 
   await page.evaluate(() => window.openMenu());
-  const installVisible = await page.$eval('#pwa-install-btn', el => getComputedStyle(el).display !== 'none' && !el.disabled);
-  console.log('INSTALL_BUTTON_VISIBLE', installVisible);
-  if (!installVisible) throw new Error('Install button is not visible/enabled when app is not standalone');
 
-  await page.click('#pwa-install-btn');
-  await new Promise(resolve => setTimeout(resolve, 1200));
-
-  const afterInstallClick = await page.evaluate(() => ({
-    menuOpen: document.getElementById('menu-modal').classList.contains('show'),
-    helpOpen: document.getElementById('android-modal').classList.contains('show'),
-    installButtonText: document.getElementById('pwa-install-btn')?.textContent?.trim() || ''
+  const menuState = await page.evaluate(() => ({
+    downloadVisible: (() => {
+      const el = document.getElementById('android-apk-download-btn');
+      return !!el && getComputedStyle(el).display !== 'none';
+    })(),
+    pwaAbsent: !document.getElementById('pwa-install-btn'),
+    fullscreenAbsent: !document.querySelector('[onclick="toggleFullScreen()"]')
   }));
-  console.log('INSTALL_CLICK_RESULT', JSON.stringify(afterInstallClick));
+  console.log('MENU_STATE', JSON.stringify(menuState));
+  if (!menuState.downloadVisible || !menuState.pwaAbsent || !menuState.fullscreenAbsent) {
+    throw new Error('Menu cleanup/download button state failed: ' + JSON.stringify(menuState));
+  }
+
+  await page.click('.eq-menu-btn');
+  await page.waitForSelector('#equalizer-modal.show', { timeout: 5000 });
+  const eqState = await page.evaluate(() => ({
+    bands: document.querySelectorAll('#eq-bands .eq-band').length,
+    presets: document.querySelectorAll('[data-eq-preset]').length,
+    power: !!document.getElementById('eq-power-btn')
+  }));
+  console.log('EQUALIZER', JSON.stringify(eqState));
+  if (eqState.bands !== 7 || eqState.presets < 5 || !eqState.power) {
+    throw new Error('Equalizer UI failed: ' + JSON.stringify(eqState));
+  }
+  await page.evaluate(() => window.closeModal('equalizer-modal'));
 
   if (pageErrors.length) {
     throw new Error('Page runtime errors: ' + pageErrors.join(' | '));
@@ -120,7 +141,12 @@ try {
 
   // Live search + audio relay smoke test. Read only the first streamed chunk.
   const searchSmoke = await page.evaluate(async () => {
-    const result = await window.api('search_global', { query: 'Miyagi', page: 1 });
+    const result = await window.api('search_global', {
+      query: 'Miyagi',
+      page: 1,
+      network: 'weak',
+      save_data: 1
+    });
     const data = result && Array.isArray(result.data) ? result.data : [];
     return {
       success: !!(result && result.success),
@@ -130,18 +156,26 @@ try {
         source: data[0].source || '',
         title: data[0].title || ''
       } : null,
+      sources: result && result.sources ? result.sources : {},
+      sourceCounts: result && result.source_counts ? result.source_counts : {},
+      networkMode: result && result.network_mode ? result.network_mode : '',
       error: result && result.error ? result.error : ''
     };
   });
   console.log('SEARCH_SMOKE', JSON.stringify(searchSmoke));
+  const expectedSources = ['vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'];
   if (!searchSmoke.success || searchSmoke.count < 1 || !searchSmoke.first?.url) {
     throw new Error('Live search returned no playable results: ' + JSON.stringify(searchSmoke));
+  }
+  if (searchSmoke.networkMode !== 'weak' ||
+      expectedSources.some(name => !Object.prototype.hasOwnProperty.call(searchSmoke.sources, name))) {
+    throw new Error('Search source diagnostics incomplete: ' + JSON.stringify(searchSmoke));
   }
 
   const relaySmoke = await page.evaluate(async (track) => {
     const params = new URLSearchParams();
     params.set('url', track.url);
-    if (track.source) params.set('source', track.source);
+    if (track.source) params.set('source', String(track.source).replace(/[^A-Za-z0-9_]/g, ''));
     params.set('weak', '1');
     const response = await fetch('/proxy.php?' + params.toString(), {
       headers: { 'Range': 'bytes=0-4095' },
@@ -182,31 +216,22 @@ try {
   const yBasics = await yandexPage.evaluate(() => ({
     openMenu: typeof window.openMenu,
     handleAuth: typeof window.handleAuth,
-    triggerInstall: typeof window.triggerInstall,
-    buttonVisible: (() => {
-      const b = document.getElementById('pwa-install-btn');
-      return !!b && getComputedStyle(b).display !== 'none' && !b.disabled;
-    })()
+    openEqualizer: typeof window.openEqualizer,
+    downloadVisible: (() => {
+      const b = document.getElementById('android-apk-download-btn');
+      return !!b && getComputedStyle(b).display !== 'none';
+    })(),
+    pwaAbsent: !document.getElementById('pwa-install-btn'),
+    fullscreenAbsent: !document.querySelector('[onclick="toggleFullScreen()"]')
   }));
   console.log('YANDEX_BASICS', JSON.stringify(yBasics));
-  if (yBasics.openMenu !== 'function' || yBasics.handleAuth !== 'function' ||
-      yBasics.triggerInstall !== 'function' || !yBasics.buttonVisible) {
-    throw new Error('Yandex-UA compatibility basics failed');
-  }
-
-  await yandexPage.evaluate(() => window.openMenu());
-  await yandexPage.click('#pwa-install-btn');
-  await new Promise(resolve => setTimeout(resolve, 800));
-  const yInstall = await yandexPage.evaluate(() => ({
-    helpOpen: document.getElementById('android-modal').classList.contains('show'),
-    iosOpen: document.getElementById('ios-modal').classList.contains('show'),
-    menuOpen: document.getElementById('menu-modal').classList.contains('show')
-  }));
-  console.log('YANDEX_INSTALL_RESULT', JSON.stringify(yInstall));
-  if (!yInstall.helpOpen && !yInstall.iosOpen) {
-    // Headless Chrome does not emit a real install prompt in this test,
-    // so the Yandex-specific fallback must be visible instead of doing nothing.
-    throw new Error('Yandex install button produced no visible result');
+  if (yBasics.openMenu !== 'function' ||
+      yBasics.handleAuth !== 'function' ||
+      yBasics.openEqualizer !== 'function' ||
+      !yBasics.downloadVisible ||
+      !yBasics.pwaAbsent ||
+      !yBasics.fullscreenAbsent) {
+    throw new Error('Yandex-UA compatibility basics failed: ' + JSON.stringify(yBasics));
   }
 
   await yandexPage.close();
