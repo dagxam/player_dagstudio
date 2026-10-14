@@ -77,7 +77,10 @@ const audioCache = {
 
     const path = await audioCachePath(key, options?.extension);
     const existing = await statCached(path);
-    if (existing) return existing;
+    if (existing && !options?.forceRedownload) return existing;
+    if (existing && options?.forceRedownload) {
+      await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
+    }
 
     const uriInfo = await Filesystem.getUri({
       directory: Directory.Data,
@@ -85,28 +88,20 @@ const audioCache = {
     });
 
     try {
-      await FileTransfer.downloadFile({
-        url,
-        path: uriInfo.uri,
-        headers: options?.headers || {},
-        progress: false
-      });
+      try {
+        await FileTransfer.downloadFile({ url, path: uriInfo.uri, headers: options?.headers || {}, progress: false });
+      } catch (error) {
+        // Fallback для старого Android. Частично созданный файл удаляем.
+        await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
+        await Filesystem.downloadFile({ url, path, directory: Directory.Data, recursive: true, headers: options?.headers || {} });
+      }
+      const stored = await statCached(path);
+      if (!stored || stored.size < 1024) throw new Error('Downloaded audio is incomplete');
+      return stored;
     } catch (error) {
-      // На старых Android (часто встречаются в автомагнитолах) FileTransfer
-      // может некорректно запросить доступ к storage даже для app-private URI.
-      // Filesystem.downloadFile пока оставляем как совместимый fallback.
-      await Filesystem.downloadFile({
-        url,
-        path,
-        directory: Directory.Data,
-        recursive: true,
-        headers: options?.headers || {}
-      });
+      await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
+      throw error;
     }
-
-    const stored = await statCached(path);
-    if (!stored) throw new Error('Audio file was not stored after download');
-    return stored;
   },
 
   async delete(options) {

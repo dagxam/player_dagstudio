@@ -68,6 +68,11 @@ self.addEventListener('fetch', function(event) {
 
     const url = new URL(request.url);
 
+    // Media Range, аудио и видео не пропускаем через общий cache-first.
+    if (request.headers.has('range') || request.destination === 'audio' ||
+        request.destination === 'video' ||
+        /\.(mp3|m4a|aac|ogg|opus|wav|flac|mp4|webm)$/i.test(url.pathname)) return;
+
     // API и аудиопотоки не перехватываем: браузер должен управлять Range сам.
     if (url.origin === self.location.origin &&
         (url.pathname.endsWith('/api.php') ||

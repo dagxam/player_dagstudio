@@ -736,6 +736,27 @@ const webCacheQueuedUrls = new Set();
 let webCacheWorkerRunning = false;
 let webCacheRetryTimer = null;
 
+// Один сетевой запрос плейлистов за раз. Повтор при ошибке с увеличением интервала.
+let playlistSyncPromise = null;
+let playlistSyncTimer = null;
+let playlistSyncErrors = 0;
+let playlistSnapshotOwner = '';
+
+function updatePlaylistSyncStatus(state, text) {
+    const el = document.getElementById('playlist-sync-status');
+    if (!el) return;
+    el.dataset.state = state;
+    el.textContent = text;
+}
+function retryPlaylistSyncLater() {
+    if (!currentUser || playlistSyncTimer || navigator.onLine === false) return;
+    const delay = Math.min(120000, 8000 * Math.pow(2, Math.min(4, playlistSyncErrors++)));
+    playlistSyncTimer = setTimeout(function() {
+        playlistSyncTimer = null;
+        if (currentUser && navigator.onLine !== false) loadUserData(true).catch(console.warn);
+    }, delay);
+}
+
 function normalizeCacheTrack(trackOrUrl) {
     if (typeof trackOrUrl === 'string') {
         return { url: trackOrUrl, title: '', artist: '', thumb: '', source: '' };
@@ -923,7 +944,8 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
     const stored = await bridge.download({
         url: downloadUrl,
         key,
-        extension: guessAudioExtension(resolved)
+        extension: guessAudioExtension(resolved),
+        forceRedownload: true
     });
 
     if (!stored || !stored.exists || !stored.path) return false;
@@ -994,13 +1016,13 @@ async function processNativeCacheQueue() {
             if (!job) break;
 
             try {
-                await storeNativeTrackNow(job.track, job.reason);
+                if (!await storeNativeTrackNow(job.track, job.reason)) throw new Error('Файл не сохранён');
                 nativeCacheQueuedUrls.delete(job.resolved);
             } catch (error) {
                 job.attempts += 1;
-                if (job.attempts < 3) {
+                if (job.attempts < 5) {
                     nativeCacheQueue.push(job);
-                    scheduleNativeCacheWorker(job.attempts * 10000);
+                    scheduleNativeCacheWorker(Math.min(90000, 6000 * Math.pow(2, job.attempts)));
                     break;
                 }
                 nativeCacheQueuedUrls.delete(job.resolved);
@@ -1020,7 +1042,7 @@ function scheduleWebCacheWorker(delay = 0) {
 }
 
 function enqueueWebTrackCache(trackOrUrl, reason = 'playlist', priority = false) {
-    if (IS_NATIVE_APP || !('caches' in window) || navigator.onLine === false) return;
+    if (IS_NATIVE_APP || !('caches' in window)) return;
 
     const track = normalizeCacheTrack(trackOrUrl);
     const resolved = canonicalTrackUrl(track);
@@ -1089,8 +1111,11 @@ async function processWebCacheQueue() {
                         credentials: 'same-origin'
                     });
 
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
+                    // Кэшируем только целый аудиофайл, а не частичный Range или HTML-ошибку.
+                    const mime = (response.headers.get('content-type') || '').toLowerCase();
+                    if (!response.ok || response.status !== 200 ||
+                        /text\/html|application\/json|text\/plain/.test(mime)) {
+                        throw new Error('Некорректный аудиопоток: HTTP ' + response.status);
                     }
 
                     const cache = await caches.open('dag-audio-cache');
@@ -1106,9 +1131,9 @@ async function processWebCacheQueue() {
                 }
             } catch (error) {
                 job.attempts += 1;
-                if (job.attempts < 3) {
+                if (job.attempts < 5) {
                     webCacheQueue.push(job);
-                    scheduleWebCacheWorker(job.attempts * 8000);
+                    scheduleWebCacheWorker(Math.min(90000, 5000 * Math.pow(2, job.attempts)));
                     break;
                 }
                 webCacheQueuedUrls.delete(job.resolved);
@@ -1521,8 +1546,8 @@ async function api(action, data = {}) {
                 method: 'POST',
                 headers: headers,
                 data: payload,
-                connectTimeout: action === 'search_global' ? 15000 : 10000,
-                readTimeout: action === 'search_global' ? 30000 : 15000
+                connectTimeout: action === 'search_global' ? 16000 : (isWeakConnection() ? 16000 : 10000),
+                readTimeout: action === 'search_global' ? 45000 : (isWeakConnection() ? 30000 : 15000)
             });
 
             if (!response || response.status < 200 || response.status >= 300) {
@@ -1536,7 +1561,7 @@ async function api(action, data = {}) {
             const controller = new AbortController();
             const timeout = setTimeout(function() {
                 controller.abort();
-            }, action === 'search_global' ? 30000 : 15000);
+            }, action === 'search_global' ? 45000 : (isWeakConnection() ? 30000 : 15000));
 
             try {
                 const res = await fetch(appServerUrl('/api.php?t=' + Date.now()), {
@@ -1621,6 +1646,7 @@ function hydrateCachedAccount(username) {
 
     currentUser = username;
     playlists = [...cached];
+    playlistSnapshotOwner = username;
     renderCurrentPlaylistFromAccountData();
     return cached.length > 0;
 }
@@ -1673,48 +1699,61 @@ async function checkAuth() {
     renderCurrentPlaylistFromAccountData();
 }
 
-async function loadUserData() {
-    let dbPlaylists = [];
-    let loadedFromServer = false;
-
-    if (currentUser) {
-        // Сначала локальный снимок — мгновенный интерфейс даже на 2G/плохом Wi‑Fi.
-        const cached = loadOfflinePlaylistsSnapshot(currentUser);
-        if (Array.isArray(cached)) {
-            dbPlaylists = cached;
-            playlists = [...dbPlaylists];
-            renderCurrentPlaylistFromAccountData();
-        }
-
-        if (navigator.onLine !== false && (!IS_NATIVE_APP || nativeApiReachable)) {
-            const data = await api('get_data');
-            if (!data.error && Array.isArray(data)) {
-                dbPlaylists = data;
-                loadedFromServer = true;
-                saveOfflinePlaylistsSnapshot(dbPlaylists);
-            }
-        }
+async function loadUserData(force = false) {
+    const username = currentUser;
+    if (!username) return false;
+    // При смене учётной записи сначала показываем снимок с устройства.
+    if (playlistSnapshotOwner !== username) {
+        const local = loadOfflinePlaylistsSnapshot(username);
+        playlists = Array.isArray(local) ? [...local] : [];
+        playlistSnapshotOwner = username;
+        renderCurrentPlaylistFromAccountData();
     }
-
-    playlists = [...dbPlaylists];
-    renderCurrentPlaylistFromAccountData();
-
-    if (currentUser && navigator.onLine !== false) {
-        // Не ждём загрузки музыки: список уже готов, треки докачиваются последовательно.
+    if (navigator.onLine === false) {
+        updatePlaylistSyncStatus('error', 'Нет сети · используем локальные плейлисты');
+        return false;
+    }
+    // Старый ответ не может перезаписать более поздний — запросы сериализованы.
+    if (playlistSyncPromise) {
+        const previous = await playlistSyncPromise;
+        if (!force || currentUser !== username) return previous;
+    }
+    updatePlaylistSyncStatus('', 'Синхронизация плейлистов…');
+    const promise = (async function() {
+        const data = await api('get_data');
+        if (username !== currentUser) return false;
+        if (!Array.isArray(data)) {
+            updatePlaylistSyncStatus('error', 'Сбой синхронизации · локальная копия сохранена');
+            if (data?.error !== 'Auth required') retryPlaylistSyncLater();
+            return false;
+        }
+        // Локальную копию заменяем только полным успешным ответом сервера.
+        playlists = [...data];
+        playlistSnapshotOwner = username;
+        saveOfflinePlaylistsSnapshot(data);
+        renderCurrentPlaylistFromAccountData();
+        playlistSyncErrors = 0;
+        if (playlistSyncTimer) { clearTimeout(playlistSyncTimer); playlistSyncTimer = null; }
+        updatePlaylistSyncStatus('ok', 'Плейлисты синхронизированы · есть локальная копия');
         syncPlaylistOfflineCache();
-    }
-
-    if (currentTab === 'search' && navigator.onLine === false && IS_NATIVE_APP) {
-        const offlineTracks = getOfflineCachedTracks();
-        if (offlineTracks.length > 0) {
-            searchPlaylistCache = offlineTracks;
-            playlist = [...offlineTracks];
-            renderPlaylist();
-        }
-    }
-
-    return loadedFromServer;
+        return true;
+    })();
+    playlistSyncPromise = promise;
+    try { return await promise; }
+    finally { if (playlistSyncPromise === promise) playlistSyncPromise = null; }
 }
+
+window.manualSyncPlaylists = async function() {
+    if (!currentUser) return showNotification('Войдите для синхронизации плейлистов');
+    const button = document.getElementById('playlist-sync-btn');
+    if (button) button.disabled = true;
+    try {
+        const ok = await loadUserData(true);
+        if (!ok && navigator.onLine !== false) {
+            showNotification('Сервер недоступен. Локальные плейлисты сохранены, повторим синхронизацию.');
+        }
+    } finally { if (button) button.disabled = false; }
+};
 
 // --- WAKE LOCK ---
 async function requestWakeLock() {
@@ -1748,7 +1787,7 @@ if (mainAudio) {
 
 window.addEventListener('online', function() {
     if (currentUser) {
-        loadUserData().catch(function() {});
+        loadUserData(true).catch(function() {});
     }
     if (IS_NATIVE_APP) scheduleNativeCacheWorker(500);
     else scheduleWebCacheWorker(500);
@@ -2811,6 +2850,7 @@ async function addToPlaylist(plId) {
 
 function openMenu() {
     if (currentUser) {
+        if (navigator.onLine === false) updatePlaylistSyncStatus('error', 'Нет сети · используем локальные плейлисты');
         document.getElementById('auth-section').style.display = 'none';
         document.getElementById('user-section').style.display = 'block';
         document.getElementById('user-name-disp').innerText = currentUser;
