@@ -10,6 +10,11 @@ const browser = await puppeteer.launch({
 });
 
 const page = await browser.newPage();
+// Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
+// UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
+await page.evaluateOnNewDocument(() => {
+  try { sessionStorage.setItem('dag_sw_reloaded_2225', '1'); } catch (error) {}
+});
 const consoleErrors = [];
 const pageErrors = [];
 page.on('console', msg => {
@@ -208,6 +213,9 @@ try {
 
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
+  await yandexPage.evaluateOnNewDocument(() => {
+    try { sessionStorage.setItem('dag_sw_reloaded_2225', '1'); } catch (error) {}
+  });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
   await yandexPage.setUserAgent(
