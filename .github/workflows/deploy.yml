@@ -1,4 +1,4 @@
-name: Deploy player.dagstudio.ru
+name: Deploy pl.dagstudio.ru
 
 on:
   push:
@@ -21,9 +21,8 @@ jobs:
       FTP_SERVER: ${{ secrets.FTP_SERVER }}
       FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
       FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-      # Web/PWA production остаётся на проверенном document root player.dagstudio.ru.
-      # pl.dagstudio.ru используется нативным приложением как сервер API.
-      FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+      # Document root поддомена на текущем хостинге.
+      FTP_SERVER_DIR: /www/pl.dagstudio.ru/
 
     steps:
       - name: Checkout
@@ -124,23 +123,23 @@ jobs:
         run: |
           EXPECTED="$GITHUB_SHA"
 
-          UNIQUE_URL="https://player.dagstudio.ru/deploy-$EXPECTED.txt"
+          UNIQUE_URL="https://pl.dagstudio.ru/deploy-$EXPECTED.txt"
           UNIQUE_ACTUAL="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$UNIQUE_URL" || true)"
           if [ "$UNIQUE_ACTUAL" != "$EXPECTED" ]; then
-            echo "Unique production probe is not visible at player.dagstudio.ru."
-            echo "FTP upload succeeded, but the configured FTP_SERVER_DIR is not the active document root for player.dagstudio.ru, or the hosting proxy is serving a different origin."
+            echo "Unique production probe is not visible at pl.dagstudio.ru."
+            echo "FTP upload succeeded, but the configured FTP_SERVER_DIR is not the active document root for pl.dagstudio.ru, or the hosting proxy is serving a different origin."
             echo "Expected commit: $EXPECTED"
             echo "Unique probe response: $UNIQUE_ACTUAL"
             exit 1
           fi
 
-          ACTUAL="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "https://player.dagstudio.ru/deploy-version.txt?v=$EXPECTED")"
+          ACTUAL="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "https://pl.dagstudio.ru/deploy-version.txt?v=$EXPECTED")"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "Unique probe is current, but deploy-version.txt is cached. Continuing because the uncached unique probe verified the deployment."
           fi
           echo "Production verified at commit $EXPECTED"
 
-          INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/?v=$EXPECTED")"
+          INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
           echo "$INDEX_HTML" | grep -q 'script.js?v=2225'
           echo "$INDEX_HTML" | grep -q 'style.css?v=2224'
           echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'
@@ -151,19 +150,19 @@ jobs:
             exit 1
           fi
 
-          MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://player.dagstudio.ru/manifest.json?v=$EXPECTED")"
+          MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/manifest.json?v=$EXPECTED")"
           echo "$MANIFEST_JSON" | python -m json.tool > /dev/null
           echo "Live PWA shell and manifest verified"
 
-          CHECK_AUTH="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"check_auth"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
+          CHECK_AUTH="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"check_auth"}' "https://pl.dagstudio.ru/api.php?t=$EXPECTED")"
           echo "CHECK_AUTH=$CHECK_AUTH"
           echo "$CHECK_AUTH" | python -c 'import sys,json; d=json.load(sys.stdin); assert "logged_in" in d'
 
-          REG_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"register","name":"ab","pass":"1"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
+          REG_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"register","name":"ab","pass":"1"}' "https://pl.dagstudio.ru/api.php?t=$EXPECTED")"
           echo "REG_INVALID=$REG_INVALID"
           echo "$REG_INVALID" | python -c 'import sys,json; d=json.load(sys.stdin); assert "не менее 3" in d.get("error","")'
 
-          LOGIN_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"login","name":"__dagstudio_smoke_invalid__","pass":"__invalid__"}' "https://player.dagstudio.ru/api.php?t=$EXPECTED")"
+          LOGIN_INVALID="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"login","name":"__dagstudio_smoke_invalid__","pass":"__invalid__"}' "https://pl.dagstudio.ru/api.php?t=$EXPECTED")"
           echo "LOGIN_INVALID=$LOGIN_INVALID"
           echo "$LOGIN_INVALID" | python -c 'import sys,json; d=json.load(sys.stdin); assert "Неверный логин или пароль" in d.get("error","")'
 

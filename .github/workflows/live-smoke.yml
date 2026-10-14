@@ -35,5 +35,5 @@ jobs:
 
       - name: Run live browser smoke test
         env:
-          PLAYER_URL: https://player.dagstudio.ru/
+          PLAYER_URL: https://pl.dagstudio.ru/
         run: node .github/live-smoke.mjs
