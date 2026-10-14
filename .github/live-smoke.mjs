@@ -163,7 +163,7 @@ try {
     };
   });
   console.log('SEARCH_SMOKE', JSON.stringify(searchSmoke));
-  const expectedSources = ['vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'];
+  const expectedSources = ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'];
   if (!searchSmoke.success || searchSmoke.count < 1 || !searchSmoke.first?.url) {
     throw new Error('Live search returned no playable results: ' + JSON.stringify(searchSmoke));
   }

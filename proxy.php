@@ -46,6 +46,7 @@ if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
 }
 
 $allowed = [
+    'api.audius.co',
     'slider.kz', 'ru.hitmoz.org', 'hitmoz.org', 'muzofond.fm', 'zvooq.net',
     'muzvox.org', 'storage.muzvox.org', 'static.muzvox.org', 'muzca.net'
 ];
@@ -81,6 +82,7 @@ if (!$forceNoRange && $range !== '') {
 
 // Профиль источника: корректный Referer/Origin вместо отправки чужого Origin.
 $profiles = [
+    'api.audius.co'    => ['referer' => 'https://audius.co/',       'origin' => 'https://audius.co'],
     'slider.kz'       => ['referer' => 'https://slider.kz/',       'origin' => 'https://slider.kz'],
     'ru.hitmoz.org'   => ['referer' => 'https://ru.hitmoz.org/',   'origin' => 'https://ru.hitmoz.org'],
     'hitmoz.org'      => ['referer' => 'https://hitmoz.org/',      'origin' => 'https://hitmoz.org'],

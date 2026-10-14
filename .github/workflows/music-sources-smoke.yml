@@ -44,7 +44,7 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path('/tmp/source-health.json').read_text())
-          expected = ['vk_mail','hitmoz','muzo','zvooq','muzvox','muzca']
+          expected = ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca']
 
           assert data.get('success') is True, data
           sources = data.get('sources') or {}
@@ -62,6 +62,7 @@ jobs:
                   "ok="+str(bool(info.get("ok"))).lower(),
                   "http="+str(info.get("http", 0)),
                   "count="+str(counts.get({
+                      'audius':'[AUDIUS]',
                       'vk_mail':'[VK]',
                       'hitmoz':'[HITMOZ]',
                       'muzo':'[MUZOFOND]',

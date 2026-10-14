@@ -292,7 +292,11 @@ elseif ($action === 'search_global') {
     }
 
     // ВЕРНУЛИ КАЗАХСКИЙ САЙТ (VK) ПО ПРОСЬБЕ ПОЛЬЗОВАТЕЛЯ
+    $audius_offset = max(0, ($page - 1) * ($weak_client ? 12 : 20));
+    $audius_limit = $weak_client ? 12 : 20;
+
     $urls = [
+        'audius'  => "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
         'vk_mail' => "https://slider.kz/vk_auth.php?q=" . $query_encode . "&page=" . $page,
         'hitmoz'  => "https://ru.hitmoz.org/search?q=" . $query_encode,
         'muzo'    => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page,
@@ -360,6 +364,44 @@ elseif ($action === 'search_global') {
     curl_multi_close($multi);
 
     $raw_results = [];
+
+    // Основной стабильный источник: официальная открытая Audius API.
+    if (!empty($responses['audius'])) {
+        $audius = json_decode($responses['audius'], true);
+        if (!empty($audius['data']) && is_array($audius['data'])) {
+            foreach ($audius['data'] as $track) {
+                $id = trim((string)($track['id'] ?? ''));
+                $title = trim((string)($track['title'] ?? ''));
+                if ($id === '' || $title === '') continue;
+
+                $artist = 'Неизвестен';
+                if (!empty($track['user']['name'])) {
+                    $artist = trim((string)$track['user']['name']);
+                } elseif (!empty($track['user']['handle'])) {
+                    $artist = trim((string)$track['user']['handle']);
+                }
+
+                $thumb = 'images/cover.png';
+                if (!empty($track['artwork']) && is_array($track['artwork'])) {
+                    foreach (['480x480', '1000x1000', '150x150'] as $size) {
+                        if (!empty($track['artwork'][$size])) {
+                            $thumb = (string)$track['artwork'][$size];
+                            break;
+                        }
+                    }
+                }
+
+                $raw_results[] = [
+                    'title' => $title,
+                    'artist' => $artist,
+                    'url' => 'https://api.audius.co/v1/tracks/' . rawurlencode($id) . '/stream',
+                    'type' => 'audio',
+                    'thumb' => $thumb,
+                    'source' => '[AUDIUS]'
+                ];
+            }
+        }
+    }
 
     // Парсер: Slider.kz (VK)
     if (!empty($responses['vk_mail'])) {
@@ -627,6 +669,7 @@ elseif ($action === 'search_global') {
     // --- ФИЛЬТРАЦИЯ И ДЕДУПЛИКАЦИЯ ПО КАЖДОМУ ИСТОЧНИКУ ---
     // Один и тот же трек на разных сайтах НЕ удаляется.
     $by_source = [
+        '[AUDIUS]' => [],
         '[VK]' => [],
         '[HITMOZ]' => [],
         '[MUZOFOND]' => [],
@@ -685,7 +728,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[VK]', '[HITMOZ]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[AUDIUS]', '[VK]', '[HITMOZ]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
