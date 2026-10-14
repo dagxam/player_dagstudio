@@ -1,0 +1,86 @@
+name: Music Source Health
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "api.php"
+      - "proxy.php"
+      - ".github/workflows/music-sources-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sources:
+    name: Check all music sources
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate PHP
+        run: php -l api.php
+
+      - name: Start local player API
+        run: |
+          rm -f player.db player.db-*
+          rm -rf sessions
+          php -S 127.0.0.1:8765 >/tmp/dag-source-health.log 2>&1 &
+          echo $! > /tmp/dag-source-health.pid
+          sleep 1
+
+      - name: Query all providers in weak-network mode
+        run: |
+          set -e
+          RESULT="$(curl --fail --silent --show-error --max-time 20             -H 'Content-Type: application/json'             --data '{"action":"search_global","query":"Miyagi","page":1,"network":"weak","save_data":1}'             http://127.0.0.1:8765/api.php)"
+
+          printf '%s' "$RESULT" > /tmp/source-health.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('/tmp/source-health.json').read_text())
+          expected = ['vk_mail','hitmoz','muzo','zvooq','muzvox','muzca']
+
+          assert data.get('success') is True, data
+          sources = data.get('sources') or {}
+          counts = data.get('source_counts') or {}
+          missing = [name for name in expected if name not in sources]
+          assert not missing, f"Missing source diagnostics: {missing}"
+
+          print("NETWORK_MODE", data.get("network_mode"))
+          print("RESULT_COUNT", len(data.get("data") or []))
+          for name in expected:
+              info = sources.get(name) or {}
+              print(
+                  "SOURCE",
+                  name,
+                  "ok="+str(bool(info.get("ok"))).lower(),
+                  "http="+str(info.get("http", 0)),
+                  "count="+str(counts.get({
+                      'vk_mail':'[VK]',
+                      'hitmoz':'[HITMOZ]',
+                      'muzo':'[MUZOFOND]',
+                      'zvooq':'[ZVOOQ]',
+                      'muzvox':'[MUZVOX]',
+                      'muzca':'[MUZCA]'
+                  }[name], 0)),
+                  "error="+str(info.get("error",""))[:100]
+              )
+
+          if not data.get('data'):
+              raise SystemExit("No music provider returned a playable search result")
+          PY
+
+      - name: Stop local API
+        if: always()
+        run: |
+          if [ -f /tmp/dag-source-health.pid ]; then
+            kill "$(cat /tmp/dag-source-health.pid)" 2>/dev/null || true
+          fi
+          rm -f player.db player.db-*
+          rm -rf sessions

@@ -21,7 +21,9 @@ jobs:
       FTP_SERVER: ${{ secrets.FTP_SERVER }}
       FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
       FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-      FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+      # Для нового домена предпочтительно задать FTP_SERVER_DIR_PL.
+      # Если его нет, сохраняем совместимость со старым FTP_SERVER_DIR.
+      FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR_PL || secrets.FTP_SERVER_DIR }}
 
     steps:
       - name: Checkout
@@ -169,4 +171,4 @@ jobs:
         if: ${{ env.FTP_SERVER == '' || env.FTP_USERNAME == '' || env.FTP_PASSWORD == '' || env.FTP_SERVER_DIR == '' }}
         run: |
           echo "FTP deployment is prepared but disabled until repository secrets are added."
-          echo "Required: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_SERVER_DIR."
+          echo "Required: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD and FTP_SERVER_DIR_PL (or legacy FTP_SERVER_DIR)."
