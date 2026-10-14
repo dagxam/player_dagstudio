@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2234';
+const WEB_BUILD_LABEL = '2235';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -409,7 +409,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2234', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2235', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -421,8 +421,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2234') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2234', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2235') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2235', '1');
         window.location.reload();
     });
 }
@@ -1109,7 +1109,7 @@ async function processNativeCacheQueue() {
     if (!IS_NATIVE_APP || nativeCacheWorkerRunning || !nativeAudioCacheBridge()) return;
     if (navigator.onLine === false) return;
 
-    if (getNetworkProfile().weak && mainAudio && !mainAudio.paused) {
+    if (mainAudio && !mainAudio.paused) {
         scheduleNativeCacheWorker(15000);
         return;
     }
@@ -1117,7 +1117,7 @@ async function processNativeCacheQueue() {
     nativeCacheWorkerRunning = true;
     try {
         while (nativeCacheQueue.length > 0 && navigator.onLine !== false) {
-            if (getNetworkProfile().weak && mainAudio && !mainAudio.paused) {
+            if (mainAudio && !mainAudio.paused) {
                 scheduleNativeCacheWorker(15000);
                 break;
             }
@@ -2270,29 +2270,61 @@ function restorePendingPosition() {
     }
 }
 
+let streamRecoveryInFlight = false;
+
+function bufferedSecondsAhead() {
+    try {
+        const time = mainAudio.currentTime || 0;
+        const ranges = mainAudio.buffered;
+        for (let i = 0; i < ranges.length; i++) {
+            if (ranges.start(i) <= time + 0.25 && ranges.end(i) >= time) {
+                return Math.max(0, ranges.end(i) - time);
+            }
+        }
+    } catch (error) {}
+    return 0;
+}
+
 function scheduleStreamRecovery(reason, delay) {
     const track = playlist[currentIndex];
-    if (!track || !track.url || mainAudio.ended) return;
+    if (!track || !track.url || mainAudio.ended || streamRecoveryInFlight) return;
     clearStreamRecoveryTimer();
 
     const token = currentPlaybackToken;
     const net = getNetworkProfile();
     let wait = typeof delay === 'number' ? delay : (net.veryWeak ? 26000 : (net.weak ? 16000 : 8000));
 
-    if (typeof delay !== 'number' && AUDIO_COMPAT_PROFILE.legacyAndroid) {
-        wait = net.weak ? 6500 : 4500;
+    if (reason === 'waiting' || reason === 'stalled') {
+        // На 2G колебания буфера нормальны. Не обрываем поток через 4 секунды.
+        wait = net.veryWeak ? 26000 : (net.weak ? 18000 : 13000);
+    } else if (typeof delay !== 'number' && AUDIO_COMPAT_PROFILE.legacyAndroid) {
+        wait = net.weak ? 12000 : 8000;
     }
 
     streamRecoveryTimer = setTimeout(function() {
         if (token !== currentPlaybackToken || mainAudio.ended) return;
+        if ((reason === 'waiting' || reason === 'stalled') &&
+            (bufferedSecondsAhead() > 1 || (mainAudio.readyState >= 3 && !mainAudio.paused))) {
+            showLoader(false);
+            return;
+        }
         recoverCurrentStream(reason);
     }, wait);
 }
 
 async function recoverCurrentStream(reason) {
     const track = playlist[currentIndex];
-    if (!track || !track.url) return;
+    if (!track || !track.url || streamRecoveryInFlight) return;
+    if ((reason === 'waiting' || reason === 'stalled') && bufferedSecondsAhead() > 1) return;
+    streamRecoveryInFlight = true;
+    try {
+    await recoverCurrentStreamInternal(reason, track);
+    } finally {
+        streamRecoveryInFlight = false;
+    }
+}
 
+async function recoverCurrentStreamInternal(reason, track) {
     clearStreamRecoveryTimer();
 
     const resumeAt = Math.max(
@@ -2441,14 +2473,14 @@ mainAudio.addEventListener('ended', function() {
 mainAudio.addEventListener('waiting', function() {
     if (mainAudio.ended) return;
     if (mainAudio.paused) return;
-    showLoader(true);
+    if (bufferedSecondsAhead() <= 1) showLoader(true);
     scheduleStreamRecovery('waiting');
 });
 
 mainAudio.addEventListener('stalled', function() {
     if (mainAudio.ended) return;
     if (mainAudio.paused) return;
-    showLoader(true);
+    if (bufferedSecondsAhead() <= 1) showLoader(true);
     scheduleStreamRecovery('stalled');
 });
 
@@ -2507,15 +2539,19 @@ window.addEventListener('offline', function() {
 window.addEventListener('online', function() {
     nativeApiReachable = true;
     scheduleNativeCacheWorker(500);
-    if (networkRetryPending && currentIndex >= 0) {
+    if (networkRetryPending && currentIndex >= 0 &&
+        (mainAudio.paused || mainAudio.readyState < 2)) {
         recoverCurrentStream('network-online');
+    } else if (mainAudio.readyState >= 3 && !mainAudio.paused) {
+        networkRetryPending = false;
     }
 });
 
 if (connectionInfo && typeof connectionInfo.addEventListener === 'function') {
     connectionInfo.addEventListener('change', function() {
         // Если радиосеть вернулась после провала, продолжаем тот же трек.
-        if (networkRetryPending && navigator.onLine) {
+        if (networkRetryPending && navigator.onLine &&
+            (mainAudio.paused || mainAudio.readyState < 2)) {
             recoverCurrentStream('connection-change');
         }
         if (navigator.onLine !== false) {
@@ -2527,6 +2563,7 @@ if (connectionInfo && typeof connectionInfo.addEventListener === 'function') {
 async function playTrack(index) {
     if(index < 0 || index >= playlist.length) return;
     currentIndex = index;
+    streamRecoveryInFlight = false;
     const track = playlist[index];
     currentPlaybackToken++;
     const token = currentPlaybackToken;
