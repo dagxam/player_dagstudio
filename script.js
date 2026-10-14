@@ -326,7 +326,10 @@ window.manualUpdateApplication = async function() {
 
             const registration = await serviceWorkerRegistrationPromise;
             if (registration && typeof registration.update === 'function') {
-                await registration.update();
+                // Ошибка проверки SW не должна блокировать прямую загрузку новой версии сайта.
+                try { await registration.update(); } catch (error) {
+                    console.warn('Service Worker update failed; refreshing site assets directly:', error);
+                }
             }
 
             setManualUpdateButtonState('is-checking', 'Применяем обновление…');
