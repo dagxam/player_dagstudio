@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2225', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2230', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -117,6 +117,25 @@ try {
 
   await page.evaluate(() => window.openMenu());
 
+  for (const viewport of [{width:1024,height:600}, {width:1280,height:720}]) {
+    await page.setViewport(viewport);
+    await page.evaluate(() => window.openMenu());
+    const layout = await page.evaluate(() => {
+      const el = document.querySelector('#menu-modal .menu-modal-box');
+      const grid = document.querySelector('#menu-modal .menu-layout');
+      const r = el.getBoundingClientRect();
+      return { columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+        x:r.left, y:r.top, width:r.width,height:r.height,
+        overflow:document.documentElement.scrollWidth > innerWidth + 2 };
+    });
+    console.log('CAR_LAYOUT', JSON.stringify({viewport,layout}));
+    if(layout.columns!==2 || layout.x < -1 || layout.y < -1 ||
+       layout.width > viewport.width + 1 || layout.height > viewport.height + 1 || layout.overflow)
+      throw new Error('Car layout failed: ' + JSON.stringify({viewport,layout}));
+  }
+  await page.setViewport({width:1200,height:800});
+  await page.evaluate(() => window.openMenu());
+
   const menuState = await page.evaluate(() => ({
     downloadVisible: (() => {
       const el = document.getElementById('android-apk-download-btn');
@@ -214,7 +233,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2225', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2230', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

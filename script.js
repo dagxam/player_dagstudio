@@ -76,7 +76,7 @@ async function nativeHttpRequest(options) {
 
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const WEB_BUILD_LABEL = '2229';
+const WEB_BUILD_LABEL = '2230';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -389,7 +389,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2229', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2230', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -401,8 +401,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2229') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2229', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2230') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2230', '1');
         window.location.reload();
     });
 }

@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2225" as="style">
-    <link rel="stylesheet" href="style.css?v=2225">
+    <link rel="preload" href="style.css?v=2226" as="style">
+    <link rel="stylesheet" href="style.css?v=2226">
 </head>
 <body>
 
@@ -99,13 +99,12 @@
 <div id="confirm-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('confirm-modal')">&times;</span><h3 class="modal-title">ПОДТВЕРЖДЕНИЕ</h3><p style="color:#ccc; margin-bottom:30px; font-size:1.1rem;" id="confirm-msg">Вы уверены?</p><div style="display:flex; gap:15px;"><button class="modal-btn btn-danger" onclick="closeModal('confirm-modal')">НЕТ</button><button class="modal-btn btn-primary" id="confirm-btn-yes">ДА</button></div></div></div>
 
 <div id="menu-modal" class="modal-overlay">
-    <div class="modal-box">
-        <span class="modal-close" onclick="closeModal('menu-modal')">&times;</span>
-        <button id="app-update-btn" class="menu-list-btn app-update-btn app-update-btn-top" onclick="manualUpdateApplication()" type="button">
-            <i class="fas fa-rotate"></i>
-            <span>Обновить приложение</span>
-        </button>
-        <div id="auth-section">
+    <div class="modal-box menu-modal-box">
+        <span class="modal-close" onclick="closeModal('menu-modal')" aria-label="Закрыть меню">&times;</span>
+        <div class="menu-modal-heading"><i class="fas fa-sliders"></i> МЕНЮ DAGSTUDIO PLAYER</div>
+        <div class="menu-layout">
+            <section class="menu-account-column" aria-label="Профиль"><div class="menu-column-label">Профиль и плейлисты</div>
+                <div id="auth-section">
             <h3 class="modal-title" id="auth-title">ВХОД</h3>
             <div class="auth-form">
                 <div class="auth-group"><input type="text" id="auth-name" class="auth-input" placeholder="Ваш логин"><i class="fas fa-user auth-icon"></i></div>
@@ -118,6 +117,8 @@
         <div id="user-section" style="display:none;">
             <div class="user-card"><div class="user-avatar"><i class="fas fa-user"></i></div><div class="user-details"><div class="user-name" id="user-name-disp">USER</div><div class="user-status">DAGSTUDIO MEMBER</div></div></div>
             <button class="menu-list-btn" onclick="openManagePlaylists()"><i class="fas fa-list"></i> Управление плейлистами</button>
+            <button id="playlist-sync-btn" class="menu-list-btn" onclick="manualSyncPlaylists()" type="button"><i class="fas fa-arrows-rotate"></i><span>Синхронизировать плейлисты</span></button>
+            <div id="playlist-sync-status" class="playlist-sync-status" role="status" aria-live="polite">Плейлисты сохранены на устройстве</div>
             <div class="theme-selector-wrapper">
                 <div class="theme-lbl">ЦВЕТ ТЕМЫ:</div>
                 <div class="theme-options">
@@ -130,11 +131,19 @@
             </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
-        <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
+            </section>
+            <section class="menu-action-column" aria-label="Приложение"><div class="menu-column-label">Приложение</div>
+                <button id="app-update-btn" class="menu-list-btn app-update-btn app-update-btn-top" onclick="manualUpdateApplication()" type="button">
+            <i class="fas fa-rotate"></i>
+            <span>Обновить приложение</span>
+        </button>
+                <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
         <div class="app-version-footer" id="app-version-footer">
             <div class="app-version-main"><i class="fas fa-code-branch"></i> <span id="app-version-text">Версия: определяем…</span></div>
             <div class="app-version-extra" id="app-version-extra"></div>
+        </div>
+            </section>
         </div>
     </div>
 </div>
@@ -173,7 +182,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2229" defer></script>
+<script src="script.js?v=2230" defer></script>
 
 </body>
 </html>
