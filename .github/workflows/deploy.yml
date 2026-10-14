@@ -173,11 +173,13 @@ jobs:
           echo "Live auth API smoke checks passed"
 
           SEARCH_JSON="$(curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 40 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"search_global","query":"Coldplay","page":1}' "https://pl.dagstudio.ru/api.php?t=$EXPECTED")"
-          AUDIO_URL="$(printf '%s' "$SEARCH_JSON" | python -c 'import sys,json; d=json.load(sys.stdin); items=d.get("data",[]); x=next((i for i in items if "AUDIUS" in str(i.get("source","")).upper() and i.get("url")), None); assert x, "No Audius playback result"; print(x["url"])')"
+          AUDIO_INFO="$(printf '%s' "$SEARCH_JSON" | python -c 'import sys,json,urllib.parse; d=json.load(sys.stdin); allowed=("api.audius.co","slider.kz","ru.hitmoz.org","hitmoz.org","muzofond.fm","zvooq.net","muzvox.org","storage.muzvox.org","static.muzvox.org","muzca.net"); items=d.get("data",[]); x=next((i for i in items if i.get("url") and (urllib.parse.urlparse(i["url"]).hostname or "").lower().endswith(allowed)), None); assert x, "No playable whitelisted search result"; print(x["url"]+"\t"+str(x.get("source","")))')"
+          AUDIO_URL="$(printf '%s' "$AUDIO_INFO" | cut -f1)"
+          AUDIO_SOURCE="$(printf '%s' "$AUDIO_INFO" | cut -f2 | tr -cd '[:alnum:]_')"
           ENCODED_URL="$(python -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$AUDIO_URL")"
 
           rm -f /tmp/dag-audio.bin /tmp/dag-audio.headers
-          curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 40 --range 0-2047 -D /tmp/dag-audio.headers -o /tmp/dag-audio.bin "https://pl.dagstudio.ru/proxy.php?url=$ENCODED_URL&source=AUDIUS&retry=0"
+          curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 40 --range 0-2047 -D /tmp/dag-audio.headers -o /tmp/dag-audio.bin "https://pl.dagstudio.ru/proxy.php?url=$ENCODED_URL&source=$AUDIO_SOURCE&retry=0"
           test -s /tmp/dag-audio.bin
           grep -Eiq '^content-type: (audio/|application/octet-stream|application/mp3|binary/octet-stream)' /tmp/dag-audio.headers
           echo "Live search + audio proxy playback smoke check passed"
