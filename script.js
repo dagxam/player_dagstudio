@@ -76,7 +76,8 @@ async function nativeHttpRequest(options) {
 
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const WEB_BUILD_LABEL = '2233';
+const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
+const WEB_BUILD_LABEL = '2234';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -178,6 +179,20 @@ function compareOtaVersions(installed, available) {
     return 0;
 }
 
+function configureAndroidDownloadLink() {
+    const link = document.getElementById('android-apk-download-btn');
+    if (!link) return;
+    link.href = ANDROID_APK_LATEST_URL;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.setAttribute('download', 'DAGSTUDIO-PLAYER-Preview.apk');
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', configureAndroidDownloadLink);
+} else {
+    configureAndroidDownloadLink();
+}
+
 function setManualUpdateButtonState(state, text) {
     const btn = document.getElementById('app-update-btn');
     if (!btn) return;
@@ -224,6 +239,11 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
     if (nativeUpdateCheckInFlight) return { status: 'busy' };
 
     const now = Date.now();
+    // На слабом интернете автоматическая OTA-загрузка не должна отбирать
+    // скорость у музыки. Ручное обновление пользователь запускает сам.
+    if (!force && getNetworkProfile().weak && mainAudio && !mainAudio.paused) {
+        return { status: 'deferred' };
+    }
     if (!force && nativeLastUpdateCheckAt && (now - nativeLastUpdateCheckAt) < 5 * 60 * 1000) {
         return { status: 'throttled' };
     }
@@ -389,7 +409,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2233', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2234', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -401,8 +421,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2233') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2233', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2234') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2234', '1');
         window.location.reload();
     });
 }
@@ -795,6 +815,26 @@ const LEGACY_LOCAL_PLAYLISTS_PREFIX = 'dag_offline_playlists_v1:';
 const LAST_NATIVE_USER_KEY = 'dag_last_native_user';
 const LAST_DEVICE_USER_KEY = 'dag_last_device_user';
 
+function showDeviceCacheStatus() {
+    const label = document.getElementById('device-cache-status');
+    if (!label) return;
+    if (!currentUser) {
+        label.textContent = 'Кэш создаётся отдельно на каждом устройстве после входа в аккаунт.';
+        return;
+    }
+    const all = playlists.reduce((count, pl) => count + (Array.isArray(pl.tracks) ? pl.tracks.length : 0), 0);
+    if (IS_NATIVE_APP) {
+        const owner = currentCacheOwner();
+        const files = Object.values(readNativeAudioIndex()).filter(item =>
+            item && item.path && Array.isArray(item.owners) && item.owners.includes(owner));
+        label.textContent = 'На этом устройстве: ' + files.length + ' из ' + all +
+            ' треков в локальном кэше. На новом устройстве загрузка выполняется заново.';
+    } else {
+        label.textContent = 'Библиотека: ' + all +
+            ' треков. Офлайн-кэш браузера хранится только на этом устройстве.';
+    }
+}
+
 const nativeCacheQueue = [];
 const nativeCacheQueuedUrls = new Set();
 let nativeCacheWorkerRunning = false;
@@ -1040,6 +1080,7 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
         lastAccessAt: Date.now()
     };
     writeNativeAudioIndex(latestIndex);
+    showDeviceCacheStatus();
     return true;
 }
 
@@ -1805,6 +1846,7 @@ async function loadUserData(force = false) {
         if (playlistSyncTimer) { clearTimeout(playlistSyncTimer); playlistSyncTimer = null; }
         updatePlaylistSyncStatus('ok', 'Плейлисты синхронизированы · есть локальная копия');
         syncPlaylistOfflineCache();
+        showDeviceCacheStatus();
         return true;
     })();
     playlistSyncPromise = promise;
@@ -2973,6 +3015,7 @@ async function addToPlaylist(plId) {
 }
 
 function openMenu() {
+    showDeviceCacheStatus();
     if (currentUser) {
         if (navigator.onLine === false) updatePlaylistSyncStatus('error', 'Нет сети · используем локальные плейлисты');
         document.getElementById('auth-section').style.display = 'none';

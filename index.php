@@ -138,7 +138,8 @@
             <span>Обновить приложение</span>
         </button>
                 <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
-        <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
+        <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать приложение для Android</a>
+        <div id="device-cache-status" class="playlist-sync-status" role="status" aria-live="polite">Кэш сохраняется отдельно на каждом устройстве.</div>
         <div class="app-version-footer" id="app-version-footer">
             <div class="app-version-main"><i class="fas fa-code-branch"></i> <span id="app-version-text">Версия: определяем…</span></div>
             <div class="app-version-extra" id="app-version-extra"></div>
@@ -182,7 +183,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2233" defer></script>
+<script src="script.js?v=2234" defer></script>
 
 </body>
 </html>
