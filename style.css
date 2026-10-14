@@ -573,3 +573,30 @@ body, html {
 @keyframes dag-update-spin {
     to { transform: rotate(360deg); }
 }
+
+
+/* Меню на автомагнитолах и низких landscape-экранах */
+#menu-modal .modal-box {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+#menu-modal .app-update-btn-top {
+    margin: 0 36px 16px 0;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+}
+@media screen and (max-height: 620px) {
+    #menu-modal {
+        align-items: flex-start;
+        padding: 8px 0;
+    }
+    #menu-modal .modal-box {
+        max-height: calc(100vh - 16px);
+        padding-top: 18px;
+        padding-bottom: 18px;
+    }
+    #menu-modal .app-update-btn-top {
+        margin-top: 0;
+    }
+}

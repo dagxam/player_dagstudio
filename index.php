@@ -101,6 +101,10 @@
 <div id="menu-modal" class="modal-overlay">
     <div class="modal-box">
         <span class="modal-close" onclick="closeModal('menu-modal')">&times;</span>
+        <button id="app-update-btn" class="menu-list-btn app-update-btn app-update-btn-top" onclick="manualUpdateApplication()" type="button">
+            <i class="fas fa-rotate"></i>
+            <span>Обновить приложение</span>
+        </button>
         <div id="auth-section">
             <h3 class="modal-title" id="auth-title">ВХОД</h3>
             <div class="auth-form">
@@ -127,10 +131,6 @@
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
         <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
-        <button id="app-update-btn" class="menu-list-btn app-update-btn" onclick="manualUpdateApplication()" type="button">
-            <i class="fas fa-rotate"></i>
-            <span>Обновить приложение</span>
-        </button>
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" style="text-decoration:none;" rel="noopener"><i class="fab fa-android"></i> Скачать приложение для Android</a>
         <div class="app-version-footer" id="app-version-footer">
             <div class="app-version-main"><i class="fas fa-code-branch"></i> <span id="app-version-text">Версия: определяем…</span></div>
@@ -173,7 +173,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2225" defer></script>
+<script src="script.js?v=2226" defer></script>
 
 </body>
 </html>
