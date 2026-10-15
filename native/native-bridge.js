@@ -46,7 +46,8 @@ async function statCached(path) {
       directory: Directory.Data,
       path
     });
-    if (!stat || Number(stat.size || 0) < 1) return null;
+    // Do not expose a partially downloaded audio file as a complete offline entry.
+    if (!stat || Number(stat.size || 0) < 4096) return null;
 
     const uriInfo = await Filesystem.getUri({
       directory: Directory.Data,
@@ -74,33 +75,53 @@ const audioCache = {
   async download(options) {
     const url = String(options?.url || '');
     const key = String(options?.key || '');
-    if (!url || !key) throw new Error('audioCache.download: url/key required');
+    if (!/^https?:\/\//i.test(url) || !/^[a-f0-9]{16,128}$/i.test(key)) {
+      throw new Error('audioCache.download: invalid url/key');
+    }
 
     const path = await audioCachePath(key, options?.extension);
     const existing = await statCached(path);
     if (existing && !options?.forceRedownload) return existing;
-    if (existing && options?.forceRedownload) {
-      await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
-    }
 
-    const uriInfo = await Filesystem.getUri({
+    // NEVER write directly to the final audio path: another playback request
+    // could see a partly written file and confuse it with an offline cache hit.
+    const stagingPath = path + '.downloading';
+    await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});
+    const stagingUri = await Filesystem.getUri({
       directory: Directory.Data,
-      path
+      path: stagingPath
     });
 
     try {
       try {
-        await FileTransfer.downloadFile({ url, path: uriInfo.uri, headers: options?.headers || {}, progress: false });
+        await FileTransfer.downloadFile({
+          url, path: stagingUri.uri, headers: options?.headers || {}, progress: false
+        });
       } catch (error) {
-        // Fallback для старого Android. Частично созданный файл удаляем.
-        await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
-        await Filesystem.downloadFile({ url, path, directory: Directory.Data, recursive: true, headers: options?.headers || {} });
+        // Legacy Android fallback, still staged. Do not touch a valid old cache.
+        await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});
+        await Filesystem.downloadFile({
+          url, path: stagingPath, directory: Directory.Data, recursive: true,
+          headers: options?.headers || {}
+        });
       }
+      const staged = await statCached(stagingPath);
+      if (!staged) throw new Error('Audio download is empty or incomplete');
+
+      // Atomic rename publishes only a completed download.
+      // On Android this stays within Directory.Data on the same filesystem.
+      if (existing || options?.forceRedownload) {
+        await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
+      }
+      await Filesystem.rename({
+        from: stagingPath, to: path,
+        directory: Directory.Data, toDirectory: Directory.Data
+      });
       const stored = await statCached(path);
-      if (!stored || stored.size < 1024) throw new Error('Downloaded audio is incomplete');
+      if (!stored) throw new Error('Cached file was not published');
       return stored;
     } catch (error) {
-      await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
+      await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});
       throw error;
     }
   },
