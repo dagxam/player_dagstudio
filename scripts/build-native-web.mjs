@@ -31,7 +31,7 @@ html = html
   )
   .replace(
     /<script src="script\.js\?v=[^"]+" defer><\/script>/i,
-    \`<script src="native-bridge.js"></script>
+    `<script src="native-bridge.js"></script>
 <script src="native-audio-adapter.js"></script>
 <script>
 window.DAG_MEDIA3_ENABLED = false;
@@ -44,7 +44,7 @@ Promise.race([
   script.src = 'script.js';
   document.body.appendChild(script);
 });
-</script>\`
+</script>`
   );
 
 // Root-relative images should stay inside the APK web root.
