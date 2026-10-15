@@ -98,10 +98,20 @@ const audioCache = {
     const connectTimeout = weak ? 45000 : 20000;
     const readTimeout = weak ? 120000 : 60000;
 
+    let progressListener = null;
+    let expectedBytes = 0;
     try {
       try {
+        progressListener = await FileTransfer.addListener('progress', data => {
+          const total = Number(data?.contentLength || 0);
+          const received = Number(data?.bytes || 0);
+          if (total > 0) expectedBytes = Math.max(expectedBytes, total);
+          window.dispatchEvent(new CustomEvent('dag-cache-progress', {
+            detail: { bytes: received, total, downloading: true }
+          }));
+        });
         await FileTransfer.downloadFile({
-          url, path: stagingUri.uri, headers: options?.headers || {}, progress: false,
+          url, path: stagingUri.uri, headers: options?.headers || {}, progress: true,
           connectTimeout, readTimeout
         });
       } catch (error) {
@@ -113,7 +123,9 @@ const audioCache = {
         });
       }
       const staged = await statCached(stagingPath);
-      if (!staged) throw new Error('Audio download is empty or incomplete');
+      if (!staged || (expectedBytes > 0 && staged.size + 1024 < expectedBytes)) {
+        throw new Error('Audio download is empty or incomplete');
+      }
 
       // Atomic rename publishes only a completed download.
       // On Android this stays within Directory.Data on the same filesystem.
@@ -130,6 +142,11 @@ const audioCache = {
     } catch (error) {
       await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});
       throw error;
+    } finally {
+      if (progressListener) await progressListener.remove().catch(() => {});
+      window.dispatchEvent(new CustomEvent('dag-cache-progress', {
+        detail: { bytes: 0, total: 0, downloading: false }
+      }));
     }
   },
 

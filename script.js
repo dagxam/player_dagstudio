@@ -1345,8 +1345,17 @@ async function processWebCacheQueue() {
                         throw new Error('Некорректный аудиопоток: HTTP ' + response.status);
                     }
 
+                    // Read the complete body first. CacheStorage must never see
+                    // a truncated response after a radio handover.
+                    const blob = await response.blob();
+                    const expected = Number(response.headers.get('content-length') || 0);
+                    if (blob.size < 4096 || (expected > 0 && blob.size + 1024 < expected)) {
+                        throw new Error('Незавершённая загрузка аудио');
+                    }
                     const cache = await caches.open('dag-audio-cache');
-                    await cache.put(cacheUrl, response.clone());
+                    await cache.put(cacheUrl, new Response(blob, {
+                        status: 200, headers: response.headers
+                    }));
                 }
 
                 webCacheQueuedUrls.delete(job.resolved);
@@ -1425,7 +1434,11 @@ async function getDeviceCachedAudio(trackOrUrl) {
                 (await cache.match(weakProxy));
             if (res) {
                 const blob = await res.blob();
-                return { url: URL.createObjectURL(blob), isBlob: true, inCache: true };
+                const expected = Number(res.headers.get('content-length') || 0);
+                if (blob.size >= 4096 && (!expected || blob.size + 1024 >= expected)) {
+                    return { url: URL.createObjectURL(blob), isBlob: true, inCache: true };
+                }
+                console.warn('Incomplete PWA audio cache entry ignored');
             }
         } catch(e) {}
     }
@@ -2160,6 +2173,87 @@ function retryCurrentTrackManually() {
     closeModal('diagnostics-modal');
     const pos=Number(mainAudio.currentTime||playbackPlaylist[currentIndex]._resumeTime||0);
     playTrack(currentIndex,{resumeAt:pos});
+}
+const cacheDownloadProgress = { bytes:0, total:0, downloading:false };
+window.addEventListener('dag-cache-progress', event => {
+    const state = event.detail || {};
+    cacheDownloadProgress.bytes = Math.max(0, Number(state.bytes) || 0);
+    cacheDownloadProgress.total = Math.max(0, Number(state.total) || 0);
+    cacheDownloadProgress.downloading = !!state.downloading;
+    const label = document.getElementById('cache-progress-info');
+    if (label) {
+        label.textContent = state.downloading ?
+            'Скачивание: ' + (cacheDownloadProgress.bytes / 1048576).toFixed(1) + ' МБ' +
+            (cacheDownloadProgress.total ? ' из ' + (cacheDownloadProgress.total / 1048576).toFixed(1) + ' МБ' : '') :
+            'Фоновое скачивание не выполняется';
+    }
+});
+function downloadCurrentPlaylistOffline() {
+    if (navigator.onLine === false) return showNotification('Для скачивания нужна сеть.');
+    if (!playlist.length) return showNotification('В этом списке нет треков.');
+    let count = 0;
+    for (const track of playlist) {
+        if (!track?.url || !isRemoteMediaUrl(track.url)) continue;
+        if (IS_NATIVE_APP) enqueueNativeTrackCache(track, 'playlist', false);
+        else enqueueWebTrackCache(track, 'playlist', false);
+        count++;
+    }
+    showNotification('Добавлено в очередь кэширования: ' + count + '. Загрузка выполняется в фоне по одному файлу.');
+}
+async function verifyOfflineCache() {
+    const result = document.getElementById('cache-verify-info');
+    if (!result) return;
+    result.textContent = 'Проверяем сохранённые файлы…';
+    let checked=0, removed=0;
+    if (IS_NATIVE_APP) {
+        const bridge=nativeAudioCacheBridge(),index=readNativeAudioIndex();
+        for (const [url,entry] of Object.entries(index)) {
+            checked++;
+            try {
+                const file = entry?.path && bridge ? await bridge.get({path:entry.path}) : null;
+                if (!file?.exists || Number(file.size || 0) < 4096 ||
+                    Number(file.size || 0) + 1024 < Number(entry.size || 0)) {
+                    delete index[url]; removed++;
+                }
+            } catch(e) { delete index[url]; removed++; }
+        }
+        writeNativeAudioIndex(index);
+    } else if ('caches' in window) {
+        try {
+            const store=await caches.open('dag-audio-cache');
+            for (const key of await store.keys()) {
+                checked++;
+                const res=await store.match(key);
+                const size=(await res?.blob())?.size || 0;
+                const expected=Number(res?.headers.get('content-length') || 0);
+                if (size<4096 || (expected && size+1024<expected)) {
+                    await store.delete(key); removed++;
+                }
+            }
+        } catch(e) { result.textContent='Кэш браузера недоступен';return; }
+    }
+    result.textContent='Проверено: '+checked+' · повреждённых записей удалено: '+removed;
+    showDeviceCacheStatus();
+}
+function clearOfflineAudioCache() {
+    if (playbackWanted) return showNotification('Поставьте музыку на паузу перед очисткой.');
+    showConfirm('Удалить все скачанные аудиофайлы с этого устройства? Плейлисты и настройки останутся.', async function() {
+        if (IS_NATIVE_APP) {
+            const bridge=nativeAudioCacheBridge();
+            const index=readNativeAudioIndex();
+            nativeCacheQueue.length=0; nativeCacheQueuedUrls.clear();
+            for (const path of new Set(Object.values(index).map(e=>e?.path).filter(Boolean))) {
+                if (bridge) await bridge.delete({path}).catch(()=>{});
+            }
+            writeNativeAudioIndex({});
+        } else if ('caches' in window) {
+            webCacheQueue.length=0; webCacheQueuedUrls.clear();
+            await caches.delete('dag-audio-cache');
+        }
+        await openCacheDashboard();
+        const info=document.getElementById('cache-verify-info');
+        if(info)info.textContent='Кэш очищен. Плейлисты сохранены.';
+    });
 }
 async function openCacheDashboard() {
     const out=document.getElementById('cache-dashboard-info');

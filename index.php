@@ -217,7 +217,14 @@
 <div id="cache-dashboard-modal" class="modal-overlay">
     <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('cache-dashboard-modal')" aria-label="Закрыть">&times;</button>
         <h3 class="modal-title">Кэш устройства</h3><p class="utility-info" id="cache-dashboard-info">Проверяем…</p>
-        <button class="modal-btn btn-dark" type="button" onclick="openCacheDashboard()">Обновить сведения</button>
+        <p class="utility-info" id="cache-progress-info">Фоновое скачивание не выполняется</p>
+        <p class="utility-info" id="cache-verify-info"></p>
+        <div class="utility-buttons">
+            <button type="button" onclick="downloadCurrentPlaylistOffline()">Сохранить текущий плейлист</button>
+            <button type="button" onclick="verifyOfflineCache()">Проверить файлы</button>
+            <button type="button" onclick="openCacheDashboard()">Обновить сведения</button>
+            <button type="button" onclick="clearOfflineAudioCache()">Очистить аудиокэш</button>
+        </div>
     </div>
 </div>
 
