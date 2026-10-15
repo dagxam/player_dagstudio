@@ -443,6 +443,9 @@ let playlists = [];
 let playlist = []; 
 let searchPlaylistCache = []; 
 let currentIndex = -1;
+// Browsing UI lists must not change the current playback context.
+let playbackPlaylist = [];
+let playbackTab = 'search';
 let playbackWanted = false;
 const PLAYBACK_QUEUE_KEY = 'dag_playback_queue_v1';
 let playbackQueue = [];
@@ -1122,7 +1125,7 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
 // либо воспроизводится из локального кэша: не забираем скорость у текущего трека.
 let nextTrackPrefetchKey = '';
 function isCurrentTrackFullyReady() {
-    const active = playlist[currentIndex];
+    const active = playbackPlaylist[currentIndex];
     if (!active || mainAudio.paused || mainAudio.ended) return false;
     if (active._playingFromCache) return true;
     const duration = Number(mainAudio.duration);
@@ -1988,14 +1991,19 @@ const DAG_PLAYBACK_SNAPSHOT_KEY = 'dag_car_last_play_v1';
 let dagLastPlaybackSnapshotAt = 0;
 let dagRestorePosition = null;
 function saveNativePlaybackSnapshot(force = false) {
-    if (!IS_NATIVE_APP || currentIndex < 0 || !playlist[currentIndex]) return;
+    if (!IS_NATIVE_APP || currentIndex < 0 || !playbackPlaylist[currentIndex]) return;
     if (!force && Date.now() - dagLastPlaybackSnapshotAt < 10000) return;
     dagLastPlaybackSnapshotAt = Date.now();
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     try {
         localStorage.setItem(DAG_PLAYBACK_SNAPSHOT_KEY, JSON.stringify({
-            playlistId: String(currentTab), url: String(track.url || ''),
+            playlistId: String(playbackTab), url: String(track.url || ''),
             position: Number.isFinite(mainAudio.currentTime) ? Math.max(0, mainAudio.currentTime) : 0,
+            wasPlaying: !!playbackWanted,
+            tracks: playbackPlaylist.slice(0, 100).map(t => ({
+                id:t.id, title:t.title, artist:t.artist, url:t.url,
+                thumb:t.thumb, source:t.source, type:t.type || 'audio'
+            })),
             savedAt: Date.now()
         }));
     } catch (error) {}
@@ -2006,34 +2014,53 @@ function restoreNativePlaybackSnapshot() {
         const saved = JSON.parse(localStorage.getItem(DAG_PLAYBACK_SNAPSHOT_KEY) || 'null');
         if (!saved || !saved.url || !saved.savedAt || Date.now() - saved.savedAt > 3 * 86400000) return;
         const pl = playlists.find(item => String(item.id) === String(saved.playlistId));
-        if (!pl) return;
-        switchTab(pl.id);
-        const index = playlist.findIndex(track => track.url === saved.url);
+        if (pl) switchTab(pl.id);
+        const tracks = Array.isArray(saved.tracks) ? saved.tracks.filter(t => t?.url).slice(0, 100) :
+            (pl?.tracks || []).filter(t => t?.url);
+        if (!tracks.length) return;
+        const index = tracks.findIndex(t => t.url === saved.url);
         if (index < 0) return;
+        playbackPlaylist = tracks;
+        playbackTab = String(saved.playlistId || 'search');
         currentIndex = index;
-        dagRestorePosition = { url: saved.url, position: Math.max(0, Number(saved.position) || 0) };
-        titleEl.textContent = playlist[index].title || 'Сохранённый трек';
-        artistEl.textContent = (playlist[index].artist || '') + ' · нажмите ▶ для продолжения';
+        // Process recreation never autoplays: explicit Play continues at snapshot position.
+        playbackWanted = false;
+        dagRestorePosition = { url:saved.url, position:Math.max(0,Number(saved.position)||0) };
+        playbackPlaylist[index]._resumeTime = dagRestorePosition.position;
+        titleEl.textContent = tracks[index].title || 'Сохранённый трек';
+        artistEl.textContent = (tracks[index].artist || '') + ' · нажмите ▶ для продолжения';
         updateActiveTrackInList(index);
-    } catch (error) {}
+        updatePlaybackQueueBadge();
+    } catch (error) { console.warn('Playback snapshot restore unavailable'); }
 }
+
 function setNativeCarKeepAwake(enabled) {
     const screen = window.DAG_NATIVE_BRIDGE && window.DAG_NATIVE_BRIDGE.screen;
     if (IS_NATIVE_APP && screen && typeof screen.setKeepScreenOn === 'function') {
         screen.setKeepScreenOn({ enabled: !!enabled }).catch(function() {});
     }
 }
+let nativeResumeCheck = null;
 window.addEventListener('dag-native-state', function(event) {
     const active = !!event.detail?.isActive;
+    clearTimeout(nativeResumeCheck);
+    nativeResumeCheck = null;
     if (!active) {
         saveNativePlaybackSnapshot(true);
-        // Перестаём запускать фоновые скачивания в режиме сна/другого приложения.
         clearTimeout(nativeCacheRetryTimer);
         nativeCacheRetryTimer = null;
     } else {
         updateProgress();
         scheduleNativeCacheWorker(2500);
         if (!mainAudio.paused) requestWakeLock();
+        const token = currentPlaybackToken;
+        nativeResumeCheck = setTimeout(function() {
+            if (token !== currentPlaybackToken || !playbackWanted ||
+                !playbackPlaylist[currentIndex] || streamRecoveryInFlight) return;
+            if (mainAudio.paused || mainAudio.error || playbackIsFrozen()) {
+                recoverCurrentStream('android-resume');
+            }
+        }, 2300);
     }
 });
 window.addEventListener('pagehide', function() { saveNativePlaybackSnapshot(true); });
@@ -2111,7 +2138,7 @@ function openPlayerDiagnostics() {
 function refreshPlayerDiagnostics() {
     const el=document.getElementById('diagnostics-info');
     if(!el)return;
-    const net=getNetworkProfile(),track=playlist[currentIndex];
+    const net=getNetworkProfile(),track=playbackPlaylist[currentIndex];
     el.textContent=[
         'Платформа: '+(IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
         'Соединение: '+(navigator.onLine?(net.effectiveType||'доступно'):'отсутствует'),
@@ -2131,7 +2158,7 @@ function refreshPlayerDiagnostics() {
 function retryCurrentTrackManually() {
     if(currentIndex<0)return;
     closeModal('diagnostics-modal');
-    const pos=Number(mainAudio.currentTime||playlist[currentIndex]._resumeTime||0);
+    const pos=Number(mainAudio.currentTime||playbackPlaylist[currentIndex]._resumeTime||0);
     playTrack(currentIndex,{resumeAt:pos});
 }
 async function openCacheDashboard() {
@@ -2474,7 +2501,7 @@ function scoreReplacementTrack(saved, candidate) {
 async function refreshSavedTrackSource(track) {
     if (!track || track._refreshAttempted || navigator.onLine === false) return false;
     track._refreshAttempted = true;
-    const persisted = currentTab !== 'search' && !!track.id;
+    const persisted = playbackTab !== 'search' && !!track.id;
 
     const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
     if (!query) return false;
@@ -2566,7 +2593,7 @@ function bufferedSecondsAhead() {
 }
 
 function scheduleStreamRecovery(reason, delay) {
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     if (!track || !track.url || mainAudio.ended || !playbackWanted) return;
     clearStreamRecoveryTimer();
 
@@ -2594,7 +2621,7 @@ function scheduleStreamRecovery(reason, delay) {
 }
 
 async function recoverCurrentStream(reason) {
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     if (!track || !track.url || streamRecoveryInFlight || !playbackWanted) return;
     if ((reason === 'waiting' || reason === 'stalled') &&
         bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;
@@ -2615,7 +2642,7 @@ async function recoverCurrentStream(reason) {
 async function recoverCurrentStreamInternal(reason, track) {
     clearStreamRecoveryTimer();
     const token = currentPlaybackToken;
-    if (!playbackWanted || playlist[currentIndex] !== track) return;
+    if (!playbackWanted || playbackPlaylist[currentIndex] !== track) return;
     resetMediaAdvanceClock(mainAudio.currentTime);
 
     const resumeAt = Math.max(
@@ -2629,7 +2656,7 @@ async function recoverCurrentStreamInternal(reason, track) {
         const cached = track._cachedRecoveryAttempts >= 2 && navigator.onLine !== false
             ? null : await getDeviceCachedAudio(track);
         if (!playbackWanted || token !== currentPlaybackToken ||
-            playlist[currentIndex] !== track) return;
+            playbackPlaylist[currentIndex] !== track) return;
         if (cached && cached.inCache) {
             track._cachedRecoveryAttempts = (track._cachedRecoveryAttempts || 0) + 1;
             networkRetryPending = false;
@@ -2670,13 +2697,13 @@ async function recoverCurrentStreamInternal(reason, track) {
         // Только если найти новый источник не удалось, оставляем трек остановленным.
         const refreshed = await refreshSavedTrackSource(track);
         if (!playbackWanted || token !== currentPlaybackToken ||
-            playlist[currentIndex] !== track) return;
-        if (refreshed && playlist[currentIndex] === track) {
+            playbackPlaylist[currentIndex] !== track) return;
+        if (refreshed && playbackPlaylist[currentIndex] === track) {
             artistEl.textContent = 'Источник обновлён — запускаем…';
             track._streamRetries = 0;
             pendingResumeTime = 0;
             setTimeout(function() {
-                if (playlist[currentIndex] === track) playTrack(currentIndex);
+                if (playbackPlaylist[currentIndex] === track) playTrack(currentIndex, {fromPlayback:true});
             }, 150);
             return;
         }
@@ -2744,12 +2771,12 @@ mainAudio.addEventListener('playing', function() {
     maybePrecacheNextTrack();
 
     const token = currentPlaybackToken;
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     const playingStartedAt = Number(mainAudio.currentTime) || 0;
     setTimeout(function() {
         // Событие playing без продвижения позиции не должно сбрасывать
         // лимит повторных подключений при последовательных зависаниях.
-        if (token === currentPlaybackToken && track === playlist[currentIndex] &&
+        if (token === currentPlaybackToken && track === playbackPlaylist[currentIndex] &&
             !mainAudio.paused && (Number(mainAudio.currentTime) || 0) - playingStartedAt >= 8) {
             track._streamRetries = 0;
         }
@@ -2758,7 +2785,7 @@ mainAudio.addEventListener('playing', function() {
     // Прослушанный онлайн-трек автоматически сохраняется на устройстве.
     if (track && navigator.onLine !== false && isRemoteMediaUrl(track.url) && !track._playingFromCache) {
         setTimeout(function() {
-            if (token === currentPlaybackToken && track === playlist[currentIndex] &&
+            if (token === currentPlaybackToken && track === playbackPlaylist[currentIndex] &&
                 isFinite(mainAudio.currentTime) && mainAudio.currentTime >= 5) {
                 cacheTrackSilently(track, { reason: 'played', priority: true });
             }
@@ -2789,7 +2816,7 @@ mainAudio.addEventListener('ended', function() {
     syncCarNativeMedia(false);
     saveNativePlaybackSnapshot(true);
 
-    const finishedTrack = playlist[currentIndex];
+    const finishedTrack = playbackPlaylist[currentIndex];
     if (finishedTrack && navigator.onLine !== false && isRemoteMediaUrl(finishedTrack.url)) {
         cacheTrackSilently(finishedTrack, { reason: 'played', priority: true });
     }
@@ -2832,7 +2859,7 @@ mainAudio.addEventListener('canplaythrough', maybePrecacheNextTrack);
 
 mainAudio.addEventListener('timeupdate', function() {
     recordMediaAdvance();
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     if (track && isFinite(mainAudio.currentTime) && mainAudio.currentTime > 0) {
         track._resumeTime = mainAudio.currentTime;
         saveNativePlaybackSnapshot();
@@ -2848,7 +2875,7 @@ mainAudio.addEventListener('timeupdate', function() {
 });
 
 mainAudio.addEventListener('error', function() {
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     if (!track || !track.url) return;
     const mediaCode = mainAudio.error?.code || 0;
     console.warn('Audio media error', { code: mediaCode, source: track.source || '', retries: track._streamRetries || 0 });
@@ -2864,7 +2891,7 @@ mainAudio.addEventListener('error', function() {
 window.addEventListener('offline', function() {
     if (currentIndex < 0 || mainAudio.ended) return;
 
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     if (track && track._playingFromCache) return;
 
     // Если текущего сетевого буфера уже недостаточно, сразу переключаемся
@@ -2902,12 +2929,17 @@ if (connectionInfo && typeof connectionInfo.addEventListener === 'function') {
 }
 
 async function playTrack(index, options = {}) {
-    if(index < 0 || index >= playlist.length) return;
+    const targetList = options.fromPlayback ? playbackPlaylist : playlist;
+    if(index < 0 || index >= targetList.length) return;
+    if (!options.fromPlayback) {
+        playbackPlaylist = [...targetList];
+        playbackTab = String(currentTab);
+    }
     playbackWanted = true;
     currentIndex = index;
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
-    const track = playlist[index];
+    const track = playbackPlaylist[index];
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 
@@ -3037,16 +3069,16 @@ async function playTrack(index, options = {}) {
 function updateActiveTrackInList(index) {
     const rows = document.querySelectorAll('.track-row');
     rows.forEach(r => r.classList.remove('active'));
-    if(rows[index]) {
-        rows[index].classList.add('active');
-        rows[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    const current = playbackPlaylist[currentIndex];
+    if (!current) return;
+    const visibleIndex = playlist.findIndex(t => canonicalTrackUrl(t) === canonicalTrackUrl(current));
+    if (visibleIndex >= 0 && rows[visibleIndex]) rows[visibleIndex].classList.add('active');
 }
 
 function syncCarNativeMedia(playing) {
     const media = window.DAG_NATIVE_BRIDGE?.media;
     if (!IS_NATIVE_APP || !media || typeof media.update !== 'function') return;
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     media.update({playing: !!playing, title: track?.title || 'DAGSTUDIO PLAYER',
         artist: track?.artist || ''}).catch(function(error) {
         console.warn('Android media service unavailable:', error);
@@ -3056,12 +3088,13 @@ window.addEventListener('dag-android-media-button', function(event) {
     const action = String(event.detail?.action || '');
     if (action === 'play' && !playbackWanted) resumePlayback();
     else if (action === 'pause' && playbackWanted) pausePlayback();
-    else if (action === 'next' && playlist.length) playNext();
-    else if (action === 'previous' && playlist.length) playPrev();
+    else if (action === 'next' && (playbackPlaylist.length || playbackQueue.length)) playNext();
+    else if (action === 'previous' && playbackPlaylist.length) playPrev();
+    else if (action === 'toggle' && playbackPlaylist.length) togglePlay();
 });
 function notifyPausedCacheReady(track) {
     if (playbackWanted || currentIndex < 0 || !track ||
-        canonicalTrackUrl(playlist[currentIndex]) !== canonicalTrackUrl(track)) return;
+        canonicalTrackUrl(playbackPlaylist[currentIndex]) !== canonicalTrackUrl(track)) return;
     artistEl.textContent = 'Трек сохранён в кэше · нажмите ▶';
 }
 function pausePlayback() {
@@ -3074,10 +3107,10 @@ function pausePlayback() {
     clearPlaybackWatchdog();
     const incomplete = mainAudio.readyState < 2;
     const position = Number.isFinite(mainAudio.currentTime) ? mainAudio.currentTime : 0;
-    const pausedTrack = playlist[currentIndex];
+    const pausedTrack = playbackPlaylist[currentIndex];
     mainAudio.pause();
     if (incomplete) {
-        const track = playlist[currentIndex];
+        const track = playbackPlaylist[currentIndex];
         if (track) track._resumeTime = Math.max(Number(track._resumeTime) || 0, position);
         mainAudio.removeAttribute('src');
         mainAudio.load(); // abort a stuck WebView network request
@@ -3096,7 +3129,7 @@ function pausePlayback() {
     }
 }
 function resumePlayback() {
-    const track = playlist[currentIndex];
+    const track = playbackPlaylist[currentIndex];
     if (!track) return;
     playbackWanted = true;
     resetMediaAdvanceClock(mainAudio.currentTime);
@@ -3106,7 +3139,7 @@ function resumePlayback() {
     }
     if (!mainAudio.getAttribute('src') || mainAudio.error || mainAudio.networkState === 3) {
         playbackWanted = false;
-        playTrack(currentIndex, { resumeAt:Number(track._resumeTime || 0) });
+        playTrack(currentIndex, { fromPlayback:true, resumeAt:Number(track._resumeTime || 0) });
         return;
     }
     showLoader(true);
@@ -3127,7 +3160,7 @@ function resumePlayback() {
     });
 }
 function togglePlay() {
-    if (!playlist[currentIndex]) return;
+    if (!playbackPlaylist[currentIndex]) return;
     if (playbackWanted) pausePlayback(); else resumePlayback();
 }
 function updateState(playing) {
@@ -3159,6 +3192,15 @@ function queueTrack(index) {
         url:track.url, thumb:track.thumb || '', source:track.source || '',type:'audio' });
     savePlaybackQueue();
 }
+function playQueuedTrack(index) {
+    if (index < 0 || index >= playbackQueue.length) return;
+    const track = playbackQueue.splice(index, 1)[0];
+    savePlaybackQueue();
+    let target = playbackPlaylist.findIndex(t => canonicalTrackUrl(t) === canonicalTrackUrl(track));
+    if (target < 0) { target = playbackPlaylist.length; playbackPlaylist.push(track); }
+    playTrack(target, {fromPlayback:true});
+    closeModal('queue-modal');
+}
 function renderPlaybackQueue() {
     const list = document.getElementById('queue-list');
     if (!list) return;
@@ -3180,6 +3222,7 @@ function renderPlaybackQueue() {
         row.append(label,
             make('↑','Выше',i===0,()=>{[playbackQueue[i-1],playbackQueue[i]]=[playbackQueue[i],playbackQueue[i-1]];savePlaybackQueue();}),
             make('↓','Ниже',i===playbackQueue.length-1,()=>{[playbackQueue[i],playbackQueue[i+1]]=[playbackQueue[i+1],playbackQueue[i]];savePlaybackQueue();}),
+            make('▶','Играть сейчас',false,()=>playQueuedTrack(i)),
             make('×','Убрать',false,()=>{playbackQueue.splice(i,1);savePlaybackQueue();}));
         list.appendChild(row);
     });
@@ -3193,24 +3236,29 @@ function clearPlaybackQueue() {
 }
 function playNext() {
     if (playbackQueue.length) {
-        const track=playbackQueue.shift();
+        const track = playbackQueue.shift();
         savePlaybackQueue();
-        let index=playlist.findIndex(t=>t.url===track.url);
-        if(index<0) { index=playlist.length;playlist.push(track);renderPlaylist(); }
-        playTrack(index);
+        let index = playbackPlaylist.findIndex(t => canonicalTrackUrl(t) === canonicalTrackUrl(track));
+        if (index < 0) { index = playbackPlaylist.length; playbackPlaylist.push(track); }
+        playTrack(index, {fromPlayback:true});
         return;
     }
-    if (isShuffle) {
-        if(playlist.length > 1) {
-            let r = Math.floor(Math.random() * playlist.length);
-            while(r === currentIndex && playlist.length > 1) { r = Math.floor(Math.random() * playlist.length); }
-            playTrack(r);
-        } else { playTrack(0); }
+    if (!playbackPlaylist.length) return;
+    if (isShuffle && playbackPlaylist.length > 1) {
+        let r = Math.floor(Math.random() * playbackPlaylist.length);
+        while (r === currentIndex) r = Math.floor(Math.random() * playbackPlaylist.length);
+        playTrack(r, {fromPlayback:true});
     } else {
-        let n = currentIndex + 1; if(n >= playlist.length) n = 0; playTrack(n); 
+        let n = currentIndex + 1;
+        if (n >= playbackPlaylist.length) n = 0;
+        playTrack(n, {fromPlayback:true});
     }
 }
-function playPrev() { let p = currentIndex - 1; if(p < 0) p = playlist.length - 1; playTrack(p); }
+function playPrev() {
+    if (!playbackPlaylist.length) return;
+    const p = currentIndex <= 0 ? playbackPlaylist.length - 1 : currentIndex - 1;
+    playTrack(p, {fromPlayback:true});
+}
 
 document.getElementById('btn-shuffle').onclick = toggleShuffle;
 document.getElementById('btn-repeat').onclick = toggleRepeat;
@@ -3230,7 +3278,7 @@ function stopProgressLoop() {
 function updateProgress() { 
     if (document.hidden) return; 
     let curr = 0, dur = 0, buf = 0; 
-    const track = playlist[currentIndex]; 
+    const track = playbackPlaylist[currentIndex]; 
     if(!track) return;
 
     if(mainAudio) { 
@@ -3258,7 +3306,7 @@ function formatTime(s) {
 }
 
 document.getElementById('prog-area').onclick = function(e) { 
-    const track = playlist[currentIndex]; if(track) { 
+    const track = playbackPlaylist[currentIndex]; if(track) { 
         const rect = this.getBoundingClientRect(); 
         const pos = (e.clientX - rect.left) / rect.width; 
         const seekTo = pos * mainAudio.duration; 
@@ -3420,7 +3468,7 @@ function renderPlaylist() {
     }
 
     playlist.forEach((t, i) => { 
-        const div = document.createElement('div'); div.className = 'track-row ' + (i === currentIndex ? 'active' : ''); 
+        const div = document.createElement('div'); div.className = 'track-row ' + (playbackPlaylist[currentIndex] && canonicalTrackUrl(t) === canonicalTrackUrl(playbackPlaylist[currentIndex]) ? 'active' : ''); 
         let iconHtml = '';
         let trackThumb = t.thumb;
         let isDefaultLogo = false;
