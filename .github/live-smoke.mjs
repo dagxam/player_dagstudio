@@ -83,6 +83,10 @@ try {
         noOrnamentalStrip: !document.querySelector('.ornament-footer'),
         leftX:left.x, rightX:right.x, leftWidth:left.width,
         eqVisible:eq.width>=28,
+        eqWidth:eq.width,
+        eqStyle:getComputedStyle(document.querySelector('.header-eq-btn')).display,
+        eqParentWidth:document.querySelector('.header-right').getBoundingClientRect().width,
+        eqParentDisplay:getComputedStyle(document.querySelector('.header-right')).display,
         pageOverflow:document.documentElement.scrollWidth > innerWidth + 2,
         width:root.getBoundingClientRect().width
       };
