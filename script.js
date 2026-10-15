@@ -2049,6 +2049,79 @@ window.addEventListener('online', function() {
 });
 
 updatePlaybackQueueBadge();
+// --- ДИАГНОСТИКА / ТАЙМЕР / СОСТОЯНИЕ КЭША ---
+let sleepTimerAt = 0;
+let sleepAfterCurrent = false;
+function updateSleepTimerLabel() {
+    const el=document.getElementById('sleep-timer-state');
+    if(!el)return;
+    el.textContent=sleepAfterCurrent?'После текущего трека':
+        sleepTimerAt?'Осталось '+Math.max(0,Math.ceil((sleepTimerAt-Date.now())/60000))+' мин':'Выключен';
+}
+function setSleepTimer(value) {
+    sleepAfterCurrent=value==='end';
+    sleepTimerAt=typeof value==='number'&&value>0?Date.now()+value*60000:0;
+    updateSleepTimerLabel();
+}
+function openSleepTimer() {
+    updateSleepTimerLabel();document.getElementById('sleep-modal').classList.add('show');
+}
+setInterval(function(){
+    if(sleepTimerAt && Date.now()>=sleepTimerAt) {
+        setSleepTimer(0);
+        if(playbackWanted)pausePlayback();
+        showNotification('Таймер сна завершил воспроизведение.');
+    } else if(sleepTimerAt)updateSleepTimerLabel();
+},12000);
+function openPlayerDiagnostics() {
+    refreshPlayerDiagnostics();document.getElementById('diagnostics-modal').classList.add('show');
+}
+function refreshPlayerDiagnostics() {
+    const el=document.getElementById('diagnostics-info');
+    if(!el)return;
+    const net=getNetworkProfile(),track=playlist[currentIndex];
+    el.textContent=[
+        'Платформа: '+(IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
+        'Соединение: '+(navigator.onLine?(net.effectiveType||'доступно'):'отсутствует'),
+        'Воспроизведение: '+(playbackWanted?(mainAudio.paused?'загрузка':'играет'):'пауза'),
+        'Готовность: '+mainAudio.readyState+' из 4',
+        'Буфер впереди: '+bufferedSecondsAhead().toFixed(1)+' с',
+        'Офлайн: '+(track?._playingFromCache?'да':'нет'),
+        'Источник: '+(track?.source||'не выбран'),
+        'Повторные подключения: '+(track?._streamRetries||0),
+        'Ошибка аудио: '+(mainAudio.error?.code||'нет')
+    ].join('\\n');
+}
+function retryCurrentTrackManually() {
+    if(currentIndex<0)return;
+    closeModal('diagnostics-modal');
+    const pos=Number(mainAudio.currentTime||playlist[currentIndex]._resumeTime||0);
+    playTrack(currentIndex,{resumeAt:pos});
+}
+async function openCacheDashboard() {
+    const out=document.getElementById('cache-dashboard-info');
+    if(!out)return;
+    document.getElementById('cache-dashboard-modal').classList.add('show');
+    out.textContent='Подсчёт кэша…';
+    const urls=new Set();
+    playlists.forEach(pl=>(pl.tracks||[]).forEach(t=>{if(t.url)urls.add(canonicalTrackUrl(t));}));
+    if(IS_NATIVE_APP) {
+        const owner=currentCacheOwner();
+        const entries=Object.values(readNativeAudioIndex()).filter(x=>
+            x?.path&&Array.isArray(x.owners)&&x.owners.includes(owner));
+        const size=entries.reduce((n,x)=>n+(Number(x.size)||0),0);
+        out.textContent='На этом устройстве: '+entries.length+' из '+urls.size+
+            ' треков в плейлистах. Размер: '+(size/1048576).toFixed(1)+
+            ' МБ. На новой магнитоле или телефоне кэш создаётся отдельно.';
+    } else {
+        try {
+            const store=await caches.open('dag-audio-cache');
+            const keys=await store.keys();
+            out.textContent='В этом браузере: '+keys.length+
+                ' файлов; '+urls.size+' треков в плейлистах. Кэш хранится локально.';
+        } catch(e){out.textContent='Нет доступа к кэшу браузера.';}
+    }
+}
 // --- UI HELPERS ---
 function showNotification(msg) { 
     const el = document.getElementById('alert-msg');
@@ -2611,6 +2684,13 @@ mainAudio.addEventListener('pause', function() {
 });
 
 mainAudio.addEventListener('ended', function() {
+    if (sleepAfterCurrent || (sleepTimerAt && Date.now() >= sleepTimerAt)) {
+        sleepAfterCurrent = false;sleepTimerAt = 0;
+        playbackWanted = false;showLoader(false);updateState(false);
+        updateSleepTimerLabel();
+        showNotification('Воспроизведение остановлено по таймеру сна.');
+        return;
+    }
     clearStreamRecoveryTimer();
     releaseWakeLock();
     saveNativePlaybackSnapshot(true);
