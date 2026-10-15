@@ -286,6 +286,16 @@ try {
   if (!smartRadioStatus.available||!smartRadioStatus.menu||
       !smartRadioStatus.queue||!smartRadioStatus.picker) throw new Error('Smart radio UI missing');
 
+  const radioPrefetchChecks = await page.evaluate(()=>{
+    return {prefetch:typeof maybePrefetchSmartRadio==='function',
+        premature:typeof isPrematureTrackEnd==='function',
+        shortIsPremature:isPrematureTrackEnd(4,185),
+        nearEndIsNormal:!isPrematureTrackEnd(182,185)};
+  });
+  console.log('RADIO_PREFETCH_GUARDS',JSON.stringify(radioPrefetchChecks));
+  if(!Object.values(radioPrefetchChecks).every(Boolean))
+    throw new Error('Smart radio prefetch or premature-end checks missing');
+
   await page.click('.menu-btn');
   await page.waitForSelector('#menu-modal.show', { timeout: 5000 });
 

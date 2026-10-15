@@ -3612,8 +3612,8 @@ async function playSmartRadioNext() {
     if (playbackTab==='search' || !playbackPlaylist.length) return false;
     smartRadioBusy=true;
     const prefetched=smartRadioPrefetch;
-    smartRadioPrefetch=null;
-    const serial=++smartRadioRequestSerial;
+    // Keep the in-flight search valid until its result is consumed.
+    const serial=smartRadioRequestSerial;
     const token=currentPlaybackToken;
     showLoader(true);
     artistEl.textContent='Подбираем похожую музыку из сети…';
@@ -3628,6 +3628,9 @@ async function playSmartRadioNext() {
                 new Promise(resolve=>setTimeout(()=>resolve(null),5500))
             ]);
         }
+        if (smartRadioPrefetch===prefetched) smartRadioPrefetch=null;
+        if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
+            !smartRadioEnabled || !playbackWanted) return true;
         if (!candidate) candidate=await findSmartRadioTrack();
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
             !smartRadioEnabled || !playbackWanted) return true;

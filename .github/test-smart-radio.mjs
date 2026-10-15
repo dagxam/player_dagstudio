@@ -20,3 +20,17 @@ assert.equal(picked.url,newSong.url);
 assert.equal(ctx.smartRadioPickCandidate([newSong],base,[...base,newSong],0),null);
 assert.equal(ctx.smartRadioPickCandidate([{...newSong,url:'https://example.org/other.mp3'}],base,[...base,newSong],0),null);
 console.log('SMART_RADIO_RECOMMENDATIONS_OK');
+
+const prematureStart=text.indexOf('function isPrematureTrackEnd(');
+const prematureEnd=text.indexOf('\nfunction handlePrematureTrackEnd(',prematureStart);
+assert.ok(prematureStart>0 && prematureEnd>prematureStart,'premature playback end guard exists');
+const early={};
+runInNewContext(text.slice(prematureStart,prematureEnd),early);
+assert.equal(early.isPrematureTrackEnd(2,180),true);
+assert.equal(early.isPrematureTrackEnd(45,180),true);
+assert.equal(early.isPrematureTrackEnd(180,180),false);
+assert.equal(early.isPrematureTrackEnd(90,92),false);
+assert.ok(text.includes('function maybePrefetchSmartRadio()'));
+assert.ok(text.includes('smartRadioPrefetch===prefetched'));
+assert.ok(text.includes("mainAudio.addEventListener('prematureend',handlePrematureTrackEnd)"));
+console.log('SMART_RADIO_EARLY_PREFETCH_AND_END_GUARDS_OK');

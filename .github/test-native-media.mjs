@@ -53,3 +53,28 @@ assert.ok(script.includes('seekFromProgressClientX(event.clientX)'),
 assert.ok(css.includes('/* TEYES CC3: no full-width elliptical backdrop during buffering. */'),
     'loading overlay must not produce an ellipse');
 console.log('MEDIA3_PLAYHEAD_AND_SEEK_OK', {seconds:audio.currentTime,duration:audio.duration,buffered:audio.buffered.end(0)});
+
+const earlyAudio=new window.DAGNativeAudioAdapter();
+let endedEvents=0, prematureEvents=0;
+earlyAudio.addEventListener('ended',()=>endedEvents++);
+earlyAudio.addEventListener('prematureend',()=>prematureEvents++);
+earlyAudio.src='https://pl.dagstudio.ru/proxy.php?url=short';
+await earlyAudio.play();
+const cut=new Event('dag-native-audio-status');
+cut.detail={hasSource:true,state:'ended',playing:false,durationMs:220000,
+    positionMs:3000,bufferedPositionMs:4000,error:''};
+window.dispatchEvent(cut);
+assert.equal(prematureEvents,1,'early stream completion must recover, not skip');
+assert.equal(endedEvents,0);
+assert.equal(earlyAudio.ended,false);
+const completed=new window.DAGNativeAudioAdapter();
+let normalEnd=0;
+completed.addEventListener('ended',()=>normalEnd++);
+completed.src='https://pl.dagstudio.ru/proxy.php?url=complete';
+await completed.play();
+const finish=new Event('dag-native-audio-status');
+finish.detail={hasSource:true,state:'ended',playing:false,durationMs:220000,
+    positionMs:219700,bufferedPositionMs:220000,error:''};
+window.dispatchEvent(finish);
+assert.equal(normalEnd,1,'fully played track must still advance');
+console.log('MEDIA3_PREMATURE_END_RECOVERY_GUARD_OK');
