@@ -23,6 +23,7 @@
       this.preload = 'auto';
       this.loop = false;
       this._lastSeek = 0;
+      this._loadedAt = 0;
       window.addEventListener('dag-native-audio-status', e => this._update(e.detail || {}));
       this._poll = setInterval(() => {
         if (!this._loaded) return;
@@ -87,6 +88,7 @@
       this._error = null;
       if (this._loaded !== this._src) {
         this._loaded = this._src;
+        this._loadedAt = Date.now();
         this._state = 'buffering';
         this._emit('waiting');
         try {
@@ -156,7 +158,8 @@
         // Media3 can finish a truncated HTTP stream (or report the previous
         // source's terminal state) after only a few seconds. Let the app retry
         // the current track rather than silently skip to the next one.
-        const tooEarly = this._position < 12 ||
+        const tooEarly = Date.now()-this._loadedAt < 7000 ||
+          this._position < 12 ||
           (this._duration > 0 && this._position + 4 < this._duration);
         if (tooEarly) {
           this._playing = false;

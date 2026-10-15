@@ -72,9 +72,25 @@ let normalEnd=0;
 completed.addEventListener('ended',()=>normalEnd++);
 completed.src='https://pl.dagstudio.ru/proxy.php?url=complete';
 await completed.play();
+// Simulate a real song that has already played beyond the startup window.
+completed._loadedAt = Date.now()-240000;
 const finish=new Event('dag-native-audio-status');
 finish.detail={hasSource:true,state:'ended',playing:false,durationMs:220000,
     positionMs:219700,bufferedPositionMs:220000,error:''};
 window.dispatchEvent(finish);
 assert.equal(normalEnd,1,'fully played track must still advance');
 console.log('MEDIA3_PREMATURE_END_RECOVERY_GUARD_OK');
+
+const stale = new window.DAGNativeAudioAdapter();
+let staleEnded = 0, staleRecovered = 0;
+stale.addEventListener('ended',()=>staleEnded++);
+stale.addEventListener('prematureend',()=>staleRecovered++);
+stale.src='https://pl.dagstudio.ru/proxy.php?url=new-track';
+await stale.play();
+const previousTrackStatus=new Event('dag-native-audio-status');
+previousTrackStatus.detail={hasSource:true,state:'ended',playing:false,
+    durationMs:180000,positionMs:180000,bufferedPositionMs:180000,error:''};
+window.dispatchEvent(previousTrackStatus);
+assert.equal(staleEnded,0,'stale previous-track status cannot skip fresh track');
+assert.equal(staleRecovered,1);
+console.log('MEDIA3_STALE_END_IGNORED_OK');

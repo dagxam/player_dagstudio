@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2256';
+const WEB_BUILD_LABEL = '2257';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2256', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2257', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2256') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2256', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2257') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2257', '1');
         window.location.reload();
     });
 }
@@ -3044,12 +3044,12 @@ function isPrematureTrackEnd(position,duration) {
     if (!Number.isFinite(elapsed) || elapsed < 12) return true;
     return Number.isFinite(total) && total>0 && elapsed+4<total;
 }
-function handlePrematureTrackEnd() {
+function handlePrematureTrackEnd(force=false) {
     const track=playbackPlaylist[currentIndex];
     if (!track || !playbackWanted || !mainAudio.getAttribute('src')) return false;
     const elapsed=Number(mainAudio.currentTime);
     const duration=Number(mainAudio.duration);
-    if (!isPrematureTrackEnd(elapsed,duration)) return false;
+    if (!force && !isPrematureTrackEnd(elapsed,duration)) return false;
     recordPlayerEvent('premature-end');
     if ((track._earlyEndRetries || 0)<2 && navigator.onLine!==false) {
         track._earlyEndRetries=(track._earlyEndRetries||0)+1;
@@ -3070,7 +3070,7 @@ function handlePrematureTrackEnd() {
     }
     return true;
 }
-mainAudio.addEventListener('prematureend',handlePrematureTrackEnd);
+mainAudio.addEventListener('prematureend',()=>handlePrematureTrackEnd(true));
 mainAudio.addEventListener('ended', function() {
     if (handlePrematureTrackEnd()) return;
     if (sleepAfterCurrent || (sleepTimerAt && Date.now() >= sleepTimerAt)) {
