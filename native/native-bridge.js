@@ -1,10 +1,11 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { FileTransfer } from '@capacitor/file-transfer';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 
+const DAGCarMode = registerPlugin('DAGCarMode');
 const updater = {
   notifyAppReady: (options) => CapacitorUpdater.notifyAppReady(options),
   download: (options) => CapacitorUpdater.download(options),
@@ -123,12 +124,24 @@ window.DAG_NATIVE_BRIDGE = {
   httpRequest: (options) => CapacitorHttp.request(options),
   updater,
   audioCache,
+  screen: {
+    setKeepScreenOn: (options) => DAGCarMode.setKeepScreenOn(options)
+  },
   appInfo: () => App.getInfo(),
   openExternal: (options) => Browser.open({
     url: String(options?.url || ''),
     toolbarColor: '#0b0b0b'
   })
 };
+
+window.DAG_CAR_APP_ACTIVE = true;
+App.addListener('appStateChange', (state) => {
+  window.DAG_CAR_APP_ACTIVE = !!state.isActive;
+  window.dispatchEvent(new CustomEvent('dag-native-state', { detail: { isActive: !!state.isActive } }));
+}).catch(error => console.warn('Android lifecycle hook unavailable:', error));
+App.addListener('backButton', () => {
+  window.dispatchEvent(new Event('dag-android-back'));
+}).catch(error => console.warn('Android back handler unavailable:', error));
 
 CapacitorUpdater.notifyAppReady().catch((error) => {
   console.warn('CapacitorUpdater notifyAppReady failed:', error);

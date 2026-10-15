@@ -67,6 +67,12 @@ jobs:
           rm -rf android
           npx cap add android
           npx cap sync android
+          # Native-поддержка CC3 добавляется в созданный Capacitor-проект.
+          test -f native/android/MainActivity.java
+          test -f native/android/DAGCarModePlugin.java
+          mkdir -p android/app/src/main/java/ru/dagstudio/player
+          cp native/android/MainActivity.java android/app/src/main/java/ru/dagstudio/player/MainActivity.java
+          cp native/android/DAGCarModePlugin.java android/app/src/main/java/ru/dagstudio/player/DAGCarModePlugin.java
 
       - name: Generate DAGSTUDIO icons and splash
         run: |

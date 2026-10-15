@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2239';
+const WEB_BUILD_LABEL = '2240';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -236,6 +236,9 @@ async function refreshAppVersionInfo() {
 
 async function checkNativeLiveUpdate(force = false, manual = false) {
     if (!IS_NATIVE_APP) return { status: 'web' };
+    // TEYES CC3 / Android WebView: автоматический updater.set() немедленно
+    // перезапускает WebView. Обновление допускаем ТОЛЬКО по нажатию пользователя.
+    if (!manual) return { status: 'manual-only' };
     if (nativeUpdateCheckInFlight) return { status: 'busy' };
 
     const now = Date.now();
@@ -330,6 +333,11 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
 }
 
 window.manualUpdateApplication = async function() {
+    // Во время музыки ручное обновление тоже не должно внезапно прерывать звук.
+    if (IS_NATIVE_APP && mainAudio && !mainAudio.paused && !mainAudio.ended) {
+        showNotification('Для обновления сначала нажмите паузу. Музыка не будет прервана без вашего согласия.');
+        return;
+    }
     setManualUpdateButtonState('is-checking', 'Проверяем обновления…');
 
     try {
@@ -409,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2239', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2240', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -421,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2239') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2239', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2240') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2240', '1');
         window.location.reload();
     });
 }
@@ -1115,6 +1123,7 @@ function maybePrecacheNextTrack() {
 }
 
 function scheduleNativeCacheWorker(delay = 0) {
+    if (IS_NATIVE_APP && window.DAG_CAR_APP_ACTIVE === false) return;
     clearTimeout(nativeCacheRetryTimer);
     nativeCacheRetryTimer = setTimeout(function() {
         processNativeCacheQueue();
@@ -1140,6 +1149,8 @@ function enqueueNativeTrackCache(trackOrUrl, reason = 'played', priority = false
         return;
     }
 
+    // Ограничиваем число задач в RAM на TEYES; текущий/следующий трек не блокируем.
+    if (IS_NATIVE_APP && reason === 'playlist' && nativeCacheQueue.length >= 80) return;
     nativeCacheQueuedUrls.add(resolved);
     const job = { track, reason, attempts: 0, resolved };
     if (priority) nativeCacheQueue.unshift(job);
@@ -1148,7 +1159,8 @@ function enqueueNativeTrackCache(trackOrUrl, reason = 'played', priority = false
 }
 
 async function processNativeCacheQueue() {
-    if (!IS_NATIVE_APP || nativeCacheWorkerRunning || !nativeAudioCacheBridge()) return;
+    if (!IS_NATIVE_APP || nativeCacheWorkerRunning || !nativeAudioCacheBridge() ||
+        window.DAG_CAR_APP_ACTIVE === false) return;
     if (navigator.onLine === false) return;
 
     if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
@@ -1158,7 +1170,8 @@ async function processNativeCacheQueue() {
 
     nativeCacheWorkerRunning = true;
     try {
-        while (nativeCacheQueue.length > 0 && navigator.onLine !== false) {
+        while (nativeCacheQueue.length > 0 && navigator.onLine !== false &&
+            window.DAG_CAR_APP_ACTIVE !== false) {
             if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
                 scheduleNativeCacheWorker(15000);
                 break;
@@ -1836,6 +1849,7 @@ async function checkAuth() {
     // следом и обновит её, но медленный интернет больше не оставляет пустой экран.
     if (lastKnownUser) {
         hydrateCachedAccount(lastKnownUser);
+        restoreNativePlaybackSnapshot();
     }
 
     if (navigator.onLine === false && lastKnownUser) {
@@ -1853,6 +1867,7 @@ async function checkAuth() {
         }
         if (res.theme) setTheme(res.theme, false);
         await loadUserData();
+        restoreNativePlaybackSnapshot();
         return;
     }
 
@@ -1930,8 +1945,64 @@ window.manualSyncPlaylists = async function() {
     } finally { if (button) button.disabled = false; }
 };
 
+// --- TEYES CC3: native screen wake + лёгкая фиксация позиции трека ---
+const DAG_PLAYBACK_SNAPSHOT_KEY = 'dag_car_last_play_v1';
+let dagLastPlaybackSnapshotAt = 0;
+let dagRestorePosition = null;
+function saveNativePlaybackSnapshot(force = false) {
+    if (!IS_NATIVE_APP || currentIndex < 0 || !playlist[currentIndex]) return;
+    if (!force && Date.now() - dagLastPlaybackSnapshotAt < 10000) return;
+    dagLastPlaybackSnapshotAt = Date.now();
+    const track = playlist[currentIndex];
+    try {
+        localStorage.setItem(DAG_PLAYBACK_SNAPSHOT_KEY, JSON.stringify({
+            playlistId: String(currentTab), url: String(track.url || ''),
+            position: Number.isFinite(mainAudio.currentTime) ? Math.max(0, mainAudio.currentTime) : 0,
+            savedAt: Date.now()
+        }));
+    } catch (error) {}
+}
+function restoreNativePlaybackSnapshot() {
+    if (!IS_NATIVE_APP || currentIndex >= 0) return;
+    try {
+        const saved = JSON.parse(localStorage.getItem(DAG_PLAYBACK_SNAPSHOT_KEY) || 'null');
+        if (!saved || !saved.url || !saved.savedAt || Date.now() - saved.savedAt > 3 * 86400000) return;
+        const pl = playlists.find(item => String(item.id) === String(saved.playlistId));
+        if (!pl) return;
+        switchTab(pl.id);
+        const index = playlist.findIndex(track => track.url === saved.url);
+        if (index < 0) return;
+        currentIndex = index;
+        dagRestorePosition = { url: saved.url, position: Math.max(0, Number(saved.position) || 0) };
+        titleEl.textContent = playlist[index].title || 'Сохранённый трек';
+        artistEl.textContent = (playlist[index].artist || '') + ' · нажмите ▶ для продолжения';
+        updateActiveTrackInList(index);
+    } catch (error) {}
+}
+function setNativeCarKeepAwake(enabled) {
+    const screen = window.DAG_NATIVE_BRIDGE && window.DAG_NATIVE_BRIDGE.screen;
+    if (IS_NATIVE_APP && screen && typeof screen.setKeepScreenOn === 'function') {
+        screen.setKeepScreenOn({ enabled: !!enabled }).catch(function() {});
+    }
+}
+window.addEventListener('dag-native-state', function(event) {
+    const active = !!event.detail?.isActive;
+    if (!active) {
+        saveNativePlaybackSnapshot(true);
+        // Перестаём запускать фоновые скачивания в режиме сна/другого приложения.
+        clearTimeout(nativeCacheRetryTimer);
+        nativeCacheRetryTimer = null;
+    } else {
+        updateProgress();
+        scheduleNativeCacheWorker(2500);
+        if (!mainAudio.paused) requestWakeLock();
+    }
+});
+window.addEventListener('pagehide', function() { saveNativePlaybackSnapshot(true); });
+
 // --- WAKE LOCK ---
 async function requestWakeLock() {
+    setNativeCarKeepAwake(true);
     try {
         if ('wakeLock' in navigator && !mainAudio.paused && !mainAudio.ended) {
             wakeLock = await navigator.wakeLock.request('screen');
@@ -1939,6 +2010,7 @@ async function requestWakeLock() {
     } catch (err) {}
 }
 function releaseWakeLock() {
+    setNativeCarKeepAwake(false);
     if (wakeLock !== null) {
         wakeLock.release().then(function() { wakeLock = null; }).catch(function() { wakeLock = null; });
     }
@@ -2526,6 +2598,7 @@ mainAudio.addEventListener('pause', function() {
 mainAudio.addEventListener('ended', function() {
     clearStreamRecoveryTimer();
     releaseWakeLock();
+    saveNativePlaybackSnapshot(true);
 
     const finishedTrack = playlist[currentIndex];
     if (finishedTrack && navigator.onLine !== false && isRemoteMediaUrl(finishedTrack.url)) {
@@ -2562,6 +2635,7 @@ mainAudio.addEventListener('timeupdate', function() {
     const track = playlist[currentIndex];
     if (track && isFinite(mainAudio.currentTime) && mainAudio.currentTime > 0) {
         track._resumeTime = mainAudio.currentTime;
+        saveNativePlaybackSnapshot();
 
         // Дополнительная страховка: после 8 секунд онлайн-прослушивания
         // ставим трек в очередь постоянного кэша только один раз за запуск.
@@ -2633,16 +2707,20 @@ async function playTrack(index) {
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
     const track = playlist[index];
+    if (IS_NATIVE_APP) saveNativePlaybackSnapshot(true);
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 
     track._streamRetries = 0;
     track._refreshAttempted = false;
-    track._resumeTime = 0;
+    const nativeResume = IS_NATIVE_APP && dagRestorePosition &&
+        dagRestorePosition.url === track.url ? dagRestorePosition.position : 0;
+    dagRestorePosition = null;
+    track._resumeTime = nativeResume;
     track._playingFromCache = false;
     track._cacheQueuedForPlay = false;
     networkRetryPending = false;
-    pendingResumeTime = 0;
+    pendingResumeTime = nativeResume;
     clearStreamRecoveryTimer();
     clearPlaybackWatchdog();
 
@@ -3202,7 +3280,13 @@ async function handleLogout() {
     closeModal('menu-modal');
 }
 
-function preloadThemeImages() { Object.values(colorThemes).forEach(theme => { const img = new Image(); img.src = theme.img; }); }
+function preloadThemeImages() {
+    // На магнитолах с ограниченной RAM не декодируем сразу пять изображений тем.
+    const images = IS_NATIVE_APP
+        ? [(colorThemes[localStorage.getItem('dag_theme')] || colorThemes.brown).img]
+        : Object.values(colorThemes).map(theme => theme.img);
+    images.forEach(src => { const img = new Image(); img.src = src; });
+}
 preloadThemeImages();
 
 function setTheme(themeName, save = true) {
@@ -3245,21 +3329,12 @@ window.handleLogout = handleLogout;
 checkAuth();
 
 if (IS_NATIVE_APP) {
-    setTimeout(function() {
-        checkNativeLiveUpdate(true);
-    }, 1200);
-
-    // Вторая попытка после запуска полезна на слабом мобильном интернете.
-    setTimeout(function() {
-        checkNativeLiveUpdate(true);
-    }, 10000);
-
-    // При возврате в приложение повторяем проверку, но не чаще раза в 5 минут.
-    document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') {
-            setTimeout(function() {
-                checkNativeLiveUpdate(false);
-            }, 600);
-        }
+    // Никаких фоновых OTA-скачиваний и updater.set() по таймеру или при возврате
+    // из сна магнитолы: OTA запускается только кнопкой меню.
+    window.addEventListener('dag-android-back', function() {
+        const overlays = Array.from(document.querySelectorAll('.modal-overlay.show'));
+        if (overlays.length) closeModal(overlays[overlays.length - 1].id);
+        else if (currentTab !== 'search') switchTab('search');
+        // Главное окно не закрываем по случайной аппаратной кнопке "Назад".
     });
 }

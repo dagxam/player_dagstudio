@@ -15,6 +15,7 @@
   "plugins": {
     "CapacitorUpdater": {
       "autoUpdate": "off",
+      "appReadyTimeout": 20000,
       "resetWhenUpdate": true,
       "autoDeleteFailed": true,
       "autoDeletePrevious": true

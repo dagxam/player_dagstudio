@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2238', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2240', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -98,6 +98,23 @@ try {
       throw new Error('Classic modern layout invalid: ' + JSON.stringify({viewport,layout}));
   }
   await page.setViewport({width:1200,height:800});
+
+  // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
+  const stabilitySource = await page.evaluate(async () => {
+    const response = await fetch('/script.js?v=2240', { cache: 'no-store' });
+    const code = await response.text();
+    return {
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2240'"),
+      blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
+      hasNoAutoInstallTimeout: !/setTimeout\\(function\\(\\) \\{\\s*checkNativeLiveUpdate\\(true\\)/.test(code),
+      hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
+      hasRestore: code.includes('restoreNativePlaybackSnapshot()')
+    };
+  });
+  console.log('ANDROID_CAR_STABILITY', JSON.stringify(stabilitySource));
+  if (Object.values(stabilitySource).some(value => !value)) {
+    throw new Error('CC3 native stability guard missing: ' + JSON.stringify(stabilitySource));
+  }
 
   // Compatibility regression: old Android WebView may return undefined from audio.play().
   // The wrapper must never crash by blindly calling .then() on that value.
@@ -374,7 +391,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2238', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2240', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
