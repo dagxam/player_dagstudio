@@ -40,7 +40,7 @@ html = html.replace(/(href|src)="\/images\//g, '$1="images/');
 await writeFile(join(out, 'index.html'), html, 'utf8');
 await copyFile(join(root, 'script.js'), join(out, 'script.js'));
 await copyFile(join(root, 'style.css'), join(out, 'style.css'));
-await copyFile(join(root, 'ornament.css'), join(out, 'ornament.css'));
+await copyFile(join(root, 'modern.css'), join(out, 'modern.css'));
 
 await esbuild({
   entryPoints: [join(root, 'native', 'native-bridge.js')],

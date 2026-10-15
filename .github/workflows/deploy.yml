@@ -34,9 +34,7 @@ jobs:
           for file in ./*.php; do php -l "$file"; done
           node --check script.js
           node --check sw.js
-          test -s ornament.css
-          test -s images/ornament-band.svg
-          test -s images/ornament-seal.svg
+          test -s modern.css
           python -m json.tool manifest.json > /dev/null
 
       - name: Local auth and playlist integration test
@@ -180,9 +178,9 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2237'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2238'
           echo "$INDEX_HTML" | grep -q 'style.css?v=2227'
-          echo "$INDEX_HTML" | grep -q 'ornament.css?v=1'
+          echo "$INDEX_HTML" | grep -q 'modern.css?v=1'
           echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'
           echo "$INDEX_HTML" | grep -q 'id="app-update-btn"'
           echo "$INDEX_HTML" | grep -q 'id="app-version-footer"'

@@ -10,7 +10,7 @@ on:
       - "index.php"
       - "script.js"
       - "style.css"
-      - "ornament.css"
+      - "modern.css"
       - "api.php"
       - "proxy.php"
       - "manifest.json"
