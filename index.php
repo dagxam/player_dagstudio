@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DAGSTUDIO PLAYER</title>
-    <meta name="theme-color" content="#0b0b0b">
+    <meta name="theme-color" content="#100c0a">
     <meta name="application-name" content="DAGSTUDIO PLAYER">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="referrer" content="no-referrer">
@@ -24,6 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
+    <link rel="stylesheet" href="ornament.css?v=1">
 </head>
 <body>
 
@@ -31,28 +32,37 @@
 
 <div class="main-container">
     
-    <div class="header-overlay">
+    <header class="header-overlay">
         <div class="header-left">
+            <span class="header-clock" id="header-clock" aria-label="Время">--:--</span>
+            <span class="header-deco" aria-hidden="true">◆</span>
+        </div>
+        <div class="header-center">
             <div class="brand-display">DAGSTUDIO <span>PLAYER</span></div>
         </div>
-        
-        <div class="header-center"></div>
-
         <div class="header-right">
-            <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
-            <button class="mobile-menu-btn" onclick="openMenu()" aria-label="Меню"><i class="fas fa-bars"></i></button>
-            <button class="menu-btn" onclick="openMenu()" aria-label="Профиль"><i class="fas fa-user"></i></button>
+            <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i><span class="header-action-label">Эквалайзер</span></button>
+            <button class="mobile-menu-btn" onclick="openMenu()" aria-label="Меню" type="button"><i class="fas fa-bars"></i></button>
+            <button class="menu-btn" onclick="openMenu()" aria-label="Меню" type="button"><i class="fas fa-bars"></i><span class="header-action-label">Меню</span></button>
         </div>
-    </div>
+    </header>
+    <nav class="app-sidebar" aria-label="Разделы плеера">
+        <button type="button" class="sidebar-action is-active" data-sidebar-action="music" onclick="switchTab('search')" title="Музыка"><i class="fas fa-music"></i><span>Музыка</span></button>
+        <button type="button" class="sidebar-action" data-sidebar-action="playlists" onclick="openPlaylistSelect()" title="Плейлисты"><i class="fas fa-list-music"></i><span>Плейлисты</span></button>
+        <button type="button" class="sidebar-action" data-sidebar-action="sound" onclick="openEqualizer()" title="Эквалайзер"><i class="fas fa-sliders"></i><span>Звук</span></button>
+        <button type="button" class="sidebar-action" data-sidebar-action="settings" onclick="openMenu()" title="Настройки"><i class="fas fa-gear"></i><span>Настройки</span></button>
+    </nav>
 
     <!-- ЛЕВАЯ ЧАСТЬ (ПЛЕЕР) -->
     <div class="left-col">
         <div class="visual-container">
+            <div class="album-frame-corner" aria-hidden="true"></div>
             <div class="loader-overlay" id="loader-overlay"><div class="spinner"></div></div>
             <div class="vinyl-wrapper" id="vinyl-view"><div class="vinyl-img"><img src="images/cover.png" alt="Обложка" id="cover-img"></div></div>
         </div>
 
         <div class="track-info-display">
+            <div class="now-playing-label"><i class="fas fa-wave-square"></i> СЕЙЧАС ИГРАЕТ</div>
             <div class="np-title" id="track-title">ВЫБЕРИТЕ ТРЕК</div>
             <div class="np-artist" id="track-artist">DAGSTUDIO PLAYER</div>
         </div>
@@ -62,7 +72,7 @@
             <div class="time-display"><span id="curr-time">0:00</span><span id="dur-time">0:00</span></div>
         </div>
         
-        <div class="main-btns">
+        <div class="main-btns" aria-label="Управление воспроизведением">
             <button class="c-btn" id="btn-shuffle" aria-label="Перемешать"><i class="fas fa-shuffle"></i></button>
             <button class="c-btn" id="btn-prev" aria-label="Предыдущий"><i class="fas fa-backward-step"></i></button>
             <button class="play-btn" id="btn-play" onclick="togglePlay()" aria-label="Плей/Пауза"><i class="fas fa-play"></i></button>
@@ -73,6 +83,7 @@
 
     <!-- ПРАВАЯ ЧАСТЬ (СПИСКИ) -->
     <div class="right-col" id="right-col-container">
+        <div class="right-panel-kicker"><span>МУЗЫКАЛЬНАЯ БИБЛИОТЕКА</span><i class="fas fa-diamond" aria-hidden="true"></i></div>
         <div class="right-col-header">
             <button class="tab-btn active" id="tab-search-btn" onclick="switchTab('search')">
                 <i class="fas fa-search"></i> ПОИСК
@@ -93,6 +104,7 @@
             <div style="text-align:center; padding:40px; color:#444;" id="empty-msg">...</div>
         </div>
     </div>
+    <footer class="ornament-footer" aria-hidden="true"><span class="footer-symbol">✦</span></footer>
 </div>
 
 <!-- МОДАЛЬНЫЕ ОКНА -->
@@ -183,7 +195,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2236" defer></script>
+<script src="script.js?v=2237" defer></script>
 
 </body>
 </html>

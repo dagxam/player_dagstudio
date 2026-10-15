@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2236';
+const WEB_BUILD_LABEL = '2237';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -409,7 +409,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2236', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2237', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -421,8 +421,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2236') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2236', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2237') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2237', '1');
         window.location.reload();
     });
 }
@@ -2630,6 +2630,13 @@ if (connectionInfo && typeof connectionInfo.addEventListener === 'function') {
 async function playTrack(index) {
     if(index < 0 || index >= playlist.length) return;
     currentIndex = index;
+    const artwork = document.getElementById('cover-img');
+    if (artwork) {
+        const thumb = typeof playlist[index].thumb === 'string' ? playlist[index].thumb.trim() : '';
+        const selectedTheme = colorThemes[localStorage.getItem('dag_theme') || 'brown'] || colorThemes.brown;
+        artwork.onerror = function() { this.onerror = null; this.src = selectedTheme.img; };
+        artwork.src = /^https?:\/\//i.test(thumb) || /^images\//i.test(thumb) ? thumb : selectedTheme.img;
+    }
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
     const track = playlist[index];
@@ -2981,7 +2988,11 @@ if(mainSearchInput) {
 
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) { 
-    currentTab = id; 
+    currentTab = id;
+    document.querySelectorAll('[data-sidebar-action]').forEach(button =>
+        button.classList.toggle('is-active', id === 'search'
+            ? button.dataset.sidebarAction === 'music'
+            : button.dataset.sidebarAction === 'playlists')); 
     const searchBtn = document.getElementById('tab-search-btn'); 
     const plSelectBtn = document.getElementById('btn-pl-select'); 
     const label = document.getElementById('active-tab-name'); 
@@ -3025,7 +3036,8 @@ function renderPlaylist() {
     }
 
     playlist.forEach((t, i) => { 
-        const div = document.createElement('div'); div.className = 'track-row ' + (i === currentIndex ? 'active' : ''); 
+        const div = document.createElement('div'); div.className = 'track-row ' + (i === currentIndex ? 'active' : '');
+        div.setAttribute('data-track-number', String(i + 1).padStart(2, '0')); 
         let iconHtml = '';
         let trackThumb = t.thumb;
         let isDefaultLogo = false;
@@ -3205,6 +3217,15 @@ async function handleLogout() {
 function preloadThemeImages() { Object.values(colorThemes).forEach(theme => { const img = new Image(); img.src = theme.img; }); }
 preloadThemeImages();
 
+function updateOrnamentClock() {
+    const clock = document.getElementById('header-clock');
+    if (!clock) return;
+    const now = new Date();
+    clock.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+}
+updateOrnamentClock();
+setInterval(updateOrnamentClock, 60000);
+
 function setTheme(themeName, save = true) {
     if(!colorThemes[themeName]) return;
     const t = colorThemes[themeName]; const root = document.documentElement;
@@ -3212,7 +3233,11 @@ function setTheme(themeName, save = true) {
     const glowColor = t.main + '80'; root.style.setProperty('--accent-glow', glowColor);
     
     const coverImg = document.getElementById('cover-img'); 
-    if(coverImg) coverImg.src = t.img;
+    if(coverImg) {
+        const activeTrack = playlist[currentIndex];
+        const thumb = activeTrack && typeof activeTrack.thumb === 'string' ? activeTrack.thumb.trim() : '';
+        if (!/^https?:\/\//i.test(thumb) && !/^images\//i.test(thumb)) coverImg.src = t.img;
+    }
     
     document.querySelectorAll('.theme-aware-thumb').forEach(img => { img.src = t.img; });
 

@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2232', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2237', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -68,6 +68,35 @@ try {
   for (const name of ['downloadButton','equalizerButton','updateButton','versionFooter','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
     if (!basics[name]) throw new Error('Missing/incorrect UI state: ' + name);
   }
+
+  // New ornamental layout must have real controls rather than decorative dead links.
+  for (const viewport of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]) {
+    await page.setViewport(viewport);
+    const ornamentalLayout = await page.evaluate(() => {
+      const main = document.querySelector('.main-container');
+      const sidebar = document.querySelector('.app-sidebar');
+      const footer = document.querySelector('.ornament-footer');
+      const cover = document.querySelector('.vinyl-wrapper');
+      const eq = document.querySelector('.header-eq-btn');
+      const rect = main.getBoundingClientRect();
+      return {
+        ornamentalStyle: !!document.querySelector('link[href^="ornament.css"]'),
+        sidebarVisible: sidebar && getComputedStyle(sidebar).display !== 'none',
+        footerPresent: !!footer,
+        artworkPresent: !!cover,
+        equalizerVisible: !!eq && eq.getBoundingClientRect().width > 20,
+        overflow: document.documentElement.scrollWidth > window.innerWidth + 2,
+        viewportWidth: window.innerWidth, layoutWidth: rect.width
+      };
+    });
+    console.log('ORNAMENT_LAYOUT', JSON.stringify({viewport,ornamentalLayout}));
+    if (!ornamentalLayout.ornamentalStyle || !ornamentalLayout.sidebarVisible ||
+        !ornamentalLayout.footerPresent || !ornamentalLayout.artworkPresent ||
+        !ornamentalLayout.equalizerVisible || ornamentalLayout.overflow ||
+        ornamentalLayout.layoutWidth > viewport.width + 2)
+      throw new Error('Ornamental layout failed: ' + JSON.stringify({viewport,ornamentalLayout}));
+  }
+  await page.setViewport({width:1200,height:800});
 
   // Compatibility regression: old Android WebView may return undefined from audio.play().
   // The wrapper must never crash by blindly calling .then() on that value.
@@ -343,7 +372,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2232', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2237', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
