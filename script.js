@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2243';
+const WEB_BUILD_LABEL = '2244';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2243', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2244', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2243') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2243', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2244') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2244', '1');
         window.location.reload();
     });
 }
@@ -2654,6 +2654,7 @@ mainAudio.addEventListener('playing', function() {
     window.skipCounter = 0;
     updateState(true);
     requestWakeLock();
+    syncCarNativeMedia(true);
     maybePrecacheNextTrack();
 
     const token = currentPlaybackToken;
@@ -2679,6 +2680,7 @@ mainAudio.addEventListener('pause', function() {
     if (!mainAudio.ended) {
         updateState(false);
         releaseWakeLock();
+        syncCarNativeMedia(false);
         saveNativePlaybackSnapshot(true);
     }
 });
@@ -2693,6 +2695,7 @@ mainAudio.addEventListener('ended', function() {
     }
     clearStreamRecoveryTimer();
     releaseWakeLock();
+    syncCarNativeMedia(false);
     saveNativePlaybackSnapshot(true);
 
     const finishedTrack = playlist[currentIndex];
@@ -2935,6 +2938,22 @@ function updateActiveTrackInList(index) {
     }
 }
 
+function syncCarNativeMedia(playing) {
+    const media = window.DAG_NATIVE_BRIDGE?.media;
+    if (!IS_NATIVE_APP || !media || typeof media.update !== 'function') return;
+    const track = playlist[currentIndex];
+    media.update({playing: !!playing, title: track?.title || 'DAGSTUDIO PLAYER',
+        artist: track?.artist || ''}).catch(function(error) {
+        console.warn('Android media service unavailable:', error);
+    });
+}
+window.addEventListener('dag-android-media-button', function(event) {
+    const action = String(event.detail?.action || '');
+    if (action === 'play' && !playbackWanted) resumePlayback();
+    else if (action === 'pause' && playbackWanted) pausePlayback();
+    else if (action === 'next' && playlist.length) playNext();
+    else if (action === 'previous' && playlist.length) playPrev();
+});
 function pausePlayback() {
     if (!playbackWanted) return;
     playbackWanted = false;
@@ -2954,6 +2973,7 @@ function pausePlayback() {
     showLoader(false);
     updateState(false);
     releaseWakeLock();
+    syncCarNativeMedia(false);
     saveNativePlaybackSnapshot(true);
 }
 function resumePlayback() {

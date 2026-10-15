@@ -127,6 +127,9 @@ window.DAG_NATIVE_BRIDGE = {
   screen: {
     setKeepScreenOn: (options) => DAGCarMode.setKeepScreenOn(options)
   },
+  media: {
+    update: (options) => DAGCarMode.setMediaState(options)
+  },
   appInfo: () => App.getInfo(),
   openExternal: (options) => Browser.open({
     url: String(options?.url || ''),
@@ -139,6 +142,10 @@ App.addListener('appStateChange', (state) => {
   window.DAG_CAR_APP_ACTIVE = !!state.isActive;
   window.dispatchEvent(new CustomEvent('dag-native-state', { detail: { isActive: !!state.isActive } }));
 }).catch(error => console.warn('Android lifecycle hook unavailable:', error));
+DAGCarMode.addListener('mediaButton', event => {
+  window.dispatchEvent(new CustomEvent('dag-android-media-button',
+    {detail: {action: String(event?.action || '')}}));
+}).catch(error => console.warn('Media button listener unavailable:', error));
 App.addListener('backButton', () => {
   window.dispatchEvent(new Event('dag-android-back'));
 }).catch(error => console.warn('Android back handler unavailable:', error));

@@ -73,6 +73,8 @@ jobs:
           mkdir -p android/app/src/main/java/ru/dagstudio/player
           cp native/android/MainActivity.java android/app/src/main/java/ru/dagstudio/player/MainActivity.java
           cp native/android/DAGCarModePlugin.java android/app/src/main/java/ru/dagstudio/player/DAGCarModePlugin.java
+          cp native/android/DAGMediaService.java android/app/src/main/java/ru/dagstudio/player/DAGMediaService.java
+          node scripts/configure-android-media.mjs
 
       - name: Generate DAGSTUDIO icons and splash
         run: |
