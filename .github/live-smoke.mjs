@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2241', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2243', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2241', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2243', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2241'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2243'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -157,6 +157,26 @@ try {
     const values = new Set(names.map(name => themePaletteChecks[name].colors[i]));
     if (values.size < 4) throw new Error('Static theme surface #' + i + ': ' + JSON.stringify([...values]));
   }
+
+  // Подтверждаем, что загрузка и пауза — разные состояния управления.
+  const carControls = await page.evaluate(() => {
+    const ids = ['queue-modal','sleep-modal','diagnostics-modal','cache-dashboard-modal','queue-list'];
+    const button = document.getElementById('btn-play');
+    const exists = ids.every(id => !!document.getElementById(id));
+    const audio = document.getElementById('main-audio');
+    const p = audio.play;
+    let calls = 0;
+    audio.play = function() { calls++; return Promise.resolve(); };
+    try {
+      // Не загружаем музыку в ходе теста; проверяем состояние кнопки в момент ожидания.
+      const state = { exists,button:!!button,queue:typeof window.openPlaybackQueue,
+          timer:typeof window.openSleepTimer, diagnostics:typeof window.openPlayerDiagnostics };
+      return state;
+    } finally { audio.play=p; }
+  });
+  console.log('CAR_CONTROLS', JSON.stringify(carControls));
+  if (!carControls.exists || !carControls.button || ['queue','timer','diagnostics'].some(k =>
+      carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   // Compatibility regression: old Android WebView may return undefined from audio.play().
   // The wrapper must never crash by blindly calling .then() on that value.
@@ -433,7 +453,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2241', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2243', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

@@ -444,3 +444,29 @@ button:focus-visible,a:focus-visible,input:focus-visible {
     color:var(--theme-bright,#dfaa8c)!important;
   }
 }
+
+/* Полезные функции для автомагнитол: крупные кнопки, без перегруженной шапки. */
+.queue-toggle-btn {min-width:43px;min-height:43px;flex:0 0 43px;display:flex;align-items:center;justify-content:center;
+  background:var(--theme-control,#1b2229);border:1px solid var(--theme-border,#35404b);border-radius:12px;
+  color:var(--theme-bright,#dfaa8c);cursor:pointer;position:relative;font-size:1.08rem;}
+.queue-toggle-btn:hover {background:var(--theme-surface-hover,#303a43);}
+#queue-count:not(:empty) {position:absolute;right:-4px;top:-5px;min-width:19px;line-height:19px;border-radius:12px;
+ background:var(--accent-color);color:#111;text-align:center;font-size:.67rem;font-weight:800;}
+.utility-modal {width:min(530px,calc(100vw - 20px));max-height:min(90vh,680px);overflow-y:auto;}
+.utility-info {color:var(--text-color);line-height:1.65;font-size:.92rem;margin:12px 0 18px;text-align:left;}
+.utility-buttons {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:13px;}
+.utility-buttons button,.queue-mini-btn {min-height:43px;border-radius:10px;
+ background:var(--theme-surface,#20272d);border:1px solid var(--theme-border,#35404b);
+ color:var(--text-color);cursor:pointer;padding:8px 12px;}
+.utility-buttons button:hover,.queue-mini-btn:hover {border-color:var(--accent-color);color:var(--theme-bright);}
+.utility-buttons button:disabled,.queue-mini-btn:disabled {opacity:.35;cursor:default;}
+.queue-list {max-height:310px;overflow-y:auto;margin-top:9px;display:flex;flex-direction:column;gap:7px;}
+.queue-row {display:flex;align-items:center;gap:5px;padding:7px;background:var(--theme-surface,#20272d);
+ border:1px solid var(--theme-border,#35404b);border-radius:10px;}
+.queue-name {font-size:.82rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;}
+.queue-mini-btn {min-width:38px;min-height:40px;padding:5px;font-weight:700;}
+.queue-empty {padding:26px 6px;color:var(--theme-muted);font-size:.9rem;}
+.diagnostics-info {background:var(--theme-field,#141b20);border:1px solid var(--theme-border,#35404b);
+ border-radius:12px;text-align:left;padding:15px;white-space:pre-wrap;word-break:break-word;
+ color:var(--text-color);font:500 .85rem/1.85 var(--font-main);min-height:180px;}
+@media (max-width:768px) {.right-col-header .queue-toggle-btn {min-width:41px!important;flex:0 0 41px!important;min-height:41px!important;}}

@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=3">
+    <link rel="stylesheet" href="modern.css?v=4">
 </head>
 <body>
 
@@ -81,6 +81,7 @@
             <button class="pl-select-btn" id="btn-pl-select" onclick="openPlaylistSelect()">
                 <i class="fas fa-folder-open"></i> ПЛЕЙЛИСТЫ
             </button>
+            <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Очередь воспроизведения" aria-label="Очередь воспроизведения"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
         </div>
 
         <div class="search-container-wrap" id="search-container-box">
@@ -140,6 +141,9 @@
             <span>Обновить приложение</span>
         </button>
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать приложение для Android</a>
+        <button type="button" class="menu-list-btn" onclick="openCacheDashboard()"><i class="fas fa-hard-drive"></i> Кэш и офлайн-хранилище</button>
+        <button type="button" class="menu-list-btn" onclick="openPlayerDiagnostics()"><i class="fas fa-chart-line"></i> Проверка звука и сети</button>
+        <button type="button" class="menu-list-btn" onclick="openSleepTimer()"><i class="fas fa-moon"></i> Таймер сна</button>
         <div id="device-cache-status" class="playlist-sync-status" role="status" aria-live="polite">Кэш сохраняется отдельно на каждом устройстве.</div>
         <div class="app-version-footer" id="app-version-footer">
             <div class="app-version-main"><i class="fas fa-code-branch"></i> <span id="app-version-text">Версия: определяем…</span></div>
@@ -184,7 +188,40 @@
     </div>
 </div>
 
-<script src="script.js?v=2242" defer></script>
+<div id="queue-modal" class="modal-overlay">
+    <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть">&times;</button>
+        <h3 class="modal-title">Очередь воспроизведения</h3>
+        <div id="queue-list" class="queue-list"></div>
+        <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
+    </div>
+</div>
+<div id="sleep-modal" class="modal-overlay">
+    <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('sleep-modal')" aria-label="Закрыть">&times;</button>
+        <h3 class="modal-title">Таймер сна</h3><p id="sleep-timer-state" class="utility-info">Выключен</p>
+        <div class="utility-buttons">
+            <button type="button" onclick="setSleepTimer(15)">15 минут</button>
+            <button type="button" onclick="setSleepTimer(30)">30 минут</button>
+            <button type="button" onclick="setSleepTimer(60)">60 минут</button>
+            <button type="button" onclick="setSleepTimer('end')">После этой песни</button>
+            <button type="button" onclick="setSleepTimer(0)">Отключить таймер</button>
+        </div>
+    </div>
+</div>
+<div id="diagnostics-modal" class="modal-overlay">
+    <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('diagnostics-modal')" aria-label="Закрыть">&times;</button>
+        <h3 class="modal-title">Состояние плеера</h3><pre id="diagnostics-info" class="diagnostics-info"></pre>
+        <div class="utility-buttons"><button type="button" onclick="refreshPlayerDiagnostics()">Обновить данные</button>
+        <button type="button" onclick="retryCurrentTrackManually()">Переподключить трек</button></div>
+    </div>
+</div>
+<div id="cache-dashboard-modal" class="modal-overlay">
+    <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('cache-dashboard-modal')" aria-label="Закрыть">&times;</button>
+        <h3 class="modal-title">Кэш устройства</h3><p class="utility-info" id="cache-dashboard-info">Проверяем…</p>
+        <button class="modal-btn btn-dark" type="button" onclick="openCacheDashboard()">Обновить сведения</button>
+    </div>
+</div>
+
+<script src="script.js?v=2243" defer></script>
 
 </body>
 </html>
