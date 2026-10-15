@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2240', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2241', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2240', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2241', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2240'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2241'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -114,6 +114,46 @@ try {
   console.log('ANDROID_CAR_STABILITY', JSON.stringify(stabilitySource));
   if (Object.values(stabilitySource).some(value => !value)) {
     throw new Error('CC3 native stability guard missing: ' + JSON.stringify(stabilitySource));
+  }
+
+  // Каждая тема должна изменять панели, шапку, поля ввода, модальные окна и эквалайзер.
+  const themePaletteChecks = await page.evaluate(() => {
+    const names = ['brown', 'red', 'green', 'blue', 'purple'];
+    const selectors = [
+      '.main-container', '.header-overlay', '.left-col', '.right-col',
+      '.search-input', '.play-btn', '.tab-btn.active',
+      '.modal-box', '.equalizer-modal-box', '.menu-list-btn'
+    ];
+    const previous = localStorage.getItem('dag_theme') || 'brown';
+    const samples = {};
+    names.forEach(name => {
+      setTheme(name, false);
+      const colors = selectors.map(selector => {
+        const el = document.querySelector(selector);
+        if (!el) return 'missing:' + selector;
+        const style = getComputedStyle(el);
+        return style.backgroundImage !== 'none' ? style.backgroundImage : style.backgroundColor;
+      });
+      samples[name] = { colors, main:getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim(),
+        mainColor:getComputedStyle(document.documentElement).getPropertyValue('--main-color').trim(),
+        themeRgb:getComputedStyle(document.documentElement).getPropertyValue('--theme-rgb').trim(),
+        page:getComputedStyle(document.documentElement).getPropertyValue('--theme-page').trim() };
+    });
+    setTheme(previous, false);
+    return samples;
+  });
+  console.log('THEME_PALETTES', JSON.stringify(Object.fromEntries(
+    Object.entries(themePaletteChecks).map(([k,v]) => [k, { main:v.main, page:v.page }]))));
+  const names = Object.keys(themePaletteChecks);
+  for (const name of names) {
+    const sample = themePaletteChecks[name];
+    if (!sample.main || !sample.mainColor || !sample.themeRgb || sample.colors.some(x => x.startsWith('missing:')))
+      throw new Error('Theme missing variables/elements: ' + name);
+  }
+  const selectorsCount = themePaletteChecks.brown.colors.length;
+  for (let i = 0; i < selectorsCount; i++) {
+    const values = new Set(names.map(name => themePaletteChecks[name].colors[i]));
+    if (values.size < 4) throw new Error('Static theme surface #' + i + ': ' + JSON.stringify([...values]));
   }
 
   // Compatibility regression: old Android WebView may return undefined from audio.play().
@@ -391,7 +431,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2240', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2241', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

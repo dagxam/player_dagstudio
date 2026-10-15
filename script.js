@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2240';
+const WEB_BUILD_LABEL = '2241';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2240', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2241', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2240') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2240', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2241') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2241', '1');
         window.location.reload();
     });
 }
@@ -3292,12 +3292,84 @@ function preloadThemeImages() {
 }
 preloadThemeImages();
 
+// Общая цветовая система интерфейса: один тон управляет ВСЕМИ поверхностями.
+// Рассчитана на старые Android WebView (без CSS color-mix / OKLCH).
+function hexRgb(color) {
+    const normalized = String(color || '').replace('#', '');
+    const hex = normalized.length === 3
+        ? normalized.split('').map(ch => ch + ch).join('')
+        : normalized;
+    return [0, 2, 4].map(pos => parseInt(hex.slice(pos, pos + 2), 16) || 0);
+}
+function rgbHex(rgb) {
+    return '#' + rgb.map(value => Math.max(0, Math.min(255, Math.round(value)))
+        .toString(16).padStart(2, '0')).join('');
+}
+function blendThemeColors(base, tint, intensity) {
+    const first = hexRgb(base);
+    const second = hexRgb(tint);
+    return rgbHex(first.map((v, i) => v * (1 - intensity) + second[i] * intensity));
+}
+function applyThemePalette(themeName) {
+    const theme = colorThemes[themeName] || colorThemes.brown;
+    const root = document.documentElement;
+    const main = theme.main;
+    const bright = blendThemeColors(main, '#ffffff', .36);
+    const middle = blendThemeColors(main, '#ffffff', .2);
+    const mutedText = blendThemeColors('#a6b0b9', main, .14);
+    const header = blendThemeColors('#141a20', main, .12);
+    const shades = {
+        '--accent-color': main,
+        '--accent-dark': theme.dark,
+        '--accent-rgb': theme.rgb,
+        '--accent-glow': 'rgba(' + theme.rgb + ', .27)',
+        '--main-color': main,
+        '--dark-color': theme.dark,
+        '--theme-rgb': theme.rgb,
+        '--theme-bright': bright,
+        '--theme-bright-rgb': hexRgb(bright).join(', '),
+        '--theme-middle': middle,
+        '--theme-page': blendThemeColors('#090c0f', main, .055),
+        '--theme-body-a': blendThemeColors('#171c22', main, .12),
+        '--theme-body-b': blendThemeColors('#0b1015', main, .085),
+        '--theme-shell-a': blendThemeColors('#171d23', main, .18),
+        '--theme-shell-b': blendThemeColors('#0c1014', main, .095),
+        '--theme-header': header,
+        '--theme-header-rgb': hexRgb(header).join(', '),
+        '--theme-left-a': blendThemeColors('#171b20', main, .2),
+        '--theme-left-b': blendThemeColors('#12171c', main, .12),
+        '--theme-right-a': blendThemeColors('#10151a', main, .13),
+        '--theme-right-b': blendThemeColors('#0c1115', main, .085),
+        '--theme-modal-a': blendThemeColors('#222a30', main, .2),
+        '--theme-modal-b': blendThemeColors('#13181d', main, .12),
+        '--theme-surface': blendThemeColors('#20272d', main, .19),
+        '--theme-surface-hover': blendThemeColors('#303a43', main, .23),
+        '--theme-control': blendThemeColors('#1b2229', main, .18),
+        '--theme-control-hover': blendThemeColors('#313940', main, .22),
+        '--theme-field': blendThemeColors('#141b20', main, .14),
+        '--theme-field-focus': blendThemeColors('#1c242a', main, .17),
+        '--theme-border': blendThemeColors('#35404b', main, .25),
+        '--theme-outline': blendThemeColors('#47535c', main, .31),
+        '--theme-muted': mutedText,
+        '--theme-bright-text': blendThemeColors('#f1f5f8', main, .065),
+        '--theme-on-accent': '#101317',
+        '--bg-color': blendThemeColors('#0b0e11', main, .1),
+        '--card-bg': blendThemeColors('#11161b', main, .15),
+        '--panel-bg': blendThemeColors('#151b21', main, .17),
+        '--border-color': blendThemeColors('#2a343d', main, .2),
+        '--text-color': blendThemeColors('#f5f6f8', main, .055),
+        '--text-muted': mutedText
+    };
+    Object.keys(shades).forEach(key => root.style.setProperty(key, shades[key]));
+    root.dataset.dagTheme = themeName;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', shades['--theme-page']);
+}
 function setTheme(themeName, save = true) {
     if(!colorThemes[themeName]) return;
     const t = colorThemes[themeName]; const root = document.documentElement;
-    root.style.setProperty('--accent-color', t.main); root.style.setProperty('--accent-dark', t.dark); root.style.setProperty('--accent-rgb', t.rgb);
-    const glowColor = t.main + '80'; root.style.setProperty('--accent-glow', glowColor);
-    
+    applyThemePalette(themeName);
+
     const coverImg = document.getElementById('cover-img'); 
     if(coverImg) coverImg.src = t.img;
     
