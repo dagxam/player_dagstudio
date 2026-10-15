@@ -16,7 +16,7 @@ public class MainActivity extends BridgeActivity {
         if (event.getRepeatCount() == 0) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                case KeyEvent.KEYCODE_HEADSETOOK:
+                case KeyEvent.KEYCODE_HEADSETHOOK:
                     DAGCarModePlugin.notifyMediaCommand("toggle"); return true;
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
                     DAGCarModePlugin.notifyMediaCommand("play"); return true;

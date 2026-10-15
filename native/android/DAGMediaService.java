@@ -58,7 +58,7 @@ public final class DAGMediaService extends Service {
                     event.getRepeatCount() > 0) return true;
                 switch (event.getKeyCode()) {
                     case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                    case KeyEvent.KEYCODE_HEADSETOOK: forward("toggle"); return true;
+                    case KeyEvent.KEYCODE_HEADSETHOOK: forward("toggle"); return true;
                     case KeyEvent.KEYCODE_MEDIA_PLAY: forward("play"); return true;
                     case KeyEvent.KEYCODE_MEDIA_PAUSE:
                     case KeyEvent.KEYCODE_MEDIA_STOP: forward("pause"); return true;
