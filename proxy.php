@@ -22,6 +22,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if (!in_array($requestMethod, ['GET', 'HEAD'], true)) {
+    header('Allow: GET, HEAD, OPTIONS');
+    http_response_code(405);
+    exit;
+}
+$isHead = $requestMethod === 'HEAD';
 
 $url = trim($_GET['url'] ?? '');
 $source = strtolower(trim($_GET['source'] ?? ''));
@@ -139,7 +146,7 @@ $bodyStarted = false;
 $attemptError = false;
 
 $sendHeaders = static function(bool $useRange) use (
-    &$responseHeaders, &$currentStatus, &$headersSent, $fallbackContentType, $forceNoRange
+    &$responseHeaders, &$currentStatus, &$headersSent, $fallbackContentType, $forceNoRange, $forwardRange
 ) {
     if ($headersSent) return true;
 
@@ -151,9 +158,16 @@ $sendHeaders = static function(bool $useRange) use (
     // Для HTML5 media корректный частичный ответ обязан быть 206 + Content-Range.
     // Некоторые источники присылают битый 206; старый Android на нём зависает навсегда.
     if (!in_array($status, [200, 206], true)) return false;
-    if ($status === 206 &&
-        !preg_match('/^bytes\s+\d+-\d+\/(?:\d+|\*)$/i', $contentRange)) {
-        return false;
+    if ($status === 206) {
+        // Для частичного ответа начало диапазона должно совпадать с запросом.
+        // Иначе Android может зациклиться при перемотке или переподключении.
+        if (!$useRange ||
+            !preg_match('/^bytes\s+(\d+)-(\d+)\/(?:\d+|\*)$/i', $contentRange, $served) ||
+            !preg_match('/^bytes=(\d+)-/', $forwardRange, $requested) ||
+            (int)$served[1] !== (int)$requested[1] ||
+            (int)$served[2] < (int)$served[1]) {
+            return false;
+        }
     }
 
     // Не превращаем HTML/JSON-антибот в аудио.
@@ -204,7 +218,7 @@ $sendHeaders = static function(bool $useRange) use (
 };
 
 $runAttempt = function(bool $useRange) use (
-    $url, $forwardRange, $profile, $weakMode, &$responseHeaders, &$currentStatus,
+    $url, $forwardRange, $profile, $weakMode, $isHead, &$responseHeaders, &$currentStatus,
     &$headersSent, &$bodyStarted, &$attemptError, $sendHeaders
 ) {
     $responseHeaders = [];
@@ -217,6 +231,8 @@ $runAttempt = function(bool $useRange) use (
     $requestStart = microtime(true);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => false,
+        // Не скачиваем тело аудиофайла при диагностическом HEAD.
+        CURLOPT_NOBODY => $isHead,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS => 5,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,

@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2249', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2250', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2249', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2250', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2249'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2250'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -112,6 +112,9 @@ try {
       hasFrozenWatchdog: code.includes("scheduleStreamRecovery('frozen-playhead', 200)"),
       tracksClockAdvance: code.includes("function recordMediaAdvance()"),
       modernAndroidRange: code.includes("const fullFileFallback = android &&"),
+      recoveryCatchKeepsUrlInScope: code.includes("let finalUrl = resolveMediaUrl(track.url);\n    try {"),
+      retryBudgetRequiresProgress: code.includes("(Number(mainAudio.currentTime) || 0) - playingStartedAt >= 8"),
+      weakNetworkRecovery: code.includes("inferredWeakNetworkUntil = Date.now() + 180000"),
       avoidsReadyStateOnlyRecovery: !String(code.split('function scheduleStreamRecovery(reason, delay) {')[1]
         ?.split('async function recoverCurrentStream(')[0] || '').includes('mainAudio.readyState >= 3')
     };
@@ -184,7 +187,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2249', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2250', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -496,7 +499,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2249', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2250', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

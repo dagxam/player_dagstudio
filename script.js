@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2249';
+const WEB_BUILD_LABEL = '2250';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2249', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2250', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2249') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2249', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2250') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2250', '1');
         window.location.reload();
     });
 }
@@ -543,13 +543,8 @@ function armPlaybackWatchdog(token, reason) {
     playWatchdog = setTimeout(function() {
         if (token !== currentPlaybackToken || mainAudio.ended || !playbackWanted) return;
         if (mainAudio.readyState < 3 || mainAudio.currentTime <= 0) {
-            if (mainAudio.paused && mainAudio.error === null && !networkRetryPending) {
-                // Пауза может означать запрет autoplay — повторить можно только по нажатию.
-                showLoader(false);
-                updateState(false);
-                artistEl.textContent = 'Нажмите ▶ для запуска';
-                return;
-            }
+            // Если playbackWanted=true, пользователь не нажимал паузу.
+            // Зависший WebView иногда выставляет paused=true самостоятельно.
             recoverCurrentStream(reason || 'startup-timeout');
         }
     }, timeout);
@@ -786,6 +781,9 @@ document.addEventListener('click', async function(event) {
 });
 
 
+// В старых Android WebView Network Information API может отсутствовать.
+// После реального зависания временно используем профиль слабой сети.
+let inferredWeakNetworkUntil = 0;
 function getNetworkProfile() {
     const info = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const effectiveType = info && info.effectiveType ? String(info.effectiveType) : '';
@@ -793,11 +791,12 @@ function getNetworkProfile() {
     const rtt = info && Number(info.rtt) > 0 ? Number(info.rtt) : 0;
     const saveData = !!(info && info.saveData);
     const offline = navigator.onLine === false;
-    const weak = offline || saveData || effectiveType === 'slow-2g' || effectiveType === '2g' ||
+    const inferredWeak = Date.now() < inferredWeakNetworkUntil;
+    const weak = inferredWeak || offline || saveData || effectiveType === 'slow-2g' || effectiveType === '2g' ||
         (downlink > 0 && downlink < 1.5) || (rtt > 0 && rtt >= 700);
     const veryWeak = offline || effectiveType === 'slow-2g' ||
         (downlink > 0 && downlink < 0.55) || (rtt > 0 && rtt >= 1400);
-    return { effectiveType, downlink, rtt, saveData, offline, weak, veryWeak };
+    return { effectiveType, downlink, rtt, saveData, offline, weak, veryWeak, inferredWeak };
 }
 
 function isWeakConnection() {
@@ -2597,6 +2596,9 @@ async function recoverCurrentStream(reason) {
     if ((reason === 'waiting' || reason === 'stalled') &&
         bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;
     streamRecoveryInFlight = true;
+    if (reason !== 'network-offline' && reason !== 'network-online') {
+        inferredWeakNetworkUntil = Date.now() + 180000;
+    }
     playbackHealth.recoveries += 1;
     playbackHealth.lastReason = String(reason || 'unknown');
     playbackHealth.lastRecoveryAt = Date.now();
@@ -2740,8 +2742,12 @@ mainAudio.addEventListener('playing', function() {
 
     const token = currentPlaybackToken;
     const track = playlist[currentIndex];
+    const playingStartedAt = Number(mainAudio.currentTime) || 0;
     setTimeout(function() {
-        if (token === currentPlaybackToken && track === playlist[currentIndex] && !mainAudio.paused) {
+        // Событие playing без продвижения позиции не должно сбрасывать
+        // лимит повторных подключений при последовательных зависаниях.
+        if (token === currentPlaybackToken && track === playlist[currentIndex] &&
+            !mainAudio.paused && (Number(mainAudio.currentTime) || 0) - playingStartedAt >= 8) {
             track._streamRetries = 0;
         }
     }, 12000);
@@ -2947,8 +2953,8 @@ async function playTrack(index, options = {}) {
     mainAudio.removeAttribute('src');
     mainAudio.load();
 
+    let finalUrl = resolveMediaUrl(track.url);
     try {
-        let finalUrl = resolveMediaUrl(track.url);
         let isCached = false;
 
         const immediateLegacyStart =
