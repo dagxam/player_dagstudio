@@ -22,8 +22,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="preload" href="style.css?v=2226" as="style">
-    <link rel="stylesheet" href="style.css?v=2226">
+    <link rel="preload" href="style.css?v=2227" as="style">
+    <link rel="stylesheet" href="style.css?v=2227">
 </head>
 <body>
 
@@ -39,6 +39,7 @@
         <div class="header-center"></div>
 
         <div class="header-right">
+            <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
             <button class="mobile-menu-btn" onclick="openMenu()" aria-label="Меню"><i class="fas fa-bars"></i></button>
             <button class="menu-btn" onclick="openMenu()" aria-label="Профиль"><i class="fas fa-user"></i></button>
         </div>
@@ -137,7 +138,6 @@
             <i class="fas fa-rotate"></i>
             <span>Обновить приложение</span>
         </button>
-                <button class="menu-list-btn eq-menu-btn" onclick="openEqualizer()"><i class="fas fa-sliders"></i> Эквалайзер</button>
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать приложение для Android</a>
         <div id="device-cache-status" class="playlist-sync-status" role="status" aria-live="polite">Кэш сохраняется отдельно на каждом устройстве.</div>
         <div class="app-version-footer" id="app-version-footer">
@@ -183,7 +183,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2235" defer></script>
+<script src="script.js?v=2236" defer></script>
 
 </body>
 </html>

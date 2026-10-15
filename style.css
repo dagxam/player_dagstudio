@@ -666,3 +666,13 @@ body, html {
   #menu-modal .menu-account-column,#menu-modal .menu-action-column {padding:14px}
   #menu-modal .menu-modal-heading {font-size:1.2rem}
 }
+
+/* Эквалайзер рядом с кнопкой меню для обычных и автомобильных дисплеев. */
+.header-eq-btn { flex-shrink:0; width:44px; height:44px; border-radius:50%; color:var(--accent-color); }
+@media (max-width:768px) {
+    .header-right { gap:12px; }
+    .header-eq-btn { display:flex; width:40px; height:40px; font-size:1.1rem; border:1px solid #323232; background:#1b1b1b; padding:0; }
+}
+@media (min-width:769px) and (max-height:760px) {
+    .header-eq-btn { width:46px; height:46px; }
+}

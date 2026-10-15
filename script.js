@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2235';
+const WEB_BUILD_LABEL = '2236';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -409,7 +409,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2235', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2236', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -421,8 +421,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2235') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2235', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2236') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2236', '1');
         window.location.reload();
     });
 }
@@ -1084,6 +1084,36 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
     return true;
 }
 
+// Следующий трек готовим только когда текущий файл уже целиком в буфере
+// либо воспроизводится из локального кэша: не забираем скорость у текущего трека.
+let nextTrackPrefetchKey = '';
+function isCurrentTrackFullyReady() {
+    const active = playlist[currentIndex];
+    if (!active || mainAudio.paused || mainAudio.ended) return false;
+    if (active._playingFromCache) return true;
+    const duration = Number(mainAudio.duration);
+    if (!Number.isFinite(duration) || duration <= 0) return false;
+    try {
+        const buffered = mainAudio.buffered;
+        for (let i = 0; i < buffered.length; i++) {
+            if (buffered.start(i) <= 1 && buffered.end(i) >= duration - 1.5) return true;
+        }
+    } catch (error) {}
+    return false;
+}
+
+function maybePrecacheNextTrack() {
+    if (!isCurrentTrackFullyReady() || navigator.onLine === false || isShuffle ||
+        !Array.isArray(playlist) || playlist.length < 2) return;
+    const nextIndex = isRepeat ? currentIndex : (currentIndex + 1) % playlist.length;
+    const nextTrack = playlist[nextIndex];
+    if (!nextTrack || !isRemoteMediaUrl(nextTrack.url)) return;
+    const key = String(currentPlaybackToken) + ':' + nextIndex + ':' + canonicalTrackUrl(nextTrack);
+    if (nextTrackPrefetchKey === key) return;
+    nextTrackPrefetchKey = key;
+    cacheTrackSilently(nextTrack, { reason: 'next', priority: true });
+}
+
 function scheduleNativeCacheWorker(delay = 0) {
     clearTimeout(nativeCacheRetryTimer);
     nativeCacheRetryTimer = setTimeout(function() {
@@ -1109,7 +1139,7 @@ async function processNativeCacheQueue() {
     if (!IS_NATIVE_APP || nativeCacheWorkerRunning || !nativeAudioCacheBridge()) return;
     if (navigator.onLine === false) return;
 
-    if (mainAudio && !mainAudio.paused) {
+    if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
         scheduleNativeCacheWorker(15000);
         return;
     }
@@ -1117,13 +1147,18 @@ async function processNativeCacheQueue() {
     nativeCacheWorkerRunning = true;
     try {
         while (nativeCacheQueue.length > 0 && navigator.onLine !== false) {
-            if (mainAudio && !mainAudio.paused) {
+            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
                 scheduleNativeCacheWorker(15000);
                 break;
             }
 
             const job = nativeCacheQueue.shift();
             if (!job) break;
+            if (mainAudio && !mainAudio.paused && job.reason !== 'next') {
+                nativeCacheQueue.unshift(job);
+                scheduleNativeCacheWorker(15000);
+                break;
+            }
 
             try {
                 if (!await storeNativeTrackNow(job.track, job.reason)) throw new Error('Файл не сохранён');
@@ -1193,7 +1228,7 @@ async function processWebCacheQueue() {
     if (navigator.onLine === false) return;
 
     // Кэширование плейлистов никогда не должно мешать текущему воспроизведению.
-    if (mainAudio && !mainAudio.paused) {
+    if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
         scheduleWebCacheWorker(12000);
         return;
     }
@@ -1201,13 +1236,18 @@ async function processWebCacheQueue() {
     webCacheWorkerRunning = true;
     try {
         while (webCacheQueue.length > 0 && navigator.onLine !== false) {
-            if (mainAudio && !mainAudio.paused) {
+            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
                 scheduleWebCacheWorker(12000);
                 break;
             }
 
             const job = webCacheQueue.shift();
             if (!job) break;
+            if (mainAudio && !mainAudio.paused && job.reason !== 'next') {
+                webCacheQueue.unshift(job);
+                scheduleWebCacheWorker(12000);
+                break;
+            }
 
             try {
                 if (!await webTrackAlreadyCached(job.track)) {
@@ -2434,6 +2474,7 @@ mainAudio.addEventListener('playing', function() {
     window.skipCounter = 0;
     updateState(true);
     requestWakeLock();
+    maybePrecacheNextTrack();
 
     const token = currentPlaybackToken;
     const track = playlist[currentIndex];
@@ -2490,6 +2531,8 @@ mainAudio.addEventListener('canplay', function() {
 });
 
 mainAudio.addEventListener('loadedmetadata', restorePendingPosition);
+mainAudio.addEventListener('progress', maybePrecacheNextTrack);
+mainAudio.addEventListener('canplaythrough', maybePrecacheNextTrack);
 
 mainAudio.addEventListener('timeupdate', function() {
     const track = playlist[currentIndex];
@@ -2563,6 +2606,7 @@ if (connectionInfo && typeof connectionInfo.addEventListener === 'function') {
 async function playTrack(index) {
     if(index < 0 || index >= playlist.length) return;
     currentIndex = index;
+    nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
     const track = playlist[index];
     currentPlaybackToken++;

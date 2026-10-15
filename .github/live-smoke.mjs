@@ -46,7 +46,7 @@ try {
     manualSyncPlaylists: typeof window.manualSyncPlaylists,
     refreshAppVersionInfo: typeof window.refreshAppVersionInfo,
     downloadButton: !!document.getElementById('android-apk-download-btn'),
-    equalizerButton: !!document.querySelector('.eq-menu-btn'),
+    equalizerButton: !!document.querySelector('.header-eq-btn'),
     updateButton: !!document.getElementById('app-update-btn'),
     versionFooter: !!document.getElementById('app-version-footer'),
     installButtonAbsent: !document.getElementById('pwa-install-btn'),
@@ -171,7 +171,7 @@ try {
     throw new Error('Menu cleanup/download button state failed: ' + JSON.stringify(menuState));
   }
 
-  await page.click('.eq-menu-btn');
+  await page.click('.header-eq-btn');
   await page.waitForSelector('#equalizer-modal.show', { timeout: 5000 });
   const eqState = await page.evaluate(() => ({
     bands: document.querySelectorAll('#eq-bands .eq-band').length,
