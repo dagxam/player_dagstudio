@@ -15,6 +15,7 @@ import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.view.KeyEvent;
 
 public final class DAGMediaService extends Service {
     public static final String ACTION_UPDATE = "ru.dagstudio.player.MEDIA_UPDATE";
@@ -48,6 +49,24 @@ public final class DAGMediaService extends Service {
             @Override public void onSkipToNext() { forward("next"); }
             @Override public void onSkipToPrevious() { forward("previous"); }
             @Override public void onStop() { forward("pause"); }
+            @Override public boolean onMediaButtonEvent(Intent buttonIntent) {
+                if (!Intent.ACTION_MEDIA_BUTTON.equals(buttonIntent.getAction())) {
+                    return super.onMediaButtonEvent(buttonIntent);
+                }
+                KeyEvent event = buttonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                if (event == null || event.getAction() != KeyEvent.ACTION_DOWN ||
+                    event.getRepeatCount() > 0) return true;
+                switch (event.getKeyCode()) {
+                    case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                    case KeyEvent.KEYCODE_HEADSETOOK: forward("toggle"); return true;
+                    case KeyEvent.KEYCODE_MEDIA_PLAY: forward("play"); return true;
+                    case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                    case KeyEvent.KEYCODE_MEDIA_STOP: forward("pause"); return true;
+                    case KeyEvent.KEYCODE_MEDIA_NEXT: forward("next"); return true;
+                    case KeyEvent.KEYCODE_MEDIA_PREVIOUS: forward("previous"); return true;
+                    default: return super.onMediaButtonEvent(buttonIntent);
+                }
+            }
         });
         session.setActive(true);
     }
@@ -138,9 +157,12 @@ public final class DAGMediaService extends Service {
                 }
                 setCpuWakeLock(true);
             } else {
+                // Keep paused MediaSession registered so the steering-wheel Play
+                // button can resume it. Release the CPU lock and foreground mode.
                 setCpuWakeLock(false);
                 stopForeground(true);
-                stopSelf();
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                nm.notify(NOTIFICATION_ID, notification());
             }
         }
         return START_NOT_STICKY;

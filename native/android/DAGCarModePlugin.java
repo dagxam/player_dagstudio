@@ -3,6 +3,7 @@ package ru.dagstudio.player;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Build;
+import android.os.SystemClock;
 import java.lang.ref.WeakReference;
 import com.getcapacitor.JSObject;
 import android.view.WindowManager;
@@ -14,12 +15,18 @@ import com.getcapacitor.PluginMethod;
 @CapacitorPlugin(name = "DAGCarMode")
 public class DAGCarModePlugin extends Plugin {
     private static WeakReference<DAGCarModePlugin> current = new WeakReference<>(null);
+    private static String lastMediaAction = "";
+    private static long lastMediaCommandAt = 0;
     @Override
     public void load() {
         current = new WeakReference<>(this);
     }
 
-    static void notifyMediaCommand(String action) {
+    static synchronized void notifyMediaCommand(String action) {
+        long now = SystemClock.elapsedRealtime();
+        if (action.equals(lastMediaAction) && now - lastMediaCommandAt < 180) return;
+        lastMediaAction = action;
+        lastMediaCommandAt = now;
         DAGCarModePlugin plugin = current.get();
         if (plugin == null) return;
         JSObject event = new JSObject();

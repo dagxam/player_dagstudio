@@ -3084,8 +3084,12 @@ function syncCarNativeMedia(playing) {
         console.warn('Android media service unavailable:', error);
     });
 }
+let lastAndroidButton = {action:'', at:0};
 window.addEventListener('dag-android-media-button', function(event) {
     const action = String(event.detail?.action || '');
+    const now = Date.now();
+    if (lastAndroidButton.action === action && now - lastAndroidButton.at < 200) return;
+    lastAndroidButton = {action, at:now};
     if (action === 'play' && !playbackWanted) resumePlayback();
     else if (action === 'pause' && playbackWanted) pausePlayback();
     else if (action === 'next' && (playbackPlaylist.length || playbackQueue.length)) playNext();
