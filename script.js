@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2252';
+const WEB_BUILD_LABEL = '2253';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2252', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2253', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2252') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2252', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2253') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2253', '1');
         window.location.reload();
     });
 }
@@ -2154,6 +2154,34 @@ function recordPlayerEvent(reason, code = 0) {
 function openPlayerDiagnostics() {
     refreshPlayerDiagnostics();document.getElementById('diagnostics-modal').classList.add('show');
 }
+async function probeSourceAudio(track) {
+    const url = isDagServerMedia(track?.url) ?
+        resolveMediaUrl(track.url) : buildProxyUrl(track, {weak:isWeakConnection(),norange:true});
+    if (!url) return {ok:false,code:0};
+    const started = Date.now();
+    try {
+        if (IS_NATIVE_APP) {
+            const response = await nativeHttpRequest({
+                url, method:'HEAD', connectTimeout:10000, readTimeout:12000,
+                headers:{'Cache-Control':'no-cache'}
+            });
+            const headers = response?.headers || {};
+            const contentType=String(headers['content-type'] ||
+                headers['Content-Type'] || '').toLowerCase();
+            return {ok:[200,206].includes(Number(response?.status)) &&
+                contentType.startsWith('audio/'), code:Number(response?.status)||0,
+                ms:Date.now()-started};
+        }
+        const controller = new AbortController();
+        const timer=setTimeout(()=>controller.abort(),14000);
+        try {
+            const response=await fetch(url,{method:'HEAD',signal:controller.signal,cache:'no-store'});
+            const type=(response.headers.get('content-type')||'').toLowerCase();
+            return {ok:response.ok && type.startsWith('audio/'),
+                code:response.status,ms:Date.now()-started};
+        } finally { clearTimeout(timer); }
+    } catch(e) { return {ok:false,code:0,ms:Date.now()-started}; }
+}
 async function testMusicSourceHealth() {
     const result=document.getElementById('source-health-info');
     const button=document.getElementById('source-health-test');
@@ -2168,18 +2196,34 @@ async function testMusicSourceHealth() {
         if (!response?.success || !response?.sources) throw new Error('No search API response');
         const labels={audius:'Audius',vk_mail:'VK / Slider',hitmoz:'Hitmoz',
             muzo:'Muzofond',zvooq:'Zvooq',muzvox:'Muzvox',muzca:'Muzca'};
-        const output=['Проверка поиска · '+((Date.now()-started)/1000).toFixed(1)+' с'];
+        const samples=Array.isArray(response.data)?response.data:[];
+        const output=['Проверка источников · '+((Date.now()-started)/1000).toFixed(1)+' с'];
+        const skipStreams = playbackWanted && bufferedSecondsAhead()<25;
         for (const [key,label] of Object.entries(labels)) {
             const info=response.sources[key] || {};
-            output.push(label+': '+(info.ok ? 'ответ получен' : 'недоступен')+
-                ' · HTTP '+(Number(info.http)||0));
+            const tags={audius:['audius'],vk_mail:['slider','vk'],hitmoz:['hitmoz'],
+                muzo:['muzofond'],zvooq:['zvooq'],muzvox:['muzvox'],muzca:['muzca']};
+            const sample=samples.find(item => item?.url &&
+                tags[key].some(tag=>String(item.source||'').toLowerCase().includes(tag)));
+            let line=label+': поиск '+(info.ok?'доступен':'недоступен')+
+                ' (HTTP '+(Number(info.http)||0)+')';
+            if (skipStreams) line+=' · поток не проверен: бережём буфер';
+            else if (sample) {
+                const probe=await probeSourceAudio(sample);
+                line+=' · аудио '+(probe.ok?'доступно':'ошибка')+
+                    ' (HTTP '+probe.code+', '+((probe.ms||0)/1000).toFixed(1)+' с)';
+            } else line+=' · аудио: нет примера в результатах';
+            output.push(line);
+            result.textContent=output.join('\n');
         }
-        output.push('Проверка поиска не подтверждает воспроизведение каждого файла.');
+        output.push('Проверка одного потока не гарантирует работу всех треков источника.');
         result.textContent=output.join('\n');
+        recordPlayerEvent('provider-diagnostics');
     } catch(error) {
         result.textContent='Не удалось проверить источники: нет соединения или ответа сервера.';
     } finally { if(button) button.disabled=false; }
 }
+
 function copyPlayerDiagnostics() {
     const content=['DAGSTUDIO PLAYER diagnostics',
         document.getElementById('diagnostics-info')?.textContent || '',
