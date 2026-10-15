@@ -2592,7 +2592,11 @@ mainAudio.addEventListener('playing', function() {
 });
 
 mainAudio.addEventListener('pause', function() {
-    if (!mainAudio.ended) updateState(false);
+    if (!mainAudio.ended) {
+        updateState(false);
+        releaseWakeLock();
+        saveNativePlaybackSnapshot(true);
+    }
 });
 
 mainAudio.addEventListener('ended', function() {
@@ -2707,7 +2711,6 @@ async function playTrack(index) {
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
     const track = playlist[index];
-    if (IS_NATIVE_APP) saveNativePlaybackSnapshot(true);
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 

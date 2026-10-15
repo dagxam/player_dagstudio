@@ -106,7 +106,7 @@ try {
     return {
       isCurrent: code.includes("const WEB_BUILD_LABEL = '2240'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
-      hasNoAutoInstallTimeout: !/setTimeout\\(function\\(\\) \\{\\s*checkNativeLiveUpdate\\(true\\)/.test(code),
+      hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
       hasRestore: code.includes('restoreNativePlaybackSnapshot()')
     };
