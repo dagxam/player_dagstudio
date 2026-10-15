@@ -200,6 +200,9 @@ try {
     throw new Error('Menu cleanup/download button state failed: ' + JSON.stringify(menuState));
   }
 
+  // The menu overlay must be dismissed before testing the header control.
+  // Clicking while an overlay is open legitimately hits that overlay.
+  await page.evaluate(() => window.closeModal('menu-modal'));
   await page.click('.header-eq-btn');
   await page.waitForSelector('#equalizer-modal.show', { timeout: 5000 });
   const eqState = await page.evaluate(() => ({
