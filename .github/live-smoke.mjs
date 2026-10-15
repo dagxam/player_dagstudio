@@ -112,7 +112,8 @@ try {
       hasFrozenWatchdog: code.includes("scheduleStreamRecovery('frozen-playhead', 200)"),
       tracksClockAdvance: code.includes("function recordMediaAdvance()"),
       modernAndroidRange: code.includes("const fullFileFallback = android &&"),
-      avoidsReadyStateOnlyRecovery: !code.includes("(mainAudio.readyState >= 3 && !mainAudio.paused)")
+      avoidsReadyStateOnlyRecovery: !String(code.split('function scheduleStreamRecovery(reason, delay) {')[1]
+        ?.split('async function recoverCurrentStream(')[0] || '').includes('mainAudio.readyState >= 3')
     };
   });
   console.log('ANDROID_CAR_STABILITY', JSON.stringify(stabilitySource));
