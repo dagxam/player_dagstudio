@@ -8,6 +8,7 @@ on:
       - "index.php"
       - "script.js"
       - "style.css"
+      - "ornament.css"
       - "images/**"
       - "package.json"
       - "capacitor.config.json"
