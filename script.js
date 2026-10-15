@@ -541,7 +541,7 @@ function armPlaybackWatchdog(token, reason) {
     }
 
     playWatchdog = setTimeout(function() {
-        if (token !== currentPlaybackToken || mainAudio.ended) return;
+        if (token !== currentPlaybackToken || mainAudio.ended || !playbackWanted) return;
         if (mainAudio.readyState < 3 || mainAudio.currentTime <= 0) {
             if (mainAudio.paused && mainAudio.error === null && !networkRetryPending) {
                 // Пауза может означать запрет autoplay — повторить можно только по нажатию.
@@ -2594,7 +2594,8 @@ function scheduleStreamRecovery(reason, delay) {
 async function recoverCurrentStream(reason) {
     const track = playlist[currentIndex];
     if (!track || !track.url || streamRecoveryInFlight || !playbackWanted) return;
-    if ((reason === 'waiting' || reason === 'stalled') && bufferedSecondsAhead() > 1) return;
+    if ((reason === 'waiting' || reason === 'stalled') &&
+        bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;
     streamRecoveryInFlight = true;
     playbackHealth.recoveries += 1;
     playbackHealth.lastReason = String(reason || 'unknown');
