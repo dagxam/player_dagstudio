@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2245';
+const WEB_BUILD_LABEL = '2246';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2245', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2246', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2245') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2245', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2246') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2246', '1');
         window.location.reload();
     });
 }
@@ -2426,6 +2426,7 @@ function scoreReplacementTrack(saved, candidate) {
 async function refreshSavedTrackSource(track) {
     if (!track || track._refreshAttempted || navigator.onLine === false) return false;
     track._refreshAttempted = true;
+    const persisted = currentTab !== 'search' && !!track.id;
 
     const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
     if (!query) return false;
@@ -2443,7 +2444,7 @@ async function refreshSavedTrackSource(track) {
 
     const ranked = candidates
         .map(candidate => ({ candidate, score: scoreReplacementTrack(track, candidate) }))
-        .filter(item => item.score >= (track.id ? 70 : 170) && item.candidate && item.candidate.url)
+        .filter(item => item.score >= (persisted ? 70 : 170) && item.candidate && item.candidate.url)
         .sort((a, b) => b.score - a.score);
 
     if (!ranked.length) return false;
@@ -2454,7 +2455,7 @@ async function refreshSavedTrackSource(track) {
 
     // Временный результат поиска не имеет track.id: обновляем только в памяти.
     // Постоянный плейлист исправляем на сервере, чтобы ссылка работала и на других устройствах.
-    if (track.id) {
+    if (persisted) {
         const update = await api('update_track_url', {
             track_id: track.id,
             url: newUrl,
@@ -2557,6 +2558,8 @@ async function recoverCurrentStream(reason) {
 
 async function recoverCurrentStreamInternal(reason, track) {
     clearStreamRecoveryTimer();
+    const token = currentPlaybackToken;
+    if (!playbackWanted || playlist[currentIndex] !== track) return;
 
     const resumeAt = Math.max(
         Number(track._resumeTime || 0),
@@ -2567,7 +2570,8 @@ async function recoverCurrentStreamInternal(reason, track) {
     // При пропадании сети или ошибке потока сначала пробуем локальную копию.
     if (isRemoteMediaUrl(track.url)) {
         const cached = await getDeviceCachedAudio(track);
-        if (!playbackWanted) return;
+        if (!playbackWanted || token !== currentPlaybackToken ||
+            playlist[currentIndex] !== track) return;
         if (cached && cached.inCache) {
             networkRetryPending = false;
             track._playingFromCache = true;
@@ -2606,6 +2610,8 @@ async function recoverCurrentStreamInternal(reason, track) {
         // Для сохранённого трека сначала восстанавливаем устаревшую ссылку.
         // Только если найти новый источник не удалось, оставляем трек остановленным.
         const refreshed = await refreshSavedTrackSource(track);
+        if (!playbackWanted || token !== currentPlaybackToken ||
+            playlist[currentIndex] !== track) return;
         if (refreshed && playlist[currentIndex] === track) {
             artistEl.textContent = 'Источник обновлён — запускаем…';
             track._streamRetries = 0;
@@ -2616,8 +2622,12 @@ async function recoverCurrentStreamInternal(reason, track) {
             return;
         }
 
+        playbackWanted = false;
+        clearPlaybackWatchdog();
         showLoader(false);
         updateState(false);
+        releaseWakeLock();
+        syncCarNativeMedia(false);
         titleEl.textContent = track.title;
         artistEl.textContent = 'Источник временно недоступен';
         return;
@@ -2643,12 +2653,15 @@ async function recoverCurrentStreamInternal(reason, track) {
     try {
         armPlaybackWatchdog(currentPlaybackToken, 'retry-timeout');
         await requestAudioPlay();
+        if (!playbackWanted || token !== currentPlaybackToken) return;
         // Состояние "играет" ставит только реальное событие playing.
         // Это важно для старых WebView, где play() возвращает undefined.
         restorePendingPosition();
     } catch (error) {
         clearPlaybackWatchdog();
+        if (!playbackWanted || token !== currentPlaybackToken) return;
         if (error && error.name === 'NotAllowedError') {
+            playbackWanted = false;
             showLoader(false);
             updateState(false);
             artistEl.textContent = 'Нажмите ▶ для продолжения';
@@ -2701,7 +2714,8 @@ mainAudio.addEventListener('pause', function() {
 mainAudio.addEventListener('ended', function() {
     if (sleepAfterCurrent || (sleepTimerAt && Date.now() >= sleepTimerAt)) {
         sleepAfterCurrent = false;sleepTimerAt = 0;
-        playbackWanted = false;showLoader(false);updateState(false);
+        // Останавливаем и нативный Android-сервис, иначе он держит CPU awake.
+        pausePlayback();
         updateSleepTimerLabel();
         showNotification('Воспроизведение остановлено по таймеру сна.');
         return;
@@ -2932,6 +2946,7 @@ async function playTrack(index, options = {}) {
 
         console.warn('Audio startup failed', { reason: String(error?.message || error || ''), url: finalUrl?.split('?')[0] });
         if (error && error.name === 'NotAllowedError') {
+            playbackWanted = false;
             showLoader(false);
             updateState(false);
             artistEl.textContent = 'Нажмите ▶ для запуска';
