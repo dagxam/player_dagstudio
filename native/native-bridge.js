@@ -69,7 +69,20 @@ const audioCache = {
   async get(options) {
     const path = String(options?.path || '');
     if (!path) return { exists: false };
-    return (await statCached(path)) || { exists: false, path };
+    const current = await statCached(path);
+    if (current) return current;
+    // Recover a previously valid file if Android interrupted a swap after ACC-off.
+    const backup = await statCached(path + '.backup');
+    if (backup) {
+      try {
+        await Filesystem.deleteFile({directory:Directory.Data,path}).catch(()=>{});
+        await Filesystem.rename({
+          from:path+'.backup',to:path,directory:Directory.Data,toDirectory:Directory.Data
+        });
+        return (await statCached(path)) || {exists:false,path};
+      } catch(e) {}
+    }
+    return { exists: false, path };
   },
 
   async download(options) {
@@ -127,18 +140,39 @@ const audioCache = {
         throw new Error('Audio download is empty or incomplete');
       }
 
-      // Atomic rename publishes only a completed download.
-      // On Android this stays within Directory.Data on the same filesystem.
-      if (existing || options?.forceRedownload) {
-        await Filesystem.deleteFile({ directory: Directory.Data, path }).catch(() => {});
+      // Keep the previous valid file until the replacement is verified.
+      // A power interruption during publication can be recovered by audioCache.get().
+      const backupPath = path + '.backup';
+      let backedUp = false;
+      if (existing) {
+        await Filesystem.deleteFile({directory:Directory.Data,path:backupPath}).catch(()=>{});
+        await Filesystem.rename({
+          from:path,to:backupPath,directory:Directory.Data,toDirectory:Directory.Data
+        });
+        backedUp = true;
+      } else if (options?.forceRedownload) {
+        await Filesystem.deleteFile({directory:Directory.Data,path}).catch(()=>{});
       }
-      await Filesystem.rename({
-        from: stagingPath, to: path,
-        directory: Directory.Data, toDirectory: Directory.Data
-      });
-      const stored = await statCached(path);
-      if (!stored) throw new Error('Cached file was not published');
-      return stored;
+      try {
+        await Filesystem.rename({
+          from: stagingPath, to: path,
+          directory: Directory.Data, toDirectory: Directory.Data
+        });
+        const stored = await statCached(path);
+        if (!stored) throw new Error('Cached file was not published');
+        if (backedUp) await Filesystem.deleteFile({
+          directory:Directory.Data,path:backupPath
+        }).catch(()=>{});
+        return stored;
+      } catch (publishError) {
+        if (backedUp) {
+          await Filesystem.deleteFile({directory:Directory.Data,path}).catch(()=>{});
+          await Filesystem.rename({
+            from:backupPath,to:path,directory:Directory.Data,toDirectory:Directory.Data
+          }).catch(()=>{});
+        }
+        throw publishError;
+      }
     } catch (error) {
       await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});
       throw error;

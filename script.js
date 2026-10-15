@@ -2259,6 +2259,9 @@ async function verifyOfflineCache() {
                 const file = entry?.path && bridge ? await bridge.get({path:entry.path}) : null;
                 if (!file?.exists || Number(file.size || 0) < 4096 ||
                     Number(file.size || 0) + 1024 < Number(entry.size || 0)) {
+                    if (file?.exists && bridge && entry?.path) {
+                        await bridge.delete({path:entry.path}).catch(()=>{});
+                    }
                     delete index[url]; removed++;
                 }
             } catch(e) { delete index[url]; removed++; }
@@ -2283,6 +2286,9 @@ async function verifyOfflineCache() {
 }
 function clearOfflineAudioCache() {
     if (playbackWanted) return showNotification('Поставьте музыку на паузу перед очисткой.');
+    if (nativeCacheWorkerRunning || webCacheWorkerRunning) {
+        return showNotification('Дождитесь завершения текущего скачивания перед очисткой.');
+    }
     showConfirm('Удалить все скачанные аудиофайлы с этого устройства? Плейлисты и настройки останутся.', async function() {
         if (IS_NATIVE_APP) {
             const bridge=nativeAudioCacheBridge();
@@ -2292,6 +2298,16 @@ function clearOfflineAudioCache() {
                 if (bridge) await bridge.delete({path}).catch(()=>{});
             }
             writeNativeAudioIndex({});
+            const active = playbackPlaylist[currentIndex];
+            if (active) active._playingFromCache = false;
+            if (mainAudio?.getAttribute('src')) {
+                const current = playbackPlaylist[currentIndex];
+                if (current && /^capacitor:|^file:|^https:\/\/localhost\/_capacitor_file_/i.test(mainAudio.src)) {
+                    current._resumeTime = Number(mainAudio.currentTime)||Number(current._resumeTime)||0;
+                    mainAudio.removeAttribute('src');
+                    mainAudio.load();
+                }
+            }
         } else if ('caches' in window) {
             webCacheQueue.length=0; webCacheQueuedUrls.clear();
             await caches.delete('dag-audio-cache');

@@ -470,3 +470,18 @@ button:focus-visible,a:focus-visible,input:focus-visible {
  border-radius:12px;text-align:left;padding:15px;white-space:pre-wrap;word-break:break-word;
  color:var(--text-color);font:500 .85rem/1.85 var(--font-main);min-height:180px;}
 @media (max-width:768px) {.right-col-header .queue-toggle-btn {min-width:41px!important;flex:0 0 41px!important;min-height:41px!important;}}
+
+
+/* TEYES 1024x600: utility panels scroll independently without changing themes. */
+#diagnostics-modal .utility-modal,
+#cache-dashboard-modal .utility-modal,
+#queue-modal .utility-modal {
+  max-height: min(86vh, 680px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#diagnostics-modal .diagnostics-info,
+#cache-dashboard-modal .utility-info {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
