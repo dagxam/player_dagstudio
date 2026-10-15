@@ -6,7 +6,7 @@ const CORE_ASSETS = [
     '/',
     '/index.php',
     '/style.css?v=2227',
-    '/modern.css?v=5',
+    '/modern.css?v=6',
     '/script.js?v=2254',
     '/manifest.json?v=2216',
     '/images/faviconch.png',

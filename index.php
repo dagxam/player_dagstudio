@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=5">
+    <link rel="stylesheet" href="modern.css?v=6">
 </head>
 <body>
 

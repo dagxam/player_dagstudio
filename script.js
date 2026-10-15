@@ -3581,12 +3581,10 @@ if (progressArea) {
             dragging = true;
             pointerHandledAt = Date.now();
             try { progressArea.setPointerCapture(event.pointerId); } catch (error) {}
-            seekFromProgressClientX(event.clientX);
             event.preventDefault();
         });
-        progressArea.addEventListener('pointermove', event => {
-            if (dragging) seekFromProgressClientX(event.clientX);
-        });
+        // Seek once on release: Android startService() must not be flooded
+        // with seek commands while a finger slides across the TEYES display.
         const finish = event => {
             if (!dragging) return;
             dragging = false;
