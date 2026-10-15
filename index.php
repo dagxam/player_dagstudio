@@ -210,8 +210,13 @@
 <div id="diagnostics-modal" class="modal-overlay">
     <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('diagnostics-modal')" aria-label="Закрыть">&times;</button>
         <h3 class="modal-title">Состояние плеера</h3><pre id="diagnostics-info" class="diagnostics-info"></pre>
-        <div class="utility-buttons"><button type="button" onclick="refreshPlayerDiagnostics()">Обновить данные</button>
-        <button type="button" onclick="retryCurrentTrackManually()">Переподключить трек</button></div>
+        <div class="utility-buttons">
+            <button type="button" onclick="refreshPlayerDiagnostics()">Обновить данные</button>
+            <button type="button" onclick="retryCurrentTrackManually()">Переподключить трек</button>
+            <button id="source-health-test" type="button" onclick="testMusicSourceHealth()">Проверить источники</button>
+            <button type="button" onclick="copyPlayerDiagnostics()">Копировать отчёт</button>
+        </div>
+        <pre id="source-health-info" class="diagnostics-info"></pre>
     </div>
 </div>
 <div id="cache-dashboard-modal" class="modal-overlay">
@@ -228,7 +233,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2251" defer></script>
+<script src="script.js?v=2252" defer></script>
 
 </body>
 </html>

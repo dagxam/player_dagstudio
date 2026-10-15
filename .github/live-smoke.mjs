@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2251', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2252', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2251', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2252', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2251'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2252'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -187,7 +187,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2251', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2252', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -253,6 +253,26 @@ try {
   if (failedStartup.failure || failedStartup.attempts !== 1 || !failedStartup.scheduled || !failedStartup.wanted) {
     throw new Error('Playback failure recovery regression: ' + JSON.stringify(failedStartup));
   }
+
+  const isolatedQueue = await page.evaluate(() => {
+    const original={view:playlist,tab:currentTab,list:playbackPlaylist,
+      playbackTab:playbackTab,index:currentIndex,search:searchPlaylistCache};
+    try {
+      playbackPlaylist=[{title:'A',artist:'B',url:'https://example.invalid/a.mp3'}];
+      playbackTab='search'; currentIndex=0;
+      switchTab('search');
+      return {isolated:playbackPlaylist[0].url==='https://example.invalid/a.mp3',
+        index:currentIndex, buttons:typeof playQueuedTrack==='function'};
+    } finally {
+      playbackPlaylist=original.list; playbackTab=original.playbackTab;
+      currentIndex=original.index; playlist=original.view;
+      currentTab=original.tab; searchPlaylistCache=original.search;
+      renderPlaylist();
+    }
+  });
+  console.log('QUEUE_CONTEXT_ISOLATION',JSON.stringify(isolatedQueue));
+  if (!isolatedQueue.isolated || isolatedQueue.index!==0 || !isolatedQueue.buttons)
+    throw new Error('Queue context isolation regression');
 
   await page.click('.menu-btn');
   await page.waitForSelector('#menu-modal.show', { timeout: 5000 });
@@ -537,7 +557,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2251', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2252', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

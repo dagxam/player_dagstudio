@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2251';
+const WEB_BUILD_LABEL = '2252';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2251', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2252', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2251') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2251', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2252') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2252', '1');
         window.location.reload();
     });
 }
@@ -2145,8 +2145,50 @@ setInterval(function(){
         showNotification('Таймер сна завершил воспроизведение.');
     } else if(sleepTimerAt)updateSleepTimerLabel();
 },12000);
+const playerEventLog = [];
+function recordPlayerEvent(reason, code = 0) {
+    playerEventLog.push({at:new Date().toLocaleTimeString('ru-RU'),
+        reason:String(reason || 'unknown').slice(0,50), code:Number(code)||0});
+    if (playerEventLog.length > 16) playerEventLog.shift();
+}
 function openPlayerDiagnostics() {
     refreshPlayerDiagnostics();document.getElementById('diagnostics-modal').classList.add('show');
+}
+async function testMusicSourceHealth() {
+    const result=document.getElementById('source-health-info');
+    const button=document.getElementById('source-health-test');
+    if (!result) return;
+    if (button) button.disabled=true;
+    result.textContent='Проверяем поиск у подключённых источников…';
+    const started=Date.now();
+    try {
+        const response=await api('search_global', {
+            query:'Miyagi', page:1, network:getNetworkProfile().weak?'weak':'normal'
+        });
+        if (!response?.success || !response?.sources) throw new Error('No search API response');
+        const labels={audius:'Audius',vk_mail:'VK / Slider',hitmoz:'Hitmoz',
+            muzo:'Muzofond',zvooq:'Zvooq',muzvox:'Muzvox',muzca:'Muzca'};
+        const output=['Проверка поиска · '+((Date.now()-started)/1000).toFixed(1)+' с'];
+        for (const [key,label] of Object.entries(labels)) {
+            const info=response.sources[key] || {};
+            output.push(label+': '+(info.ok ? 'ответ получен' : 'недоступен')+
+                ' · HTTP '+(Number(info.http)||0));
+        }
+        output.push('Проверка поиска не подтверждает воспроизведение каждого файла.');
+        result.textContent=output.join('\n');
+    } catch(error) {
+        result.textContent='Не удалось проверить источники: нет соединения или ответа сервера.';
+    } finally { if(button) button.disabled=false; }
+}
+function copyPlayerDiagnostics() {
+    const content=['DAGSTUDIO PLAYER diagnostics',
+        document.getElementById('diagnostics-info')?.textContent || '',
+        document.getElementById('source-health-info')?.textContent || ''].join('\n');
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(content).then(
+            ()=>showNotification('Диагностика скопирована без ссылок на треки и токенов.'),
+            ()=>showNotification('Не удалось скопировать отчёт.'));
+    } else showNotification('Буфер обмена недоступен на этом устройстве.');
 }
 function refreshPlayerDiagnostics() {
     const el=document.getElementById('diagnostics-info');
@@ -2165,7 +2207,11 @@ function refreshPlayerDiagnostics() {
         'Восстановления: '+playbackHealth.recoveries,
         'Последняя причина: '+(playbackHealth.lastReason||'нет'),
         'Прогресс звука: '+(lastMediaAdvanceAt ? Math.round((Date.now()-lastMediaAdvanceAt)/1000)+' с назад' : 'нет данных'),
-        'Ошибка аудио: '+(mainAudio.error?.code||'нет')
+        'Ошибка аудио: '+(mainAudio.error?.code||'нет'),
+        'Очередь: '+playbackQueue.length,
+        'Активный список: '+playbackPlaylist.length+' треков',
+        'Последние события: '+(playerEventLog.length ? playerEventLog.map(x=>x.at+' '+x.reason+
+            (x.code?' ('+x.code+')':'')).join(' | ') : 'нет')
     ].join('\\n');
 }
 function retryCurrentTrackManually() {
@@ -2575,7 +2621,9 @@ function scoreReplacementTrack(saved, candidate) {
     const title = normalizeTrackIdentity(candidate.title);
     const artist = normalizeTrackIdentity(candidate.artist);
 
-    if (!savedTitle || !title) return -1;
+    // Never substitute a remix or a similarly named recording.
+    if (!savedTitle || title !== savedTitle ||
+        (savedArtist && artist !== savedArtist)) return -1;
 
     let score = 0;
     if (title === savedTitle) score += 100;
@@ -2613,7 +2661,7 @@ async function refreshSavedTrackSource(track) {
 
     const ranked = candidates
         .map(candidate => ({ candidate, score: scoreReplacementTrack(track, candidate) }))
-        .filter(item => item.score >= (persisted ? 70 : 170) && item.candidate && item.candidate.url)
+        .filter(item => item.score >= (savedArtist ? 170 : 100) && item.candidate && item.candidate.url)
         .sort((a, b) => b.score - a.score);
 
     if (!ranked.length) return false;
@@ -2726,6 +2774,8 @@ async function recoverCurrentStream(reason) {
     playbackHealth.recoveries += 1;
     playbackHealth.lastReason = String(reason || 'unknown');
     playbackHealth.lastRecoveryAt = Date.now();
+    recordPlayerEvent('recovery:'+String(reason||'unknown'));
+
     try {
     await recoverCurrentStreamInternal(reason, track);
     } finally {
@@ -2915,7 +2965,7 @@ mainAudio.addEventListener('ended', function() {
         cacheTrackSilently(finishedTrack, { reason: 'played', priority: true });
     }
 
-    if (isRepeat) playTrack(currentIndex); else playNext();
+    if (isRepeat) playTrack(currentIndex, {fromPlayback:true}); else playNext();
 });
 
 mainAudio.addEventListener('waiting', function() {
@@ -2973,6 +3023,7 @@ mainAudio.addEventListener('error', function() {
     if (!track || !track.url) return;
     const mediaCode = mainAudio.error?.code || 0;
     console.warn('Audio media error', { code: mediaCode, source: track.source || '', retries: track._streamRetries || 0 });
+    recordPlayerEvent('media-error',mediaCode);
     showLoader(false);
     if (mediaCode === 4 && (track._streamRetries || 0) >= MAX_STREAM_RETRIES) {
         artistEl.textContent = 'Источник не поддерживается на устройстве';
@@ -2983,6 +3034,7 @@ mainAudio.addEventListener('error', function() {
 });
 
 window.addEventListener('offline', function() {
+    recordPlayerEvent('network-offline');
     if (currentIndex < 0 || mainAudio.ended) return;
 
     const track = playbackPlaylist[currentIndex];
@@ -2999,6 +3051,7 @@ window.addEventListener('offline', function() {
 });
 
 window.addEventListener('online', function() {
+    recordPlayerEvent('network-online');
     nativeApiReachable = true;
     scheduleNativeCacheWorker(500);
     if (playbackWanted && networkRetryPending && currentIndex >= 0 &&
