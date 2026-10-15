@@ -31,7 +31,20 @@ html = html
   )
   .replace(
     /<script src="script\.js\?v=[^"]+" defer><\/script>/i,
-    '<script src="native-bridge.js"></script>\n<script src="script.js" defer></script>'
+    \`<script src="native-bridge.js"></script>
+<script src="native-audio-adapter.js"></script>
+<script>
+window.DAG_MEDIA3_ENABLED = false;
+Promise.race([
+  window.DAG_NATIVE_BRIDGE.audioPlayer.status().then(() => true).catch(() => false),
+  new Promise(resolve => setTimeout(() => resolve(false), 2500))
+]).then(supported => {
+  window.DAG_MEDIA3_ENABLED = supported;
+  const script = document.createElement('script');
+  script.src = 'script.js';
+  document.body.appendChild(script);
+});
+</script>\`
   );
 
 // Root-relative images should stay inside the APK web root.
@@ -39,6 +52,7 @@ html = html.replace(/(href|src)="\/images\//g, '$1="images/');
 
 await writeFile(join(out, 'index.html'), html, 'utf8');
 await copyFile(join(root, 'script.js'), join(out, 'script.js'));
+await copyFile(join(root, 'native', 'native-audio-adapter.js'), join(out, 'native-audio-adapter.js'));
 await copyFile(join(root, 'style.css'), join(out, 'style.css'));
 await copyFile(join(root, 'modern.css'), join(out, 'modern.css'));
 
