@@ -59,6 +59,10 @@ jobs:
           rm -rf android
           npx cap add android
           npx cap sync android
+          # Подключаем идентичный модуль стабилизации TEYES CC3 в release.
+          mkdir -p android/app/src/main/java/ru/dagstudio/player
+          cp native/android/MainActivity.java android/app/src/main/java/ru/dagstudio/player/MainActivity.java
+          cp native/android/DAGCarModePlugin.java android/app/src/main/java/ru/dagstudio/player/DAGCarModePlugin.java
           npx @capacitor/assets generate --android             --iconBackgroundColor "#0b0b0b"             --iconBackgroundColorDark "#0b0b0b"             --splashBackgroundColor "#0b0b0b"             --splashBackgroundColorDark "#0b0b0b"
 
       - name: Restore release keystore
