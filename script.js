@@ -498,8 +498,16 @@ const AUDIO_COMPAT_PROFILE = (function() {
         (/Version\/4\.0/i.test(ua) && /Chrome\//i.test(ua)));
     // Большая часть автомагнитол работает либо на старом Android, либо на
     // системном WebView. Здесь приоритет — надёжный HTML5 Audio без WebAudio.
+    // Old Android WebViews need an immediate full (200) stream and shorter retry.
+    // Modern CC3 WebViews should keep HTTP byte ranges: full 200 on every start
+    // blocks efficient seeking and forces whole-file refetch on reconnect.
+    const chromeMatch = ua.match(/(?:Chrome|Chromium)\/(\d+)/i);
+    const chromeMajor = chromeMatch ? Number(chromeMatch[1]) : 0;
+    const fullFileFallback = android && ((androidMajor > 0 && androidMajor <= 9) ||
+        (webView && chromeMajor > 0 && chromeMajor < 92));
+    // Keep the EQ guard on all WebViews: WebAudio can break their media element.
     const legacyAndroid = android && (webView || (androidMajor > 0 && androidMajor <= 10));
-    return { android, androidMajor, webView, legacyAndroid };
+    return { android, androidMajor, webView, legacyAndroid, fullFileFallback };
 })();
 
 function requestAudioPlay() {
@@ -526,8 +534,8 @@ function armPlaybackWatchdog(token, reason) {
     const net = getNetworkProfile();
     let timeout = net.veryWeak ? 60000 : (net.weak ? 45000 : 25000);
 
-    if (AUDIO_COMPAT_PROFILE.legacyAndroid) {
-        // На старой магнитоле бессмысленно крутить загрузку десятки секунд:
+    if (AUDIO_COMPAT_PROFILE.fullFileFallback) {
+        // На действительно старой магнитоле не крутим загрузку десятки секунд:
         // быстро переходим на совместимый no-Range поток.
         timeout = net.weak ? 18000 : 12000;
     }
@@ -2679,7 +2687,7 @@ async function recoverCurrentStreamInternal(reason, track) {
     }
 
     const retry = track._streamRetries;
-    const useNoRange = AUDIO_COMPAT_PROFILE.legacyAndroid || retry >= 2;
+    const useNoRange = AUDIO_COMPAT_PROFILE.fullFileFallback || retry >= 2;
     let retryUrl = resolveMediaUrl(track.url);
 
     if (shouldProxyMedia(track)) {
@@ -2943,7 +2951,7 @@ async function playTrack(index, options = {}) {
         let isCached = false;
 
         const immediateLegacyStart =
-            AUDIO_COMPAT_PROFILE.legacyAndroid &&
+            AUDIO_COMPAT_PROFILE.fullFileFallback &&
             navigator.onLine !== false &&
             track.url &&
             isRemoteMediaUrl(track.url);
@@ -2972,7 +2980,7 @@ async function playTrack(index, options = {}) {
                 finalUrl = shouldProxyMedia(track)
                     ? buildProxyUrl(track, {
                         weak: isWeakConnection(),
-                        norange: AUDIO_COMPAT_PROFILE.legacyAndroid
+                        norange: AUDIO_COMPAT_PROFILE.fullFileFallback
                     })
                     : resolveMediaUrl(track.url);
             }
@@ -2990,7 +2998,7 @@ async function playTrack(index, options = {}) {
         if (token !== currentPlaybackToken || !playbackWanted) return;
         mainAudio.src = finalUrl;
         mainAudio.loop = false;
-        mainAudio.preload = AUDIO_COMPAT_PROFILE.legacyAndroid ? 'metadata' : 'auto';
+        mainAudio.preload = AUDIO_COMPAT_PROFILE.fullFileFallback ? 'metadata' : 'auto';
         mainAudio.load();
 
         armPlaybackWatchdog(token, 'startup-timeout');
