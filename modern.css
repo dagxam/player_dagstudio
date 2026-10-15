@@ -196,7 +196,11 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   }
   .search-input {background:#1a2126!important;}
   .track-row img {width:42px!important;height:42px!important;}
-  .header-right {width:auto!important; flex:0 0 auto!important; gap:9px;}
+  .header-right {width:94px!important;min-width:94px!important;max-width:94px!important;flex:0 0 94px!important;gap:9px;justify-content:flex-end;}
+  .header-right .mobile-menu-btn {
+    display:flex!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;
+    height:40px!important;min-height:40px!important;align-items:center;justify-content:center;padding:0!important;
+  }
   .header-right .header-eq-btn {
     display:flex!important;flex:0 0 40px!important;
     width:40px!important;min-width:40px!important;max-width:40px;

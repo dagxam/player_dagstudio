@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2238';
+const WEB_BUILD_LABEL = '2239';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -409,7 +409,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2238', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2239', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -421,8 +421,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2238') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2238', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2239') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2239', '1');
         window.location.reload();
     });
 }
