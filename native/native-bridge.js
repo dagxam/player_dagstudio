@@ -75,7 +75,7 @@ const audioCache = {
   async download(options) {
     const url = String(options?.url || '');
     const key = String(options?.key || '');
-    if (!/^https?:\/\//i.test(url) || !/^[a-f0-9]{16,128}$/i.test(key)) {
+    if (!/^https?:\/\//i.test(url) || !/^[a-f0-9]{8,128}$/i.test(key)) {
       throw new Error('audioCache.download: invalid url/key');
     }
 
