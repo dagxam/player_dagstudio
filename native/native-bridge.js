@@ -209,6 +209,15 @@ window.DAG_NATIVE_BRIDGE = {
   media: {
     update: (options) => DAGCarMode.setMediaState(options)
   },
+  audioPlayer: {
+    load: options => DAGCarMode.loadAudio(options),
+    resume: () => DAGCarMode.resumeAudio(),
+    pause: () => DAGCarMode.pauseAudio(),
+    stop: () => DAGCarMode.stopAudio(),
+    seek: options => DAGCarMode.seekAudio(options),
+    equalizer: options => DAGCarMode.equalizerAudio(options),
+    status: () => DAGCarMode.audioStatus()
+  },
   appInfo: () => App.getInfo(),
   openExternal: (options) => Browser.open({
     url: String(options?.url || ''),
@@ -225,6 +234,9 @@ DAGCarMode.addListener('mediaButton', event => {
   window.dispatchEvent(new CustomEvent('dag-android-media-button',
     {detail: {action: String(event?.action || '')}}));
 }).catch(error => console.warn('Media button listener unavailable:', error));
+DAGCarMode.addListener('audioStatus', state => {
+  window.dispatchEvent(new CustomEvent('dag-native-audio-status', {detail: state}));
+}).catch(error => console.warn('Media3 status listener unavailable:', error));
 App.addListener('backButton', () => {
   window.dispatchEvent(new Event('dag-android-back'));
 }).catch(error => console.warn('Android back handler unavailable:', error));
