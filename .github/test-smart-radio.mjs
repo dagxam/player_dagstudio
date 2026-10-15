@@ -32,5 +32,5 @@ assert.equal(early.isPrematureTrackEnd(180,180),false);
 assert.equal(early.isPrematureTrackEnd(90,92),false);
 assert.ok(text.includes('function maybePrefetchSmartRadio()'));
 assert.ok(text.includes('smartRadioPrefetch===prefetched'));
-assert.ok(text.includes("mainAudio.addEventListener('prematureend',handlePrematureTrackEnd)"));
+assert.ok(text.includes("mainAudio.addEventListener('prematureend',()=>handlePrematureTrackEnd(true))"));
 console.log('SMART_RADIO_EARLY_PREFETCH_AND_END_GUARDS_OK');

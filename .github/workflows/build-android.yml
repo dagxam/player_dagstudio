@@ -15,6 +15,8 @@ on:
       - "scripts/build-native-web.mjs"
       - "native/**"
       - ".github/workflows/build-android.yml"
+      - ".github/test-native-media.mjs"
+      - ".github/test-smart-radio.mjs"
   workflow_dispatch:
 
 permissions:
