@@ -15,6 +15,8 @@ import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 
 public final class DAGMediaService extends Service {
@@ -38,6 +40,14 @@ public final class DAGMediaService extends Service {
     private boolean playing = false;
     private String title = "DAGSTUDIO PLAYER";
     private String artist = "";
+    private final Handler positionHandler = new Handler(Looper.getMainLooper());
+    private final Runnable positionTicker = new Runnable() {
+        @Override public void run() {
+            if (audioEngine != null) audioEngine.publishProgress();
+            // Lightweight telemetry: no foreground-service/notification restart.
+            positionHandler.postDelayed(this, 850L);
+        }
+    };
 
     @Override public void onCreate() {
         super.onCreate();
@@ -77,6 +87,7 @@ public final class DAGMediaService extends Service {
         });
         session.setActive(true);
         audioEngine = new DAGAudioEngine(this, this::refreshEngineState);
+        positionHandler.postDelayed(positionTicker, 850L);
     }
 
     private void refreshEngineState() {
@@ -248,6 +259,7 @@ public final class DAGMediaService extends Service {
 
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public void onDestroy() {
+        positionHandler.removeCallbacks(positionTicker);
         setCpuWakeLock(false);
         if (audioEngine != null) { audioEngine.release(); audioEngine = null; }
         if (session != null) { session.setActive(false); session.release(); session = null; }

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2253';
+const WEB_BUILD_LABEL = '2254';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2253', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2254', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2253') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2253', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2254') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2254', '1');
         window.location.reload();
     });
 }
@@ -2277,7 +2277,7 @@ function retryCurrentTrackManually() {
     if(currentIndex<0)return;
     closeModal('diagnostics-modal');
     const pos=Number(mainAudio.currentTime||playbackPlaylist[currentIndex]._resumeTime||0);
-    playTrack(currentIndex,{resumeAt:pos});
+    playTrack(currentIndex,{fromPlayback:true,resumeAt:pos});
 }
 const cacheDownloadProgress = { bytes:0, total:0, downloading:false };
 window.addEventListener('dag-cache-progress', event => {
@@ -2720,6 +2720,7 @@ async function refreshSavedTrackSource(track) {
     if (!track || track._refreshAttempted || navigator.onLine === false) return false;
     track._refreshAttempted = true;
     const persisted = playbackTab !== 'search' && !!track.id;
+    const savedArtist = normalizeTrackIdentity(track.artist);
 
     const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
     if (!query) return false;
@@ -3511,47 +3512,98 @@ function stopProgressLoop() {
     if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
 }
 
-function updateProgress() { 
-    if (document.hidden) return; 
-    let curr = 0, dur = 0, buf = 0; 
-    const track = playbackPlaylist[currentIndex]; 
-    if(!track) return;
-
-    if(mainAudio) { 
-        curr = mainAudio.currentTime; dur = mainAudio.duration; 
-        if(mainAudio.buffered.length > 0) try { buf = (mainAudio.buffered.end(mainAudio.buffered.length - 1) / dur) * 100; } catch(e) {} 
-        if((buf === 0 || buf < (curr/dur)*100) && !mainAudio.paused && mainAudio.currentTime > 0) { buf = ((curr / dur) * 100) + 10; if(buf > 100) buf = 100; } 
-    } 
-
-    // Защита от NaN
-    if(isFinite(dur) && dur > 0 && isFinite(curr)) { 
-        const pct = (curr / dur) * 100; 
-        progCurrent.style.width = pct.toFixed(2) + '%'; 
-        progBuffer.style.width = buf.toFixed(2) + '%'; 
-        currTimeEl.innerText = formatTime(curr); 
-        durTimeEl.innerText = formatTime(dur); 
-    } else {
-        currTimeEl.innerText = "0:00"; 
-        durTimeEl.innerText = "0:00"; 
+function updateProgress() {
+    if (document.hidden) return;
+    const track = playbackPlaylist[currentIndex];
+    if (!track || !mainAudio) return;
+    const curr = Math.max(0, Number(mainAudio.currentTime) || 0);
+    const dur = Number(mainAudio.duration);
+    const knownDuration = Number.isFinite(dur) && dur > 0;
+    const seekArea = document.getElementById('prog-area');
+    if (seekArea) {
+        seekArea.setAttribute('aria-disabled', knownDuration ? 'false' : 'true');
+        seekArea.setAttribute('aria-valuenow', String(Math.round(curr)));
+        seekArea.setAttribute('aria-valuemax', String(knownDuration ? Math.round(dur) : 0));
     }
-}
-
-function formatTime(s) { 
-    if(isNaN(s) || !isFinite(s)) return "0:00";
-    const m = Math.floor(s / 60); const sc = Math.floor(s % 60); return m + ":" + (sc < 10 ? '0' : '') + sc; 
-}
-
-document.getElementById('prog-area').onclick = function(e) { 
-    const track = playbackPlaylist[currentIndex]; if(track) { 
-        const rect = this.getBoundingClientRect(); 
-        const pos = (e.clientX - rect.left) / rect.width; 
-        const seekTo = pos * mainAudio.duration; 
-        if(isFinite(seekTo)) {
-            mainAudio.currentTime = seekTo; 
-            updateProgress(); 
+    // With an unknown MP3 duration, still show elapsed time instead of 0:00.
+    currTimeEl.innerText = formatTime(curr);
+    durTimeEl.innerText = knownDuration ? formatTime(dur) : '--:--';
+    if (!knownDuration) {
+        progCurrent.style.width = '0%';
+        progBuffer.style.width = '0%';
+        return;
+    }
+    let bufferedUntil = 0;
+    try {
+        const ranges = mainAudio.buffered;
+        for (let i = 0; i < ranges.length; i++) {
+            if (ranges.start(i) <= curr + .25 && ranges.end(i) >= curr) {
+                bufferedUntil = Math.max(bufferedUntil, ranges.end(i));
+            }
         }
-    } 
-};
+    } catch (error) {}
+    const playedPct = Math.min(100, Math.max(0, curr / dur * 100));
+    const bufferedPct = Math.min(100, Math.max(playedPct, bufferedUntil / dur * 100));
+    progCurrent.style.width = playedPct.toFixed(2) + '%';
+    progBuffer.style.width = bufferedPct.toFixed(2) + '%';
+}
+
+function formatTime(s) {
+    if (!Number.isFinite(Number(s))) return '0:00';
+    const time = Math.max(0, Math.floor(Number(s)));
+    const m = Math.floor(time / 60);
+    const sc = time % 60;
+    return m + ':' + (sc < 10 ? '0' : '') + sc;
+}
+
+const progressArea = document.getElementById('prog-area');
+function seekFromProgressClientX(clientX) {
+    const track = playbackPlaylist[currentIndex];
+    const duration = Number(mainAudio.duration);
+    if (!track || !Number.isFinite(duration) || duration <= 0) return false;
+    const bar = progressArea.querySelector('.progress-bar-wrap');
+    const rect = bar.getBoundingClientRect();
+    if (!rect.width) return false;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const seconds = Math.min(duration - 0.25, Math.max(0, ratio * duration));
+    if (!Number.isFinite(seconds)) return false;
+    mainAudio.currentTime = seconds;
+    track._resumeTime = seconds;
+    updateProgress();
+    return true;
+}
+if (progressArea) {
+    let dragging = false;
+    let pointerHandledAt = 0;
+    if (window.PointerEvent) {
+        progressArea.addEventListener('pointerdown', event => {
+            if (event.button !== 0 && event.pointerType === 'mouse') return;
+            dragging = true;
+            pointerHandledAt = Date.now();
+            try { progressArea.setPointerCapture(event.pointerId); } catch (error) {}
+            seekFromProgressClientX(event.clientX);
+            event.preventDefault();
+        });
+        progressArea.addEventListener('pointermove', event => {
+            if (dragging) seekFromProgressClientX(event.clientX);
+        });
+        const finish = event => {
+            if (!dragging) return;
+            dragging = false;
+            seekFromProgressClientX(event.clientX);
+            pointerHandledAt = Date.now();
+        };
+        progressArea.addEventListener('pointerup', finish);
+        progressArea.addEventListener('pointercancel', () => { dragging = false; });
+    }
+    // Older Android WebView still gets a normal click/tap.
+    progressArea.addEventListener('click', event => {
+        if (Date.now() - pointerHandledAt > 400) seekFromProgressClientX(event.clientX);
+    });
+}
+mainAudio.addEventListener('durationchange', updateProgress);
+mainAudio.addEventListener('timeupdate', updateProgress);
+mainAudio.addEventListener('progress', updateProgress);
 
 // --- GLOBAL SEARCH LOGIC ---
 const mainSearchInput = document.getElementById('search-input'); 

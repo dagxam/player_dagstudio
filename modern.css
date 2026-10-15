@@ -485,3 +485,23 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+
+/* TEYES CC3: no full-width elliptical backdrop during buffering. */
+.visual-container .loader-overlay {
+    background: transparent;
+    border-radius: 0;
+}
+.vinyl-wrapper, .vinyl-img {
+    aspect-ratio: 1 / 1;
+    height: auto;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+.progress-area {
+    touch-action: none;
+    padding-top: 9px;
+    padding-bottom: 7px;
+}
+.progress-bar-wrap { height: 8px; }
+.progress-area[aria-disabled="true"] { cursor: default; }

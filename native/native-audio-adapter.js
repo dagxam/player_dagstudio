@@ -123,8 +123,9 @@
         const oldDuration = this._duration;
         this._duration = Number(data.durationMs) / 1000;
         if (!oldDuration) this._emit('loadedmetadata');
+        if (oldDuration !== this._duration) this._emit('durationchange');
       }
-      if (Number.isFinite(Number(data.positionMs)) && Date.now() - this._lastSeek > 1200) {
+      if (Number.isFinite(Number(data.positionMs)) && Date.now() - this._lastSeek > 650) {
         const next = Number(data.positionMs) / 1000;
         if (Math.abs(next - this._position) > 0.12) {
           this._position = next;
@@ -132,7 +133,9 @@
         }
       }
       if (Number.isFinite(Number(data.bufferedPositionMs))) {
+        const oldBuffered = this._buffered;
         this._buffered = Math.max(this._position, Number(data.bufferedPositionMs) / 1000);
+        if (Math.abs(oldBuffered - this._buffered) > 0.5) this._emit('progress');
       }
       if (data.error) {
         this._error = {code: 2, message: String(data.error)};

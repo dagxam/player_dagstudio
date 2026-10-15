@@ -178,10 +178,17 @@ public final class DAGAudioEngine {
         return state;
     }
 
-    private void publish() {
+    // Media3 does not dispatch onPlaybackStateChanged as the playhead advances.
+    // Publish a lightweight position snapshot regularly while the service lives,
+    // otherwise the WebView progress bar and seeking UI stay frozen.
+    public void publishProgress() {
         JSObject status = status();
         synchronized (DAGAudioEngine.class) { lastStatus = status; }
         DAGCarModePlugin.notifyAudioStatus(status);
+    }
+
+    private void publish() {
+        publishProgress();
         statusListener.run();
     }
 
