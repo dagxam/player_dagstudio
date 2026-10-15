@@ -92,10 +92,17 @@ const audioCache = {
       path: stagingPath
     });
 
+    // Slow mobile radio handovers often take longer than default read timeout.
+    // These are inactivity timeouts, not total-track download time limits.
+    const weak = options?.weak === true;
+    const connectTimeout = weak ? 45000 : 20000;
+    const readTimeout = weak ? 120000 : 60000;
+
     try {
       try {
         await FileTransfer.downloadFile({
-          url, path: stagingUri.uri, headers: options?.headers || {}, progress: false
+          url, path: stagingUri.uri, headers: options?.headers || {}, progress: false,
+          connectTimeout, readTimeout
         });
       } catch (error) {
         // Legacy Android fallback, still staged. Do not touch a valid old cache.

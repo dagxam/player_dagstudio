@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2250', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2251', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2250', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2251', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2250'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2251'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -187,7 +187,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2250', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2251', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -214,6 +214,44 @@ try {
   console.log('LEGACY_PLAY_SHIM', JSON.stringify(legacyPlayShim));
   if (!legacyPlayShim.ok || legacyPlayShim.called !== 1) {
     throw new Error('Old WebView play() compatibility failed: ' + JSON.stringify(legacyPlayShim));
+  }
+
+  // Deterministic network-failure regression: playTrack must catch a rejected
+  // audio.play() without throwing ReferenceError and must schedule recovery.
+  const failedStartup = await page.evaluate(async () => {
+    const audio = document.getElementById('main-audio');
+    const oldPlay = audio.play;
+    const oldLoad = audio.load;
+    const oldPlaylist = playlist;
+    const oldIndex = currentIndex;
+    const oldIntent = playbackWanted;
+    let attempts = 0;
+    try {
+      audio.load = () => {};
+      audio.play = () => { attempts++; return Promise.reject(new Error('simulated_network_drop')); };
+      playlist = [{title: 'Network regression', artist: 'Smoke', url: 'data:audio/mpeg;base64,AA=='}];
+      currentIndex = -1;
+      await playTrack(0);
+      return {attempts, scheduled: !!streamRecoveryTimer, wanted: playbackWanted};
+    } catch (error) {
+      return {attempts, failure: String(error)};
+    } finally {
+      clearStreamRecoveryTimer();
+      clearPlaybackWatchdog();
+      currentPlaybackToken++;
+      playbackWanted = false;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.play = oldPlay;
+      audio.load = oldLoad;
+      playlist = oldPlaylist;
+      currentIndex = oldIndex;
+      playbackWanted = oldIntent;
+    }
+  });
+  console.log('RECOVER_ON_PLAY_REJECTION', JSON.stringify(failedStartup));
+  if (failedStartup.failure || failedStartup.attempts !== 1 || !failedStartup.scheduled || !failedStartup.wanted) {
+    throw new Error('Playback failure recovery regression: ' + JSON.stringify(failedStartup));
   }
 
   await page.click('.menu-btn');
@@ -499,7 +537,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2250', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2251', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
