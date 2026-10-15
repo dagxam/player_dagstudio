@@ -1126,7 +1126,19 @@ function enqueueNativeTrackCache(trackOrUrl, reason = 'played', priority = false
 
     const track = normalizeCacheTrack(trackOrUrl);
     const resolved = canonicalTrackUrl(track);
-    if (!resolved || nativeCacheQueuedUrls.has(resolved)) return;
+    if (!resolved) return;
+    if (nativeCacheQueuedUrls.has(resolved)) {
+        if (reason === 'next') {
+            const index = nativeCacheQueue.findIndex(job => job.resolved === resolved);
+            if (index >= 0) {
+                const job = nativeCacheQueue.splice(index, 1)[0];
+                job.reason = 'next';
+                nativeCacheQueue.unshift(job);
+                scheduleNativeCacheWorker(0);
+            }
+        }
+        return;
+    }
 
     nativeCacheQueuedUrls.add(resolved);
     const job = { track, reason, attempts: 0, resolved };
@@ -1191,7 +1203,19 @@ function enqueueWebTrackCache(trackOrUrl, reason = 'playlist', priority = false)
 
     const track = normalizeCacheTrack(trackOrUrl);
     const resolved = canonicalTrackUrl(track);
-    if (!resolved || !/^https?:\/\//i.test(resolved) || webCacheQueuedUrls.has(resolved)) return;
+    if (!resolved || !/^https?:\/\//i.test(resolved)) return;
+    if (webCacheQueuedUrls.has(resolved)) {
+        if (reason === 'next') {
+            const index = webCacheQueue.findIndex(job => job.resolved === resolved);
+            if (index >= 0) {
+                const job = webCacheQueue.splice(index, 1)[0];
+                job.reason = 'next';
+                webCacheQueue.unshift(job);
+                scheduleWebCacheWorker(0);
+            }
+        }
+        return;
+    }
 
     webCacheQueuedUrls.add(resolved);
     const job = { track, reason, attempts: 0, resolved };
