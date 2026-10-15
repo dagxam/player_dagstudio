@@ -23,10 +23,17 @@ public final class DAGMediaService extends Service {
     private static final String ACTION_PAUSE = "ru.dagstudio.player.MEDIA_PAUSE";
     private static final String ACTION_NEXT = "ru.dagstudio.player.MEDIA_NEXT";
     private static final String ACTION_PREVIOUS = "ru.dagstudio.player.MEDIA_PREV";
+    static final String ACTION_AUDIO_LOAD = "ru.dagstudio.player.AUDIO_LOAD";
+    static final String ACTION_AUDIO_RESUME = "ru.dagstudio.player.AUDIO_RESUME";
+    static final String ACTION_AUDIO_PAUSE = "ru.dagstudio.player.AUDIO_PAUSE";
+    static final String ACTION_AUDIO_SEEK = "ru.dagstudio.player.AUDIO_SEEK";
+    static final String ACTION_AUDIO_STOP = "ru.dagstudio.player.AUDIO_STOP";
+    static final String ACTION_AUDIO_EQ = "ru.dagstudio.player.AUDIO_EQ";
     private static final String CHANNEL_ID = "dagstudio_media_player";
     private static final int NOTIFICATION_ID = 2026;
 
     private MediaSession session;
+    private DAGAudioEngine audioEngine;
     private PowerManager.WakeLock wakeLock;
     private boolean playing = false;
     private String title = "DAGSTUDIO PLAYER";
@@ -69,6 +76,31 @@ public final class DAGMediaService extends Service {
             }
         });
         session.setActive(true);
+        audioEngine = new DAGAudioEngine(this, this::refreshEngineState);
+    }
+
+    private void refreshEngineState() {
+        if (audioEngine == null || session == null) return;
+        playing = audioEngine.isPlayingOrLoading();
+        long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
+            PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
+            PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO;
+        session.setPlaybackState(new PlaybackState.Builder()
+            .setActions(actions)
+            .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                PlaybackState.PLAYBACK_POSITION_UNKNOWN, playing ? 1f : 0f).build());
+        if (playing) {
+            if (android.os.Build.VERSION.SDK_INT >= 29)
+                startForeground(NOTIFICATION_ID, notification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            else startForeground(NOTIFICATION_ID, notification());
+            setCpuWakeLock(true);
+        } else {
+            setCpuWakeLock(false);
+            stopForeground(true);
+            NotificationManager nm = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+            nm.notify(NOTIFICATION_ID, notification());
+        }
     }
 
     private static void forward(String command) {
@@ -126,6 +158,52 @@ public final class DAGMediaService extends Service {
             return START_NOT_STICKY;
         }
         final String action = intent.getAction();
+        if (ACTION_AUDIO_LOAD.equals(action)) {
+            title = intent.getStringExtra("title");
+            artist = intent.getStringExtra("artist");
+            if (title == null || title.isEmpty()) title = "DAGSTUDIO PLAYER";
+            if (artist == null) artist = "";
+            session.setMetadata(new MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, artist).build());
+            // startForegroundService must promote within 5 seconds, including during buffering.
+            playing = true;
+            if (Build.VERSION.SDK_INT >= 29)
+                startForeground(NOTIFICATION_ID, notification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            else startForeground(NOTIFICATION_ID, notification());
+            String url = intent.getStringExtra("url");
+            if (url != null && !url.isEmpty()) audioEngine.load(
+                url, intent.getStringExtra("cacheKey"),
+                intent.getLongExtra("positionMs", 0L));
+            return START_STICKY;
+        }
+        if (ACTION_AUDIO_RESUME.equals(action)) {
+            playing = true;
+            if (Build.VERSION.SDK_INT >= 29)
+                startForeground(NOTIFICATION_ID, notification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            else startForeground(NOTIFICATION_ID, notification());
+            audioEngine.play();
+            return START_STICKY;
+        }
+        if (ACTION_AUDIO_PAUSE.equals(action)) {
+            audioEngine.pause();
+            return START_STICKY;
+        }
+        if (ACTION_AUDIO_STOP.equals(action)) {
+            audioEngine.stop();
+            return START_NOT_STICKY;
+        }
+        if (ACTION_AUDIO_SEEK.equals(action)) {
+            audioEngine.seek(intent.getLongExtra("positionMs", 0L));
+            return START_STICKY;
+        }
+        if (ACTION_AUDIO_EQ.equals(action)) {
+            audioEngine.setEqualizer(intent.getBooleanExtra("enabled", false),
+                intent.getStringExtra("gains"));
+            return START_STICKY;
+        }
         if (ACTION_PLAY.equals(action) || ACTION_PAUSE.equals(action) ||
             ACTION_NEXT.equals(action) || ACTION_PREVIOUS.equals(action)) {
             forward(ACTION_PLAY.equals(action) ? "play" : ACTION_PAUSE.equals(action) ? "pause" :
@@ -171,6 +249,7 @@ public final class DAGMediaService extends Service {
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public void onDestroy() {
         setCpuWakeLock(false);
+        if (audioEngine != null) { audioEngine.release(); audioEngine = null; }
         if (session != null) { session.setActive(false); session.release(); session = null; }
         super.onDestroy();
     }
