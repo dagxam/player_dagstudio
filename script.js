@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2246';
+const WEB_BUILD_LABEL = '2247';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2246', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2247', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2246') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2246', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2247') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2247', '1');
         window.location.reload();
     });
 }
@@ -1145,11 +1145,11 @@ function enqueueNativeTrackCache(trackOrUrl, reason = 'played', priority = false
     const resolved = canonicalTrackUrl(track);
     if (!resolved) return;
     if (nativeCacheQueuedUrls.has(resolved)) {
-        if (reason === 'next') {
+        if (reason === 'next' || reason === 'paused-current') {
             const index = nativeCacheQueue.findIndex(job => job.resolved === resolved);
             if (index >= 0) {
                 const job = nativeCacheQueue.splice(index, 1)[0];
-                job.reason = 'next';
+                job.reason = reason;
                 nativeCacheQueue.unshift(job);
                 scheduleNativeCacheWorker(0);
             }
@@ -1171,7 +1171,8 @@ async function processNativeCacheQueue() {
         window.DAG_CAR_APP_ACTIVE === false) return;
     if (navigator.onLine === false) return;
 
-    if (!playbackWanted && Date.now() - lastManualPauseAt < 90000) {
+    if (!playbackWanted && Date.now() - lastManualPauseAt < 90000 &&
+        nativeCacheQueue[0]?.reason !== 'paused-current') {
         scheduleNativeCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
@@ -1200,6 +1201,7 @@ async function processNativeCacheQueue() {
             try {
                 if (!await storeNativeTrackNow(job.track, job.reason)) throw new Error('Файл не сохранён');
                 nativeCacheQueuedUrls.delete(job.resolved);
+                if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
             } catch (error) {
                 job.attempts += 1;
                 if (job.attempts < 5) {
@@ -1230,11 +1232,11 @@ function enqueueWebTrackCache(trackOrUrl, reason = 'playlist', priority = false)
     const resolved = canonicalTrackUrl(track);
     if (!resolved || !/^https?:\/\//i.test(resolved)) return;
     if (webCacheQueuedUrls.has(resolved)) {
-        if (reason === 'next') {
+        if (reason === 'next' || reason === 'paused-current') {
             const index = webCacheQueue.findIndex(job => job.resolved === resolved);
             if (index >= 0) {
                 const job = webCacheQueue.splice(index, 1)[0];
-                job.reason = 'next';
+                job.reason = reason;
                 webCacheQueue.unshift(job);
                 scheduleWebCacheWorker(0);
             }
@@ -1277,7 +1279,8 @@ async function processWebCacheQueue() {
     if (navigator.onLine === false) return;
 
     // Кэширование плейлистов никогда не должно мешать текущему воспроизведению.
-    if (!playbackWanted && Date.now() - lastManualPauseAt < 90000) {
+    if (!playbackWanted && Date.now() - lastManualPauseAt < 90000 &&
+        webCacheQueue[0]?.reason !== 'paused-current') {
         scheduleWebCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
@@ -1326,6 +1329,7 @@ async function processWebCacheQueue() {
                 }
 
                 webCacheQueuedUrls.delete(job.resolved);
+                if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
 
                 // На слабой сети качаем строго по одному треку и даём каналу передышку.
                 if (getNetworkProfile().weak) {
@@ -2982,6 +2986,11 @@ window.addEventListener('dag-android-media-button', function(event) {
     else if (action === 'next' && playlist.length) playNext();
     else if (action === 'previous' && playlist.length) playPrev();
 });
+function notifyPausedCacheReady(track) {
+    if (playbackWanted || currentIndex < 0 || !track ||
+        canonicalTrackUrl(playlist[currentIndex]) !== canonicalTrackUrl(track)) return;
+    artistEl.textContent = 'Трек сохранён в кэше · нажмите ▶';
+}
 function pausePlayback() {
     if (!playbackWanted) return;
     playbackWanted = false;
@@ -2991,6 +3000,7 @@ function pausePlayback() {
     clearPlaybackWatchdog();
     const incomplete = mainAudio.readyState < 2;
     const position = Number.isFinite(mainAudio.currentTime) ? mainAudio.currentTime : 0;
+    const pausedTrack = playlist[currentIndex];
     mainAudio.pause();
     if (incomplete) {
         const track = playlist[currentIndex];
@@ -3003,6 +3013,13 @@ function pausePlayback() {
     releaseWakeLock();
     syncCarNativeMedia(false);
     saveNativePlaybackSnapshot(true);
+    // Пауза останавливает зависший запрос воспроизведения, но запускает
+    // отдельное скачивание текущей композиции в кэш без автозапуска.
+    if (pausedTrack && isRemoteMediaUrl(pausedTrack.url) && navigator.onLine !== false &&
+        !pausedTrack._playingFromCache) {
+        artistEl.textContent = 'Пауза · сохраняем трек для офлайн-прослушивания…';
+        cacheTrackSilently(pausedTrack, { reason: 'paused-current', priority: true });
+    }
 }
 function resumePlayback() {
     const track = playlist[currentIndex];
