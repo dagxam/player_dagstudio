@@ -444,6 +444,11 @@ let playlist = [];
 let searchPlaylistCache = []; 
 let currentIndex = -1;
 let playbackWanted = false;
+const PLAYBACK_QUEUE_KEY = 'dag_playback_queue_v1';
+let playbackQueue = [];
+try { const data = JSON.parse(localStorage.getItem(PLAYBACK_QUEUE_KEY) || '[]');
+    if (Array.isArray(data)) playbackQueue = data.filter(t => t?.url).slice(0, 50);
+} catch (e) {}
 let lastManualPauseAt = 0;
 let currentTab = 'search';
 let searchTimeout; 
@@ -2043,6 +2048,7 @@ window.addEventListener('online', function() {
     else scheduleWebCacheWorker(500);
 });
 
+updatePlaybackQueueBadge();
 // --- UI HELPERS ---
 function showNotification(msg) { 
     const el = document.getElementById('alert-msg');
@@ -2916,7 +2922,64 @@ function updateState(playing) {
 
 function toggleShuffle() { isShuffle = !isShuffle; document.getElementById('btn-shuffle').classList.toggle('active'); }
 function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('btn-repeat').classList.toggle('active'); }
-function playNext() { 
+function savePlaybackQueue() {
+    try { localStorage.setItem(PLAYBACK_QUEUE_KEY, JSON.stringify(playbackQueue)); } catch (e) {}
+    updatePlaybackQueueBadge();
+    renderPlaybackQueue();
+}
+function updatePlaybackQueueBadge() {
+    const badge = document.getElementById('queue-count');
+    if (badge) badge.textContent = playbackQueue.length ? String(playbackQueue.length) : '';
+}
+function queueTrack(index) {
+    const track = playlist[index];
+    if (!track?.url) return;
+    if (playbackQueue.length >= 50) return showNotification('В очереди не больше 50 треков.');
+    playbackQueue.push({ title:track.title || 'Трек', artist:track.artist || '',
+        url:track.url, thumb:track.thumb || '', source:track.source || '',type:'audio' });
+    savePlaybackQueue();
+}
+function renderPlaybackQueue() {
+    const list = document.getElementById('queue-list');
+    if (!list) return;
+    list.replaceChildren();
+    if (!playbackQueue.length) {
+        const p = document.createElement('p');p.className='queue-empty';
+        p.textContent='Очередь пуста. Добавляйте треки значком списка.';
+        list.appendChild(p);return;
+    }
+    playbackQueue.forEach((track,i)=>{
+        const row=document.createElement('div');row.className='queue-row';
+        const label=document.createElement('span');label.className='queue-name';
+        label.textContent=(i+1)+'. '+track.title+(track.artist ? ' — '+track.artist : '');
+        const make=(text,title,disabled,action)=>{
+            const btn=document.createElement('button');btn.type='button';
+            btn.className='queue-mini-btn';btn.title=title;btn.textContent=text;
+            btn.disabled=disabled;btn.onclick=action;return btn;
+        };
+        row.append(label,
+            make('↑','Выше',i===0,()=>{[playbackQueue[i-1],playbackQueue[i]]=[playbackQueue[i],playbackQueue[i-1]];savePlaybackQueue();}),
+            make('↓','Ниже',i===playbackQueue.length-1,()=>{[playbackQueue[i],playbackQueue[i+1]]=[playbackQueue[i+1],playbackQueue[i]];savePlaybackQueue();}),
+            make('×','Убрать',false,()=>{playbackQueue.splice(i,1);savePlaybackQueue();}));
+        list.appendChild(row);
+    });
+}
+function openPlaybackQueue() {
+    renderPlaybackQueue();
+    document.getElementById('queue-modal').classList.add('show');
+}
+function clearPlaybackQueue() {
+    playbackQueue.length=0;savePlaybackQueue();
+}
+function playNext() {
+    if (playbackQueue.length) {
+        const track=playbackQueue.shift();
+        savePlaybackQueue();
+        let index=playlist.findIndex(t=>t.url===track.url);
+        if(index<0) { index=playlist.length;playlist.push(track);renderPlaylist(); }
+        playTrack(index);
+        return;
+    }
     if (isShuffle) {
         if(playlist.length > 1) {
             let r = Math.floor(Math.random() * playlist.length);
@@ -3184,6 +3247,12 @@ function renderPlaylist() {
         left.appendChild(title); left.appendChild(artist);
 
         const actions = document.createElement('div'); actions.className = 'track-actions'; actions.innerHTML = actionBtn;
+        const queueBtn = document.createElement('button');
+        queueBtn.type='button';queueBtn.className='btn-list-action';
+        queueBtn.title='Играть следующей';queueBtn.setAttribute('aria-label','Добавить в очередь');
+        queueBtn.innerHTML='<i class="fas fa-list-ol"></i>';
+        queueBtn.onclick=function(event){event.stopPropagation();queueTrack(i);};
+        actions.insertBefore(queueBtn,actions.firstChild);
         const iconWrap = document.createElement('div'); iconWrap.innerHTML = iconHtml;
 
         div.appendChild(iconWrap.firstChild); div.appendChild(left); div.appendChild(actions);
