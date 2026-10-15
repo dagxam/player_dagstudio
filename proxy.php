@@ -17,7 +17,7 @@ if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
 }
 header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
 header('Access-Control-Allow-Headers: Range, Content-Type');
-header('Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length, Content-Type, X-DAG-Stream, X-DAG-Network-Mode, X-DAG-Range-Mode');
+header('Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length, Content-Type, X-DAG-Stream, X-DAG-Network-Mode, X-DAG-Range-Mode, X-DAG-First-Byte-Ms');
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -214,10 +214,13 @@ $runAttempt = function(bool $useRange) use (
     $attemptError = false;
 
     $ch = curl_init($url);
+    $requestStart = microtime(true);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => false,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS => 5,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         // На слабой мобильной сети даём DNS/TCP/TLS и паузам радиосети больше времени.
         CURLOPT_CONNECTTIMEOUT => $weakMode ? 15 : 8,
         CURLOPT_TIMEOUT => 0,
@@ -226,13 +229,15 @@ $runAttempt = function(bool $useRange) use (
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+        // Let the server choose the reachable IPv4/IPv6 CDN endpoint.
+        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_WHATEVER,
         CURLOPT_TCP_KEEPALIVE => 1,
         CURLOPT_TCP_KEEPIDLE => $weakMode ? 10 : 20,
         CURLOPT_TCP_KEEPINTVL => $weakMode ? 5 : 10,
         CURLOPT_DNS_CACHE_TIMEOUT => 300,
         CURLOPT_NOSIGNAL => 1,
-        CURLOPT_BUFFERSIZE => $weakMode ? 8192 : 16384,
+        // Larger chunks reduce callback overhead without buffering entire songs.
+        CURLOPT_BUFFERSIZE => $weakMode ? 32768 : 65536,
         CURLOPT_HTTPHEADER => buildAudioHeaders($useRange, $forwardRange, $profile),
         CURLOPT_HEADERFUNCTION => function($ch, $line) use (&$responseHeaders, &$currentStatus) {
             $trim = trim($line);
@@ -253,8 +258,13 @@ $runAttempt = function(bool $useRange) use (
             }
             return strlen($line);
         },
-        CURLOPT_WRITEFUNCTION => function($ch, $data) use (&$bodyStarted, &$attemptError, $sendHeaders, $useRange) {
+        CURLOPT_WRITEFUNCTION => function($ch, $data) use (&$bodyStarted, &$attemptError, $sendHeaders, $useRange, $requestStart) {
+            // A cancelled playback must not keep the PHP worker streaming remotely.
+            if (connection_aborted()) return 0;
             if (!$bodyStarted) {
+                if (!headers_sent()) {
+                    header('X-DAG-First-Byte-Ms: ' . (int)round((microtime(true) - $requestStart) * 1000));
+                }
                 if (!$sendHeaders($useRange)) {
                     $attemptError = true;
                     // Важно: если заголовки ещё не ушли клиенту, можно сделать
