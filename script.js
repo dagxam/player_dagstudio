@@ -483,7 +483,12 @@ const colorThemes = {
     purple: { main: '#8b00ff', dark: '#4a0082', rgb: '139, 0, 255', img: 'images/f.png' }
 };
 
-const mainAudio = document.getElementById('main-audio');
+// Android APK with Media3 uses a native decoder; browsers and older APKs keep HTML5 audio.
+const NATIVE_MEDIA3_ACTIVE = IS_NATIVE_APP && window.DAG_MEDIA3_ENABLED === true &&
+    typeof window.DAGNativeAudioAdapter === 'function';
+const mainAudio = NATIVE_MEDIA3_ACTIVE
+    ? new window.DAGNativeAudioAdapter()
+    : document.getElementById('main-audio');
 if (mainAudio) {
     mainAudio.preload = 'auto';
     // Для обычного HTML5-воспроизведения crossOrigin не нужен: весь внешний
@@ -533,7 +538,9 @@ function clearPlaybackWatchdog() {
 
 function armPlaybackWatchdog(token, reason) {
     clearPlaybackWatchdog();
-    if (!playbackWanted) return;
+    // ExoPlayer controls retry and buffering itself. Never tear down its stream
+    // because JavaScript timers were throttled while TEYES ran navigation.
+    if (NATIVE_MEDIA3_ACTIVE || !playbackWanted) return;
     const net = getNetworkProfile();
     let timeout = net.veryWeak ? 60000 : (net.weak ? 45000 : 25000);
 
@@ -605,6 +612,12 @@ function saveEqualizerState() {
 }
 
 function applyEqualizerState() {
+    if (NATIVE_MEDIA3_ACTIVE) {
+        window.DAG_NATIVE_BRIDGE.audioPlayer.equalizer({
+            enabled: !!eqState.enabled, gains: eqState.gains
+        }).catch(error => console.warn('Native equalizer unavailable:', error));
+        return;
+    }
     if (!eqGraphReady || !eqFilters.length) return;
     eqFilters.forEach((filter, index) => {
         const gain = eqState.enabled ? Number(eqState.gains[index] || 0) : 0;
@@ -626,6 +639,7 @@ function applyEqualizerState() {
 }
 
 async function ensureEqualizerGraph() {
+    if (NATIVE_MEDIA3_ACTIVE) { applyEqualizerState(); return true; }
     if (!mainAudio || eqGraphFailed) return false;
 
     // Не подключаем MediaElementSource на старых Android/WebView. Если создание
@@ -1036,6 +1050,7 @@ async function getNativeCachedAudio(trackOrUrl) {
             writeNativeAudioIndex(index);
             return {
                 url: file.webUrl,
+                nativeUrl: file.uri,
                 isBlob: false,
                 inCache: true,
                 isNativeFile: true,
@@ -1141,9 +1156,9 @@ function isCurrentTrackFullyReady() {
 
 function maybePrecacheNextTrack() {
     if (!isCurrentTrackFullyReady() || navigator.onLine === false || isShuffle ||
-        !Array.isArray(playlist) || playlist.length < 2) return;
-    const nextIndex = isRepeat ? currentIndex : (currentIndex + 1) % playlist.length;
-    const nextTrack = playlist[nextIndex];
+        !Array.isArray(playbackPlaylist) || playbackPlaylist.length < 2) return;
+    const nextIndex = isRepeat ? currentIndex : (currentIndex + 1) % playbackPlaylist.length;
+    const nextTrack = playbackPlaylist[nextIndex];
     if (!nextTrack || !isRemoteMediaUrl(nextTrack.url)) return;
     const key = String(currentPlaybackToken) + ':' + nextIndex + ':' + canonicalTrackUrl(nextTrack);
     if (nextTrackPrefetchKey === key) return;
@@ -2653,6 +2668,7 @@ function recordMediaAdvance() {
     if (Math.abs(position - lastMediaPosition) >= .18) resetMediaAdvanceClock(position);
 }
 function playbackIsFrozen() {
+    if (NATIVE_MEDIA3_ACTIVE) return false;
     if (!playbackWanted || mainAudio.ended || currentIndex < 0 ||
         (document.hidden && !IS_NATIVE_APP)) return false;
     // A background Android WebView can throttle JS. Do not restart its audio
@@ -2795,6 +2811,7 @@ function bufferedSecondsAhead() {
 }
 
 function scheduleStreamRecovery(reason, delay) {
+    if (NATIVE_MEDIA3_ACTIVE && (reason === 'waiting' || reason === 'stalled')) return;
     const track = playbackPlaylist[currentIndex];
     if (!track || !track.url || mainAudio.ended || !playbackWanted) return;
     clearStreamRecoveryTimer();
@@ -2868,7 +2885,7 @@ async function recoverCurrentStreamInternal(reason, track) {
 
             showLoader(true);
             mainAudio.pause();
-            mainAudio.src = cached.url;
+            mainAudio.src = NATIVE_MEDIA3_ACTIVE ? (cached.nativeUrl || cached.url) : cached.url;
             mainAudio.load();
 
             try {
@@ -3217,7 +3234,8 @@ async function playTrack(index, options = {}) {
             if (token !== currentPlaybackToken) return;
 
             if (cachedRes.inCache) {
-                finalUrl = cachedRes.url;
+                finalUrl = NATIVE_MEDIA3_ACTIVE
+                    ? (cachedRes.nativeUrl || cachedRes.url) : cachedRes.url;
                 isCached = true;
                 track._playingFromCache = true;
 
@@ -3245,6 +3263,11 @@ async function playTrack(index, options = {}) {
         }
 
         if (token !== currentPlaybackToken || !playbackWanted) return;
+        if (NATIVE_MEDIA3_ACTIVE) {
+            window.DAG_ACTIVE_MEDIA_CACHE_KEY = canonicalTrackUrl(track);
+            window.DAG_ACTIVE_MEDIA_TITLE = track.title;
+            window.DAG_ACTIVE_MEDIA_ARTIST = track.artist;
+        }
         mainAudio.src = finalUrl;
         mainAudio.loop = false;
         mainAudio.preload = AUDIO_COMPAT_PROFILE.fullFileFallback ? 'metadata' : 'auto';
@@ -3283,6 +3306,8 @@ function updateActiveTrackInList(index) {
 }
 
 function syncCarNativeMedia(playing) {
+    // Media3 reports its own real state to the same Android MediaSession.
+    if (NATIVE_MEDIA3_ACTIVE) return;
     const media = window.DAG_NATIVE_BRIDGE?.media;
     if (!IS_NATIVE_APP || !media || typeof media.update !== 'function') return;
     const track = playbackPlaylist[currentIndex];
