@@ -117,7 +117,7 @@ try {
   }
 
   // Каждая тема должна изменять панели, шапку, поля ввода, модальные окна и эквалайзер.
-  const themePaletteChecks = await page.evaluate(() => {
+  const themePaletteChecks = await page.evaluate(async () => {
     const names = ['brown', 'red', 'green', 'blue', 'purple'];
     const selectors = [
       '.main-container', '.header-overlay', '.left-col', '.right-col',
@@ -126,8 +126,10 @@ try {
     ];
     const previous = localStorage.getItem('dag_theme') || 'brown';
     const samples = {};
-    names.forEach(name => {
+    for (const name of names) {
       setTheme(name, false);
+      // CSS transitions on inputs/tabs need a frame to reach their final shade.
+      await new Promise(resolve => setTimeout(resolve, 420));
       const colors = selectors.map(selector => {
         const el = document.querySelector(selector);
         if (!el) return 'missing:' + selector;
@@ -138,7 +140,7 @@ try {
         mainColor:getComputedStyle(document.documentElement).getPropertyValue('--main-color').trim(),
         themeRgb:getComputedStyle(document.documentElement).getPropertyValue('--theme-rgb').trim(),
         page:getComputedStyle(document.documentElement).getPropertyValue('--theme-page').trim() };
-    });
+    }
     setTheme(previous, false);
     return samples;
   });
