@@ -505,3 +505,10 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 }
 .progress-bar-wrap { height: 8px; }
 .progress-area[aria-disabled="true"] { cursor: default; }
+
+
+/* Optional continuous artist-based radio, consistent across themes. */
+.smart-radio-setting {margin:6px 0 16px;padding:12px;border:1px solid var(--theme-border,#35404b);border-radius:14px;background:rgba(var(--theme-rgb,192,108,66),.05);}
+.smart-radio-setting .menu-list-btn {margin:0;min-height:46px;width:100%;text-align:left;}
+.smart-radio-toggle.active {border-color:var(--theme-middle,#ca805d);background:rgba(var(--theme-rgb,192,108,66),.14);color:var(--theme-bright,#dfaa8c);}
+.smart-radio-hint {margin-top:9px;font-size:.77rem;line-height:1.5;color:var(--theme-muted,#a6b0b9);}

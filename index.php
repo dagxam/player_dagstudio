@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=6">
+    <link rel="stylesheet" href="modern.css?v=7">
 </head>
 <body>
 
@@ -143,6 +143,10 @@
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать приложение для Android</a>
         <button type="button" class="menu-list-btn" onclick="openCacheDashboard()"><i class="fas fa-hard-drive"></i> Кэш и офлайн-хранилище</button>
         <button type="button" class="menu-list-btn" onclick="openPlayerDiagnostics()"><i class="fas fa-chart-line"></i> Проверка звука и сети</button>
+        <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-menu-btn"
+                onclick="toggleSmartRadio()" aria-pressed="true" title="Автоматически подбирать похожие песни после плейлиста">
+            <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-menu-label">Умное продолжение: включено</span>
+        </button>
         <button type="button" class="menu-list-btn" onclick="openSleepTimer()"><i class="fas fa-moon"></i> Таймер сна</button>
         <div id="device-cache-status" class="playlist-sync-status" role="status" aria-live="polite">Кэш сохраняется отдельно на каждом устройстве.</div>
         <div class="app-version-footer" id="app-version-footer">
@@ -191,6 +195,13 @@
 <div id="queue-modal" class="modal-overlay">
     <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть">&times;</button>
         <h3 class="modal-title">Очередь воспроизведения</h3>
+        <div class="smart-radio-setting">
+            <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-queue-btn"
+                    onclick="toggleSmartRadio()" aria-pressed="true">
+                <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-queue-label">Умное продолжение: включено</span>
+            </button>
+            <div class="smart-radio-hint">После последнего трека плейлиста — случайные новые песни знакомых исполнителей из сети. Ручная очередь имеет приоритет.</div>
+        </div>
         <div id="queue-list" class="queue-list"></div>
         <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
     </div>
@@ -233,7 +244,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2254" defer></script>
+<script src="script.js?v=2255" defer></script>
 
 </body>
 </html>

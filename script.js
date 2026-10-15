@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2254';
+const WEB_BUILD_LABEL = '2255';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2254', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2255', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2254') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2254', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2255') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2255', '1');
         window.location.reload();
     });
 }
@@ -467,6 +467,16 @@ let hasMoreSearchResults = true;
 
 let isShuffle = false;
 let isRepeat = false;
+
+// Optional continuous radio after a saved playlist finishes.
+// Stored on-device so OTA updates and APK restarts preserve the choice.
+const SMART_RADIO_KEY = 'dag_smart_radio_v1';
+let smartRadioEnabled = localStorage.getItem(SMART_RADIO_KEY) !== 'off';
+let smartRadioBusy = false;
+let smartRadioRequestSerial = 0;
+let smartRadioSearchCursor = 0;
+const smartShufflePlayed = new Set();
+
 
 // ПРЕДОТВРАЩЕНИЕ УТЕЧЕК ПАМЯТИ
 let currentBlobUrl = null; 
@@ -2030,7 +2040,8 @@ function saveNativePlaybackSnapshot(force = false) {
             wasPlaying: !!playbackWanted,
             tracks: playbackPlaylist.slice(0, 100).map(t => ({
                 id:t.id, title:t.title, artist:t.artist, url:t.url,
-                thumb:t.thumb, source:t.source, type:t.type || 'audio'
+                thumb:t.thumb, source:t.source, type:t.type || 'audio',
+                _smartRadio:!!t._smartRadio
             })),
             savedAt: Date.now()
         }));
@@ -2136,6 +2147,7 @@ window.addEventListener('online', function() {
 });
 
 updatePlaybackQueueBadge();
+renderSmartRadioState();
 // --- ДИАГНОСТИКА / ТАЙМЕР / СОСТОЯНИЕ КЭША ---
 let sleepTimerAt = 0;
 let sleepAfterCurrent = false;
@@ -3159,9 +3171,16 @@ async function playTrack(index, options = {}) {
     if (!options.fromPlayback) {
         playbackPlaylist = [...targetList];
         playbackTab = String(currentTab);
+        smartRadioRequestSerial++; // Discard pending suggestions after a manual selection.
+        smartShufflePlayed.clear();
+    }
+    if (options.fromPlayback && smartRadioBusy && !options.fromSmartRadio) {
+        // Internal transitions already carry a playback token; stale requests
+        // must never steal the track after a new manual action.
     }
     playbackWanted = true;
     currentIndex = index;
+    if (isShuffle) smartShufflePlayed.add(index);
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
     const track = playbackPlaylist[index];
@@ -3410,7 +3429,148 @@ function updateState(playing) {
     if (playing) startProgressLoop(); else stopProgressLoop();
 }
 
-function toggleShuffle() { isShuffle = !isShuffle; document.getElementById('btn-shuffle').classList.toggle('active'); }
+// SMART RADIO MATCHER START
+function smartRadioNormalize(value) {
+    return String(value || '').toLowerCase()
+        .replace(/\([^)]*(?:remix|live|cover|instrumental)[^)]*\)/gi, ' ')
+        .replace(/[^a-zа-яё0-9]+/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+function smartRadioArtistTokens(artist) {
+    return smartRadioNormalize(artist)
+        .split(/\s+/).filter(token => token.length >= 3 &&
+            !['feat','featuring','with','the','and','remix','official','music'].includes(token));
+}
+function smartRadioIdentity(track) {
+    return smartRadioNormalize(track?.artist) + '|' + smartRadioNormalize(track?.title);
+}
+function smartRadioQueryArtists(tracks) {
+    const names = [];
+    const seen = new Set();
+    for (const track of tracks) {
+        if (track?._smartRadio || !track?.artist) continue;
+        const artist = String(track.artist).split(/\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0]
+            .split(/\s*(?:&|,|\/|\s+x\s+)\s*/i)[0].trim();
+        const normalized = smartRadioNormalize(artist);
+        if (!normalized || seen.has(normalized) || normalized.length < 3) continue;
+        seen.add(normalized);
+        names.push(artist);
+    }
+    return names;
+}
+function smartRadioPickCandidate(candidates, seeds, knownTracks, randomValue = Math.random()) {
+    const seedArtists = seeds.filter(t => !t?._smartRadio)
+        .flatMap(t => smartRadioArtistTokens(t.artist));
+    const seedTokens = new Set(seedArtists);
+    if (!seedTokens.size) return null;
+    const knownUrls = new Set(knownTracks.map(t => String(t.url || '').trim()));
+    const knownNames = new Set(knownTracks.map(smartRadioIdentity));
+    const ranked = [];
+    for (const track of candidates || []) {
+        if (!track?.url || !track?.title || !track?.artist || !/^https?:\/\//i.test(track.url)) continue;
+        if (knownUrls.has(String(track.url).trim()) || knownNames.has(smartRadioIdentity(track))) continue;
+        const artist = smartRadioArtistTokens(track.artist);
+        const shared = artist.filter(token => seedTokens.has(token));
+        if (!shared.length) continue; // Never claim an unrelated song is similar.
+        const score = shared.length * 4 + (artist.length === shared.length ? 2 : 0);
+        ranked.push({track,score});
+    }
+    if (!ranked.length) return null;
+    ranked.sort((a,b) => b.score - a.score);
+    const best = ranked[0].score;
+    const shortlist = ranked.filter(entry => entry.score >= best - 4).slice(0, 25);
+    const index = Math.min(shortlist.length - 1,
+        Math.floor(Math.max(0, Math.min(0.999999, Number(randomValue) || 0)) * shortlist.length));
+    return shortlist[index].track;
+}
+// SMART RADIO MATCHER END
+
+function renderSmartRadioState() {
+    const menu = document.getElementById('smart-radio-menu-btn');
+    const queue = document.getElementById('smart-radio-queue-btn');
+    for (const button of [menu,queue]) {
+        if (!button) continue;
+        button.setAttribute('aria-pressed',smartRadioEnabled?'true':'false');
+        button.classList.toggle('active',smartRadioEnabled);
+    }
+    const text = smartRadioEnabled ? 'Умное продолжение: включено' : 'Умное продолжение: выключено';
+    const menuLabel = document.getElementById('smart-radio-menu-label');
+    const queueLabel = document.getElementById('smart-radio-queue-label');
+    if (menuLabel) menuLabel.textContent = text;
+    if (queueLabel) queueLabel.textContent = text;
+}
+function toggleSmartRadio() {
+    smartRadioEnabled = !smartRadioEnabled;
+    localStorage.setItem(SMART_RADIO_KEY,smartRadioEnabled?'on':'off');
+    smartRadioRequestSerial++;
+    renderSmartRadioState();
+    showNotification(smartRadioEnabled ?
+        'После плейлиста включатся новые песни знакомых исполнителей.' :
+        'Умное продолжение отключено. Плейлист будет повторяться.');
+}
+async function findSmartRadioTrack() {
+    if (navigator.onLine === false) return null;
+    const seeds = playbackPlaylist.filter(t => !t._smartRadio);
+    const artists = smartRadioQueryArtists(seeds);
+    if (!artists.length) return null;
+    const seen = [...playbackPlaylist,...playbackQueue];
+    const start = smartRadioSearchCursor++ % artists.length;
+    const page = 1 + Math.floor(smartRadioSearchCursor / Math.max(1,artists.length)) % 3;
+    const net = getNetworkProfile();
+    // No more than three searches on an automatic transition.
+    for (let i=0; i<Math.min(3,artists.length); i++) {
+        const artist = artists[(start+i)%artists.length];
+        const response = await api('search_global',{
+            query:artist,page:i===0?page:1,
+            network:net.weak?'weak':'normal',save_data:net.saveData?1:0
+        });
+        if (!response?.success || !Array.isArray(response.data)) continue;
+        const picked = smartRadioPickCandidate(response.data,seeds,seen,Math.random());
+        if (picked) return {...picked,_smartRadio:true};
+    }
+    return null;
+}
+async function playSmartRadioNext() {
+    if (smartRadioBusy || !smartRadioEnabled || navigator.onLine===false) return false;
+    if (playbackTab==='search' || !playbackPlaylist.length) return false;
+    smartRadioBusy=true;
+    const serial=++smartRadioRequestSerial;
+    const token=currentPlaybackToken;
+    showLoader(true);
+    artistEl.textContent='Подбираем похожую музыку из сети…';
+    try {
+        const candidate=await findSmartRadioTrack();
+        if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
+            !smartRadioEnabled || !playbackWanted) return true;
+        if (candidate) {
+            // Keep the current and original list; don't overwrite the browsed playlist.
+            playbackPlaylist.push(candidate);
+            if (playbackPlaylist.length > 150) {
+                const old=playbackPlaylist.findIndex((t,i)=>t._smartRadio && i<currentIndex);
+                if (old>=0) { playbackPlaylist.splice(old,1); currentIndex--; }
+            }
+            showNotification('Умное продолжение: '+candidate.artist+' — '+candidate.title);
+            playTrack(playbackPlaylist.length-1,{fromPlayback:true});
+            return true;
+        }
+        showNotification('Похожих треков пока нет. Повторяем плейлист.');
+    } catch(error) {
+        if (serial===smartRadioRequestSerial && token===currentPlaybackToken)
+            showNotification('Не удалось подобрать музыку. Продолжаем плейлист.');
+    } finally {
+        smartRadioBusy=false;
+    }
+    if (serial===smartRadioRequestSerial && token===currentPlaybackToken &&
+        playbackWanted && playbackPlaylist.length) {
+        playTrack(0,{fromPlayback:true});
+    }
+    return true;
+}
+function toggleShuffle() {
+    isShuffle = !isShuffle;
+    smartShufflePlayed.clear();
+    if (isShuffle && currentIndex >= 0) smartShufflePlayed.add(currentIndex);
+    document.getElementById('btn-shuffle').classList.toggle('active');
+}
 function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('btn-repeat').classList.toggle('active'); }
 function savePlaybackQueue() {
     try { localStorage.setItem(PLAYBACK_QUEUE_KEY, JSON.stringify(playbackQueue)); } catch (e) {}
@@ -3473,24 +3633,38 @@ function clearPlaybackQueue() {
 }
 function playNext() {
     if (playbackQueue.length) {
-        const track = playbackQueue.shift();
+        const track=playbackQueue.shift();
         savePlaybackQueue();
-        let index = playbackPlaylist.findIndex(t => canonicalTrackUrl(t) === canonicalTrackUrl(track));
-        if (index < 0) { index = playbackPlaylist.length; playbackPlaylist.push(track); }
-        playTrack(index, {fromPlayback:true});
+        let index=playbackPlaylist.findIndex(t=>canonicalTrackUrl(t)===canonicalTrackUrl(track));
+        if (index<0) { index=playbackPlaylist.length; playbackPlaylist.push(track); }
+        playTrack(index,{fromPlayback:true});
         return;
     }
     if (!playbackPlaylist.length) return;
-    if (isShuffle && playbackPlaylist.length > 1) {
-        let r = Math.floor(Math.random() * playbackPlaylist.length);
-        while (r === currentIndex) r = Math.floor(Math.random() * playbackPlaylist.length);
-        playTrack(r, {fromPlayback:true});
+    if (isShuffle && playbackPlaylist.length>1) {
+        let remaining=playbackPlaylist.map((t,i)=>i).filter(i=>!smartShufflePlayed.has(i));
+        if (!remaining.length) {
+            if (smartRadioEnabled && playbackTab!=='search' && navigator.onLine!==false) {
+                playSmartRadioNext();
+                return;
+            }
+            smartShufflePlayed.clear();
+            smartShufflePlayed.add(currentIndex);
+            remaining=playbackPlaylist.map((t,i)=>i).filter(i=>i!==currentIndex);
+        }
+        playTrack(remaining[Math.floor(Math.random()*remaining.length)],{fromPlayback:true});
     } else {
-        let n = currentIndex + 1;
-        if (n >= playbackPlaylist.length) n = 0;
-        playTrack(n, {fromPlayback:true});
+        const next=currentIndex+1;
+        if (next>=playbackPlaylist.length) {
+            if (smartRadioEnabled && playbackTab!=='search' && navigator.onLine!==false) {
+                playSmartRadioNext();
+                return;
+            }
+            playTrack(0,{fromPlayback:true});
+        } else playTrack(next,{fromPlayback:true});
     }
 }
+
 function playPrev() {
     if (!playbackPlaylist.length) return;
     const p = currentIndex <= 0 ? playbackPlaylist.length - 1 : currentIndex - 1;

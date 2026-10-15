@@ -60,6 +60,9 @@ jobs:
       - name: Test native progress and touch seeking
         run: node .github/test-native-media.mjs
 
+      - name: Test smart radio recommendations
+        run: node .github/test-smart-radio.mjs
+
       - name: Build local web shell
         env:
           DAG_NATIVE_BUILD_VERSION: "1.0.${{ github.run_number }}-preview"
