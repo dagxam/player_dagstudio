@@ -201,6 +201,7 @@
                 <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-queue-label">Умное продолжение: включено</span>
             </button>
             <div class="smart-radio-hint">После последнего трека плейлиста — случайные новые песни знакомых исполнителей из сети. Ручная очередь имеет приоритет.</div>
+            <div class="smart-radio-hint" id="smart-radio-next-info" aria-live="polite">Подбор начнётся ближе к концу плейлиста.</div>
         </div>
         <div id="queue-list" class="queue-list"></div>
         <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
@@ -244,7 +245,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2255" defer></script>
+<script src="script.js?v=2256" defer></script>
 
 </body>
 </html>

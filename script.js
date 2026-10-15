@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2255';
+const WEB_BUILD_LABEL = '2256';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2255', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2256', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2255') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2255', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2256') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2256', '1');
         window.location.reload();
     });
 }
@@ -475,6 +475,7 @@ let smartRadioEnabled = localStorage.getItem(SMART_RADIO_KEY) !== 'off';
 let smartRadioBusy = false;
 let smartRadioRequestSerial = 0;
 let smartRadioSearchCursor = 0;
+let smartRadioPrefetch = null;
 const smartShufflePlayed = new Set();
 
 
@@ -3003,6 +3004,7 @@ mainAudio.addEventListener('playing', function() {
     requestWakeLock();
     syncCarNativeMedia(true);
     maybePrecacheNextTrack();
+    maybePrefetchSmartRadio();
 
     const token = currentPlaybackToken;
     const track = playbackPlaylist[currentIndex];
@@ -3036,7 +3038,41 @@ mainAudio.addEventListener('pause', function() {
     }
 });
 
+function isPrematureTrackEnd(position,duration) {
+    const elapsed=Number(position);
+    const total=Number(duration);
+    if (!Number.isFinite(elapsed) || elapsed < 12) return true;
+    return Number.isFinite(total) && total>0 && elapsed+4<total;
+}
+function handlePrematureTrackEnd() {
+    const track=playbackPlaylist[currentIndex];
+    if (!track || !playbackWanted || !mainAudio.getAttribute('src')) return false;
+    const elapsed=Number(mainAudio.currentTime);
+    const duration=Number(mainAudio.duration);
+    if (!isPrematureTrackEnd(elapsed,duration)) return false;
+    recordPlayerEvent('premature-end');
+    if ((track._earlyEndRetries || 0)<2 && navigator.onLine!==false) {
+        track._earlyEndRetries=(track._earlyEndRetries||0)+1;
+        artistEl.textContent='Поток завершился слишком рано — восстанавливаем…';
+        const token=currentPlaybackToken;
+        setTimeout(()=>{
+            if (currentPlaybackToken===token && playbackWanted && playbackPlaylist[currentIndex]===track)
+                recoverCurrentStream('premature-end').catch(()=>{});
+        },900);
+    } else {
+        playbackWanted=false;
+        clearStreamRecoveryTimer();
+        clearPlaybackWatchdog();
+        showLoader(false);
+        updateState(false);
+        artistEl.textContent='Нестабильный источник. Нажмите ▶ для повтора.';
+        recordPlayerEvent('premature-end-limit');
+    }
+    return true;
+}
+mainAudio.addEventListener('prematureend',handlePrematureTrackEnd);
 mainAudio.addEventListener('ended', function() {
+    if (handlePrematureTrackEnd()) return;
     if (sleepAfterCurrent || (sleepTimerAt && Date.now() >= sleepTimerAt)) {
         sleepAfterCurrent = false;sleepTimerAt = 0;
         // Останавливаем и нативный Android-сервис, иначе он держит CPU awake.
@@ -3097,6 +3133,7 @@ mainAudio.addEventListener('timeupdate', function() {
     if (track && isFinite(mainAudio.currentTime) && mainAudio.currentTime > 0) {
         track._resumeTime = mainAudio.currentTime;
         saveNativePlaybackSnapshot();
+        maybePrefetchSmartRadio();
 
         // Дополнительная страховка: после 8 секунд онлайн-прослушивания
         // ставим трек в очередь постоянного кэша только один раз за запуск.
@@ -3172,11 +3209,10 @@ async function playTrack(index, options = {}) {
         playbackPlaylist = [...targetList];
         playbackTab = String(currentTab);
         smartRadioRequestSerial++; // Discard pending suggestions after a manual selection.
+        smartRadioPrefetch = null;
         smartShufflePlayed.clear();
-    }
-    if (options.fromPlayback && smartRadioBusy && !options.fromSmartRadio) {
-        // Internal transitions already carry a playback token; stale requests
-        // must never steal the track after a new manual action.
+        const label=document.getElementById('smart-radio-next-info');
+        if (label) label.textContent='Подбор начнётся ближе к концу плейлиста.';
     }
     playbackWanted = true;
     currentIndex = index;
@@ -3188,6 +3224,7 @@ async function playTrack(index, options = {}) {
     const token = currentPlaybackToken;
 
     track._streamRetries = 0;
+    track._earlyEndRetries = 0;
     track._cachedRecoveryAttempts = 0;
     track._refreshAttempted = false;
     resetMediaAdvanceClock();
@@ -3502,6 +3539,7 @@ function toggleSmartRadio() {
     smartRadioEnabled = !smartRadioEnabled;
     localStorage.setItem(SMART_RADIO_KEY,smartRadioEnabled?'on':'off');
     smartRadioRequestSerial++;
+    smartRadioPrefetch = null;
     renderSmartRadioState();
     showNotification(smartRadioEnabled ?
         'После плейлиста включатся новые песни знакомых исполнителей.' :
@@ -3529,16 +3567,68 @@ async function findSmartRadioTrack() {
     }
     return null;
 }
+function maybePrefetchSmartRadio() {
+    if (!smartRadioEnabled || smartRadioBusy || isRepeat || playbackQueue.length ||
+        playbackTab==='search' || navigator.onLine===false || !playbackWanted ||
+        currentIndex!==playbackPlaylist.length-1 || !playbackPlaylist[currentIndex]) return;
+    if (isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
+    const duration = Number(mainAudio.duration);
+    const position = Number(mainAudio.currentTime);
+    if (!Number.isFinite(duration) || duration <= 0 ||
+        !Number.isFinite(position) || position < 8) return;
+    const remaining = duration-position;
+    if (remaining > 95 || remaining < 0) return;
+    // Only search/download when enough of the current song is buffered; on
+    // mobile radio we must not trade reliable sound for recommendations.
+    if (!playbackPlaylist[currentIndex]._playingFromCache &&
+        !isCurrentTrackFullyReady() && bufferedSecondsAhead() < 12) return;
+    const token=currentPlaybackToken, serial=smartRadioRequestSerial;
+    if (smartRadioPrefetch?.token === token && smartRadioPrefetch.serial === serial) return;
+    const state={token,serial,candidate:null,promise:null};
+    smartRadioPrefetch=state;
+    const info=document.getElementById('smart-radio-next-info');
+    if (info) info.textContent='Следующий из сети: подбираем…';
+    state.promise=findSmartRadioTrack().then(candidate=>{
+        if (smartRadioPrefetch !== state || token!==currentPlaybackToken ||
+            serial!==smartRadioRequestSerial || !smartRadioEnabled) return null;
+        state.candidate=candidate;
+        if (candidate) {
+            if (info) info.textContent='Следующий из сети: '+candidate.artist+' — '+candidate.title;
+            if (isCurrentTrackFullyReady() ||
+                (!getNetworkProfile().weak && bufferedSecondsAhead()>=25)) {
+                cacheTrackSilently(candidate,{reason:'next',priority:true});
+            }
+        } else if (info) info.textContent='Подбор продолжится после текущего трека.';
+        return candidate;
+    }).catch(()=>{
+        if (smartRadioPrefetch===state && info)
+            info.textContent='Подбор продолжится после текущего трека.';
+        return null;
+    });
+}
 async function playSmartRadioNext() {
-    if (smartRadioBusy || !smartRadioEnabled || navigator.onLine===false) return false;
+    if (smartRadioBusy) return true;
+    if (!smartRadioEnabled || navigator.onLine===false) return false;
     if (playbackTab==='search' || !playbackPlaylist.length) return false;
     smartRadioBusy=true;
+    const prefetched=smartRadioPrefetch;
+    smartRadioPrefetch=null;
     const serial=++smartRadioRequestSerial;
     const token=currentPlaybackToken;
     showLoader(true);
     artistEl.textContent='Подбираем похожую музыку из сети…';
     try {
-        const candidate=await findSmartRadioTrack();
+        // Most tracks are selected before the playlist ends. If an earlier
+        // network request is still in flight, wait briefly rather than start
+        // several competing provider searches on TEYES mobile radio.
+        let candidate=prefetched?.candidate || null;
+        if (!candidate && prefetched?.promise && prefetched.token===token) {
+            candidate=await Promise.race([
+                prefetched.promise,
+                new Promise(resolve=>setTimeout(()=>resolve(null),5500))
+            ]);
+        }
+        if (!candidate) candidate=await findSmartRadioTrack();
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
             !smartRadioEnabled || !playbackWanted) return true;
         if (candidate) {
@@ -3548,8 +3638,10 @@ async function playSmartRadioNext() {
                 const old=playbackPlaylist.findIndex((t,i)=>t._smartRadio && i<currentIndex);
                 if (old>=0) { playbackPlaylist.splice(old,1); currentIndex--; }
             }
+            const next=document.getElementById('smart-radio-next-info');
+            if (next) next.textContent='Сейчас из сети: '+candidate.artist+' — '+candidate.title;
             showNotification('Умное продолжение: '+candidate.artist+' — '+candidate.title);
-            playTrack(playbackPlaylist.length-1,{fromPlayback:true});
+            playTrack(playbackPlaylist.length-1,{fromPlayback:true,fromSmartRadio:true});
             return true;
         }
         showNotification('Похожих треков пока нет. Повторяем плейлист.');

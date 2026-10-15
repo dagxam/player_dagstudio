@@ -17,6 +17,7 @@
       this._playing = false;
       this._state = 'idle';
       this._ended = false;
+      this._prematureEndNotified = false;
       this._error = null;
       this._volume = 1;
       this.preload = 'auto';
@@ -36,6 +37,7 @@
     set src(value) {
       this._src = String(value || '');
       this._ended = false;
+      this._prematureEndNotified = false;
       this._error = null;
       this._position = 0;
       this._duration = 0;
@@ -151,10 +153,23 @@
       this._playing = !!data.playing;
       if (this._playing && !wasPlaying && this._wanted) this._emit('playing');
       if (state === 'ended' && !this._ended) {
-        this._ended = true;
-        this._playing = false;
-        this._wanted = false;
-        this._emit('ended');
+        // Media3 can finish a truncated HTTP stream (or report the previous
+        // source's terminal state) after only a few seconds. Let the app retry
+        // the current track rather than silently skip to the next one.
+        const tooEarly = this._position < 12 ||
+          (this._duration > 0 && this._position + 4 < this._duration);
+        if (tooEarly) {
+          this._playing = false;
+          if (!this._prematureEndNotified) {
+            this._prematureEndNotified = true;
+            this._emit('prematureend');
+          }
+        } else {
+          this._ended = true;
+          this._playing = false;
+          this._wanted = false;
+          this._emit('ended');
+        }
       }
     }
   }
