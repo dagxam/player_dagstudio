@@ -64,7 +64,16 @@ jobs:
           cp native/android/MainActivity.java android/app/src/main/java/ru/dagstudio/player/MainActivity.java
           cp native/android/DAGCarModePlugin.java android/app/src/main/java/ru/dagstudio/player/DAGCarModePlugin.java
           cp native/android/DAGMediaService.java android/app/src/main/java/ru/dagstudio/player/DAGMediaService.java
+          cp native/android/DAGAudioEngine.java android/app/src/main/java/ru/dagstudio/player/DAGAudioEngine.java
           node scripts/configure-android-media.mjs
+          cat >> android/app/build.gradle <<'MEDIA3_GRADLE'
+
+          dependencies {
+              implementation "androidx.media3:media3-exoplayer:1.11.1"
+              implementation "androidx.media3:media3-datasource:1.11.1"
+              implementation "androidx.media3:media3-database:1.11.1"
+          }
+          MEDIA3_GRADLE
           npx @capacitor/assets generate --android             --iconBackgroundColor "#0b0b0b"             --iconBackgroundColorDark "#0b0b0b"             --splashBackgroundColor "#0b0b0b"             --splashBackgroundColorDark "#0b0b0b"
 
       - name: Restore release keystore
