@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2244';
+const WEB_BUILD_LABEL = '2245';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2244', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2245', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2244') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2244', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2245') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2245', '1');
         window.location.reload();
     });
 }
@@ -1171,6 +1171,10 @@ async function processNativeCacheQueue() {
         window.DAG_CAR_APP_ACTIVE === false) return;
     if (navigator.onLine === false) return;
 
+    if (!playbackWanted && Date.now() - lastManualPauseAt < 90000) {
+        scheduleNativeCacheWorker(90000 - (Date.now() - lastManualPauseAt));
+        return;
+    }
     if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
         scheduleNativeCacheWorker(15000);
         return;
@@ -1273,6 +1277,10 @@ async function processWebCacheQueue() {
     if (navigator.onLine === false) return;
 
     // Кэширование плейлистов никогда не должно мешать текущему воспроизведению.
+    if (!playbackWanted && Date.now() - lastManualPauseAt < 90000) {
+        scheduleWebCacheWorker(90000 - (Date.now() - lastManualPauseAt));
+        return;
+    }
     if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
         scheduleWebCacheWorker(12000);
         return;
@@ -2031,6 +2039,8 @@ document.addEventListener('visibilitychange', function() {
 
 if (mainAudio) {
     mainAudio.addEventListener('pause', function() {
+        // Не начинаем новый сетевой запрос из-за кнопки «Пауза».
+        if (playbackWanted || Date.now() - lastManualPauseAt < 90000) return;
         if (IS_NATIVE_APP) scheduleNativeCacheWorker(500);
         else scheduleWebCacheWorker(500);
     });
@@ -2414,7 +2424,7 @@ function scoreReplacementTrack(saved, candidate) {
 }
 
 async function refreshSavedTrackSource(track) {
-    if (!track || !track.id || track._refreshAttempted || navigator.onLine === false) return false;
+    if (!track || track._refreshAttempted || navigator.onLine === false) return false;
     track._refreshAttempted = true;
 
     const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
@@ -2433,7 +2443,7 @@ async function refreshSavedTrackSource(track) {
 
     const ranked = candidates
         .map(candidate => ({ candidate, score: scoreReplacementTrack(track, candidate) }))
-        .filter(item => item.score >= 70 && item.candidate && item.candidate.url)
+        .filter(item => item.score >= (track.id ? 70 : 170) && item.candidate && item.candidate.url)
         .sort((a, b) => b.score - a.score);
 
     if (!ranked.length) return false;
@@ -2442,13 +2452,16 @@ async function refreshSavedTrackSource(track) {
     const newUrl = String(replacement.url || '').trim();
     if (!newUrl || newUrl === String(track.url || '').trim()) return false;
 
-    const update = await api('update_track_url', {
-        track_id: track.id,
-        url: newUrl,
-        thumb: replacement.thumb || track.thumb || ''
-    });
-
-    if (!update || update.success !== true) return false;
+    // Временный результат поиска не имеет track.id: обновляем только в памяти.
+    // Постоянный плейлист исправляем на сервере, чтобы ссылка работала и на других устройствах.
+    if (track.id) {
+        const update = await api('update_track_url', {
+            track_id: track.id,
+            url: newUrl,
+            thumb: replacement.thumb || track.thumb || ''
+        });
+        if (!update || update.success !== true) return false;
+    }
 
     track.url = newUrl;
     if (replacement.thumb) track.thumb = replacement.thumb;

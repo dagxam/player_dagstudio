@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2243', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2245', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2243', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2245', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2243'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2245'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -413,6 +413,8 @@ try {
     audio.src = '/proxy.php?' + params.toString();
     audio.preload = 'metadata';
     audio.muted = true;
+    // Реальный плеер удерживает намерение играть отдельно от audio.paused.
+    playbackWanted = true;
     audio.load();
 
     return await new Promise(resolve => {
@@ -422,6 +424,7 @@ try {
         done = true;
         clearTimeout(timer);
         audio.pause();
+        playbackWanted = false;
         resolve(value);
       };
       const timer = setTimeout(() => finish({
@@ -450,10 +453,36 @@ try {
     throw new Error('Live HTMLMediaElement playback did not start: ' + JSON.stringify(mediaStart));
   }
 
+  // Regression: when a stream hangs, the first pause tap must NOT call audio.play() again.
+  const pauseRegression = await page.evaluate(() => {
+    const audio = document.getElementById('main-audio');
+    const originalPlay = audio.play;
+    const previousPlaylist = playlist;
+    const previousIndex = currentIndex;
+    const previousIntent = playbackWanted;
+    let calls = 0;
+    audio.play = function() { calls += 1; return Promise.resolve(); };
+    playlist = [{title:'Тест',artist:'Тест',url:'https://example.invalid/test.mp3'}];
+    currentIndex = 0;
+    playbackWanted = true;
+    try {
+      togglePlay();
+      return {calls,paused:!playbackWanted,button:document.getElementById('btn-play').getAttribute('aria-label')};
+    } finally {
+      audio.play = originalPlay;
+      playlist = previousPlaylist;
+      currentIndex = previousIndex;
+      playbackWanted = previousIntent;
+    }
+  });
+  console.log('PAUSE_DURING_LOADING',JSON.stringify(pauseRegression));
+  if (!pauseRegression.paused || pauseRegression.calls !== 0)
+    throw new Error('Pause restarted audio during loading');
+
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2243', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2245', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
