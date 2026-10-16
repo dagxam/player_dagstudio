@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2260', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2261', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -101,10 +101,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2260', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2261', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2260'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2261'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -188,7 +188,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2260', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2261', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -294,7 +294,7 @@ try {
     mixSaving:renderPlaylist.toString().includes("String(currentTab).startsWith('mix:')")
   }));
   console.log('MIX_CATEGORY_QUALITY',JSON.stringify(categoryOrder));
-  if(categoryOrder.russian!=='Русская'||!categoryOrder.caucasus||
+  if(categoryOrder.russian!=='Русские'||!categoryOrder.caucasus||
       !categoryOrder.foreign||!categoryOrder.sorter||!categoryOrder.mixSaving)
     throw new Error('Mix category labels/ranking/save controls regressed');
 
@@ -602,7 +602,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2260', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2261', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

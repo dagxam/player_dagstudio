@@ -88,7 +88,7 @@
 
         <nav id="quick-mixes" class="quick-mixes" aria-label="Быстрые музыкальные подборки">
             <span class="quick-mixes-label"><i class="fas fa-bolt"></i> Подборки</span>
-            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')"><i class="fas fa-music"></i> Русская</button>
+            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')"><i class="fas fa-music"></i> Русские</button>
             <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')"><i class="fas fa-mountain"></i> Кавказские</button>
             <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')"><i class="fas fa-globe"></i> Зарубежные</button>
             <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')"><i class="fas fa-star"></i> Лучшее</button>
@@ -258,7 +258,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2260" defer></script>
+<script src="script.js?v=2261" defer></script>
 
 </body>
 </html>
