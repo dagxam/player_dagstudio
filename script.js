@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2264';
+const WEB_BUILD_LABEL = '2265';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2264', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2265', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2264') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2264', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2265') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2265', '1');
         window.location.reload();
     });
 }
@@ -4107,7 +4107,7 @@ function quickMixSpreadSources(tracks,limit=8) {
 function quickMixSourcesCaption(state) {
     const checked=state?.checkedSources?.size||0;
     const found=state?.activeSources?.size||0;
-    return checked?(' · источников с результатами: '+found+'/'+checked):'';
+    return checked?(' · серверов ответили: '+found+'/'+checked):'';
 }
 function setQuickMixStatus(message) {
     const el=document.getElementById('quick-mix-status');
@@ -4177,10 +4177,10 @@ async function startQuickMix(key) {
                         }
                     }
                     if(response?.success&&Array.isArray(response.data)&&response.data.length) {
-                        return quickMixRankTracks(
-                            quickMixUnique(response.data),config
-                        ).map(track=>({...track,_mixRegion:item.region,
-                            _mixSearchQuery:query}));
+                        const usable=quickMixUnique(response.data);
+                        if(usable.length)return quickMixRankTracks(usable,config)
+                            .map(track=>({...track,_mixRegion:item.region,
+                                _mixSearchQuery:query}));
                     }
                 } catch(error) {recordPlayerEvent('quick-mix-search-error');}
             }
@@ -4192,7 +4192,7 @@ async function startQuickMix(key) {
         const next=[];
         for(let i=0;i<batch.length;i++){
             const item=batch[i];
-            const fresh=quickMixUnique(results[i],quickMixCurrent.tracks);
+            const fresh=quickMixUnique(results[i],[...quickMixCurrent.tracks,...next]);
             const spread=quickMixSpreadSources(fresh,config.regions?5:12);
             if(spread.length){
                 next.push(...spread);
