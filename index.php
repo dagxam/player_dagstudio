@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>DAGSTUDIO PLAYER</title>
     <meta name="theme-color" content="#0b0b0b">
     <meta name="application-name" content="DAGSTUDIO PLAYER">
@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=10">
+    <link rel="stylesheet" href="modern.css?v=11">
 </head>
 <body>
 
@@ -87,6 +87,12 @@
             <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Очередь воспроизведения" aria-label="Очередь воспроизведения"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
         </div>
 
+        <div id="ios-install-banner" class="ios-install-banner" hidden role="region" aria-label="Установка на iPhone">
+            <span class="ios-banner-icon"><i class="fab fa-apple"></i></span>
+            <span class="ios-banner-copy"><strong>DAGSTUDIO на iPhone</strong><small>Установи на экран «Домой»</small></span>
+            <button type="button" class="ios-banner-action" onclick="showIOSInstallGuide()">Как установить</button>
+            <button type="button" class="ios-banner-close" onclick="dismissIOSInstallBanner()" aria-label="Скрыть"><i class="fas fa-xmark"></i></button>
+        </div>
         <div id="quick-mix-status" class="quick-mix-status" role="status" aria-live="polite" hidden></div>
         <div class="search-container-wrap" id="search-container-box">
             <input type="text" id="search-input" class="search-input" placeholder="Поиск музыки..." autocomplete="off">
@@ -102,6 +108,25 @@
 </div>
 
 <!-- МОДАЛЬНЫЕ ОКНА -->
+<div id="ios-install-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ios-install-title" onclick="if(event.target===this)closeModal('ios-install-modal')">
+  <div class="modal-box ios-install-modal-box">
+    <button type="button" class="modal-close" onclick="closeModal('ios-install-modal')" aria-label="Закрыть">&times;</button>
+    <div class="ios-install-heading">
+      <div class="ios-install-logo"><i class="fab fa-apple"></i></div>
+      <div><span class="quick-mixes-eyebrow">DAGSTUDIO PLAYER</span>
+        <h3 class="modal-title" id="ios-install-title">На экран iPhone</h3>
+        <p>Как приложение — без IPA и без App Store.</p></div>
+    </div>
+    <p id="ios-install-other-browser" class="ios-install-other-browser" hidden>Для простого и надёжного способа открой pl.dagstudio.ru в Safari на iPhone.</p>
+    <div class="ios-install-steps">
+      <div class="ios-install-step"><b>1</b><span><strong>Открой pl.dagstudio.ru в Safari</strong><small>На своём iPhone или iPad.</small></span></div>
+      <div class="ios-install-step"><b>2</b><span><strong>Нажми «Поделиться» <i class="fas fa-arrow-up-from-bracket"></i></strong><small>Квадрат со стрелкой в панели Safari.</small></span></div>
+      <div class="ios-install-step"><b>3</b><span><strong>Выбери «На экран Домой»</strong><small>При необходимости прокрути список. Затем «Добавить».</small></span></div>
+    </div>
+    <p class="ios-install-disclaimer"><i class="fas fa-circle-info"></i> С иконки плеер запускается без обычной панели Safari. Фоновая работа и кэш ограничиваются возможностями iOS.</p>
+    <button type="button" class="modal-btn btn-primary" onclick="closeModal('ios-install-modal')">ПОНЯТНО</button>
+  </div>
+</div>
 <!-- Подборки собраны в одну кнопку около эквалайзера: без длинной полосы над поиском. -->
 <div id="quick-mixes-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quick-mixes-title" onclick="if(event.target===this)closeModal('quick-mixes-modal')">
     <div class="modal-box quick-mixes-modal-box">
@@ -176,6 +201,7 @@
             <i class="fas fa-rotate"></i>
             <span>Обновить приложение</span>
         </button>
+        <button type="button" id="ios-install-guide-btn" class="menu-list-btn" onclick="showIOSInstallGuide()" hidden><i class="fab fa-apple"></i> Установить на iPhone</button>
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать приложение для Android</a>
         <button type="button" class="menu-list-btn" onclick="openCacheDashboard()"><i class="fas fa-hard-drive"></i> Кэш и офлайн-хранилище</button>
         <button type="button" class="menu-list-btn" onclick="openPlayerDiagnostics()"><i class="fas fa-chart-line"></i> Проверка звука и сети</button>
@@ -281,7 +307,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2265" defer></script>
+<script src="script.js?v=2266" defer></script>
 
 </body>
 </html>

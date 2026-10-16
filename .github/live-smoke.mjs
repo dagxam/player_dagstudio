@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2265', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2266', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -71,7 +71,7 @@ try {
   }
 
   // Проверяем знакомую двухколоночную компоновку после обновления оформления.
-  for (const viewport of [{width:1024,height:600}, {width:1280,height:720}, {width:390,height:844}]) {
+  for (const viewport of [{width:1024,height:600}, {width:1280,height:720}, {width:390,height:844}, {width:320,height:640}, {width:375,height:667}]) {
     await page.setViewport(viewport);
     const layout = await page.evaluate(() => {
       const root = document.querySelector('.main-container');
@@ -103,12 +103,28 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
+  for(const viewport of [{width:320,height:640},{width:375,height:667},{width:390,height:844}]) {
+    await page.setViewport(viewport);
+    const layout=await page.evaluate(()=>{
+      const rect=s=>document.querySelector(s).getBoundingClientRect();
+      const artwork=rect('.visual-container'),title=rect('.track-info-display'),buttons=rect('.main-btns'),
+          right=rect('.right-col'),list=rect('.playlist-area');
+      return {artworkVisible:artwork.width>=50&&artwork.height>=50,
+          besideArt:title.left>=artwork.right-3,controlsFit:buttons.right<=innerWidth+2,
+          scrollableList:list.height>=85,compactPlayer:right.top<395,
+          noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+    });
+    console.log('PHONE_MINI_PLAYER',JSON.stringify({viewport,layout}));
+    if(Object.values(layout).some(x=>!x))throw new Error('Phone layout regression '+JSON.stringify({viewport,layout}));
+  }
+  await page.setViewport({width:1200,height:800});
+
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2265', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2266', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2265'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2266'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -192,7 +208,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2265', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2266', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -298,6 +314,16 @@ try {
     document.getElementById('header-mixes-btn').getAttribute('aria-expanded')==='false');
   if(!closed) throw new Error('Quick mix dialog did not close');
 
+  const ios=await page.evaluate(()=>({
+      guide:typeof showIOSInstallGuide==='function',
+      dismiss:typeof dismissIOSInstallBanner==='function',
+      modal:!!document.getElementById('ios-install-modal'),
+      button:!!document.getElementById('ios-install-guide-btn'),
+      banner:!!document.getElementById('ios-install-banner'),
+      hiddenDesktop:document.getElementById('ios-install-guide-btn').hidden
+  }));
+  console.log('IOS_HOME_SCREEN_INSTALL_UI',JSON.stringify(ios));
+  if(Object.values(ios).some(x=>!x))throw new Error('iPhone install UI missing');
   const uiChanges=await page.evaluate(()=>({
     heart:!!document.getElementById('now-playing-heart'),
     saving:typeof savePlayingTrack==='function',
@@ -641,7 +667,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2265', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2266', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2265';
+const WEB_BUILD_LABEL = '2266';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2265', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2266', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2265') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2265', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2266') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2266', '1');
         window.location.reload();
     });
 }
@@ -1791,7 +1791,33 @@ window.triggerInstall = async function() {
     }
 };
 
-// PWA-кнопка установки удалена из интерфейса: остаётся только APK-загрузка.
+// On iOS a Home Screen web app is installed through the system Share menu,
+// not via a downloaded IPA or the Android beforeinstallprompt.
+const IOS_BANNER_HIDDEN_KEY='dag_ios_banner_dismissed_1';
+function showIOSInstallGuide() {
+    if(IS_NATIVE_APP)return;
+    closeModal('menu-modal');
+    const modal=document.getElementById('ios-install-modal');
+    if(!modal)return;
+    const other=document.getElementById('ios-install-other-browser');
+    if(other)other.hidden=!(isIOS&&!getBrowserInfo().safari);
+    modal.classList.add('show');
+}
+function dismissIOSInstallBanner() {
+    try {localStorage.setItem(IOS_BANNER_HIDDEN_KEY,'1');}catch(e){}
+    document.getElementById('ios-install-banner').hidden=true;
+}
+function refreshIOSInstallControls() {
+    const visible=isIOS&&!IS_NATIVE_APP&&!isAppStandalone();
+    const menu=document.getElementById('ios-install-guide-btn');
+    const banner=document.getElementById('ios-install-banner');
+    if(menu)menu.hidden=!visible;
+    if(banner)banner.hidden=!(visible&&localStorage.getItem(IOS_BANNER_HIDDEN_KEY)!=='1');
+}
+refreshIOSInstallControls();
+window.addEventListener('appinstalled',refreshIOSInstallControls);
+if(standaloneMedia?.addEventListener)standaloneMedia.addEventListener('change',refreshIOSInstallControls);
+
 
 // --- API & AUTH ---
 async function api(action, data = {}) {
