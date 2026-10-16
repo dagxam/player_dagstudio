@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=14">
+    <link rel="stylesheet" href="modern.css?v=15">
 </head>
 <body>
 
@@ -267,6 +267,8 @@
             <button type="button" data-eq-preset="electro">Электро</button>
         </div>
         <div id="eq-bands" class="eq-bands"></div>
+        <label class="offline-economy eq-level-setting"><input id="eq-level-switch" type="checkbox" onchange="toggleSoftLeveling(this.checked)"> Мягкое выравнивание громкости</label>
+        <p id="eq-level-note" class="eq-level-note">Ограничение пиков звука в браузере.</p>
         <div class="eq-footer">
             <span><i class="fas fa-circle-info"></i> Настройки сохраняются на этом устройстве</span>
             <button type="button" class="eq-reset-btn" onclick="resetEqualizer()">Сбросить</button>
@@ -341,7 +343,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2271" defer></script>
+<script src="script.js?v=2272" defer></script>
 
 </body>
 </html>

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2271';
+const WEB_BUILD_LABEL = '2272';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2271', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2272', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2271') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2271', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2272') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2272', '1');
         window.location.reload();
     });
 }
@@ -575,6 +575,7 @@ const connectionInfo = navigator.connection || navigator.mozConnection || naviga
 
 // --- DAGSTUDIO SOUND / ЭКВАЛАЙЗЕР ---
 const EQ_STORAGE_KEY = 'dag_equalizer_v1';
+const EQ_LIMITER_KEY = 'dag_eq_soft_level_v1';
 const EQ_BANDS = [
     { f: 60, label: '60 Гц', type: 'lowshelf' },
     { f: 150, label: '150 Гц', type: 'peaking' },
@@ -602,6 +603,7 @@ let eqAudioContext = null;
 let eqSourceNode = null;
 let eqFilters = [];
 let eqMasterGain = null;
+let eqDynamicsCompressor = null;
 let eqGraphReady = false;
 let eqGraphFailed = false;
 
@@ -639,6 +641,11 @@ function applyEqualizerState() {
             filter.gain.value = gain;
         }
     });
+    if(eqDynamicsCompressor){
+        const enabled=localStorage.getItem(EQ_LIMITER_KEY)==='on';
+        eqDynamicsCompressor.threshold.setTargetAtTime(enabled?-18:0,eqAudioContext.currentTime,.03);
+        eqDynamicsCompressor.ratio.setTargetAtTime(enabled?3:1,eqAudioContext.currentTime,.03);
+    }
     if (eqMasterGain) {
         const activeBoost = eqState.enabled ? Math.max(...eqState.gains, 0) : 0;
         const compensation = activeBoost >= 6 ? 0.72 : (activeBoost >= 3 ? 0.84 : 0.96);
@@ -693,7 +700,14 @@ async function ensureEqualizerGraph() {
             node.connect(filter);
             node = filter;
         });
-        node.connect(eqMasterGain);
+        eqDynamicsCompressor=eqAudioContext.createDynamicsCompressor();
+        eqDynamicsCompressor.threshold.value=0;
+        eqDynamicsCompressor.knee.value=14;
+        eqDynamicsCompressor.ratio.value=1;
+        eqDynamicsCompressor.attack.value=.012;
+        eqDynamicsCompressor.release.value=.25;
+        node.connect(eqDynamicsCompressor);
+        eqDynamicsCompressor.connect(eqMasterGain);
         eqMasterGain.connect(eqAudioContext.destination);
 
         eqGraphReady = true;
@@ -713,6 +727,13 @@ async function ensureEqualizerGraph() {
 function renderEqualizer() {
     const bands = document.getElementById('eq-bands');
     const power = document.getElementById('eq-power-btn');
+    const level=document.getElementById('eq-level-switch');
+    const note=document.getElementById('eq-level-note');
+    if(level){level.checked=localStorage.getItem(EQ_LIMITER_KEY)==='on';
+       level.disabled=NATIVE_MEDIA3_ACTIVE;}
+    if(note)note.textContent=NATIVE_MEDIA3_ACTIVE?
+       'Встроенный Media3 на Android пока не поддерживает этот режим.':
+       'Ограничивает пики. Не является полной LUFS-нормализацией.';
     if (!bands || !power) return;
 
     power.classList.toggle('active', !!eqState.enabled);
@@ -779,6 +800,12 @@ window.openEqualizer = async function() {
     }
 };
 
+window.toggleSoftLeveling = async function(enabled) {
+    if(NATIVE_MEDIA3_ACTIVE)return;
+    localStorage.setItem(EQ_LIMITER_KEY,enabled?'on':'off');
+    await ensureEqualizerGraph();
+    applyEqualizerState();
+};
 window.toggleEqualizerPower = async function() {
     eqState.enabled = !eqState.enabled;
     saveEqualizerState();

@@ -11,6 +11,10 @@
 
 Это PWA, а не IPA: системная музыка, фоновое проигрывание и долговременная загрузка ограничены возможностями iOS/WebKit и конкретного аудиоисточника.
 
+## Подготовка нативного аудио iOS
+
+После `npx cap sync ios` запустите `node scripts/ios-prepare.mjs`: он добавляет `UIBackgroundModes=audio` и категорию `AVAudioSession.playback`. Эта базовая настройка не гарантирует непрерывное воспроизведение аудио WKWebView при блокировке: нужен тест на физическом iPhone и, возможно, нативный AVPlayer с MPRemoteCommandCenter. В GitHub Actions уже есть ручной workflow `Prepare iOS App`, который проверяет сборку симулятора **без подписи**. Это не устанавливаемый IPA.
+
 ## Для будущей настоящей IPA
 
 В проекте уже есть Capacitor 8 и пакет `@capacitor/ios`. На macOS с Node.js 22+ и Xcode:
@@ -20,6 +24,7 @@ npm install
 npm run native:web
 npx cap add ios
 npx cap sync ios
+node scripts/ios-prepare.mjs
 npx cap open ios
 ```
 

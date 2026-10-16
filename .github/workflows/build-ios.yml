@@ -40,6 +40,9 @@ jobs:
             --splashBackgroundColor "#0b0b0b" \
             --splashBackgroundColorDark "#0b0b0b"
 
+      - name: Configure iOS background audio session
+        run: node scripts/ios-prepare.mjs
+
       - name: Validate iOS build without signing
         run: |
           xcodebuild \

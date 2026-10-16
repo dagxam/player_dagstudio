@@ -793,3 +793,8 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 @media(max-width:768px){.playlist-download-bar{margin:0 12px 6px;padding:6px 9px;gap:7px;}
 .playlist-download-bar button{min-height:34px;}
 .playlist-download-bar span{font-size:.7rem;}}
+
+.eq-level-setting{display:flex;gap:10px;align-items:center;color:var(--theme-bright-text,#f5f6f8);
+ font-size:.83rem;margin:12px 0 4px;}
+.eq-level-setting input:disabled{opacity:.5;}
+.eq-level-note{font-size:.73rem;color:var(--theme-muted,#a6b0b9);line-height:1.4;margin:2px 0 10px;}
