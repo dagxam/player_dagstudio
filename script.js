@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2257';
+const WEB_BUILD_LABEL = '2258';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2257', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2258', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2257') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2257', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2258') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2258', '1');
         window.location.reload();
     });
 }
@@ -3240,6 +3240,7 @@ async function playTrack(index, options = {}) {
     clearPlaybackWatchdog();
 
     updateActiveTrackInList(index);
+    updatePlayingHeart();
     titleEl.textContent = track.title;
     artistEl.textContent = track.artist;
     showLoader(true);
@@ -3541,9 +3542,8 @@ function toggleSmartRadio() {
     smartRadioRequestSerial++;
     smartRadioPrefetch = null;
     renderSmartRadioState();
-    showNotification(smartRadioEnabled ?
-        'После плейлиста включатся новые песни знакомых исполнителей.' :
-        'Умное продолжение отключено. Плейлист будет повторяться.');
+    const label=document.getElementById('smart-radio-next-info');
+    if(label) label.textContent=smartRadioEnabled?'Похожие песни появятся ближе к концу плейлиста.':'Умное продолжение выключено.';
 }
 async function findSmartRadioTrack() {
     if (navigator.onLine === false) return null;
@@ -3643,14 +3643,15 @@ async function playSmartRadioNext() {
             }
             const next=document.getElementById('smart-radio-next-info');
             if (next) next.textContent='Сейчас из сети: '+candidate.artist+' — '+candidate.title;
-            showNotification('Умное продолжение: '+candidate.artist+' — '+candidate.title);
+            recordPlayerEvent('smart-radio-next');
             playTrack(playbackPlaylist.length-1,{fromPlayback:true,fromSmartRadio:true});
             return true;
         }
-        showNotification('Похожих треков пока нет. Повторяем плейлист.');
+        const hint=document.getElementById('smart-radio-next-info');
+        if(hint) hint.textContent='Похожих треков пока нет. Повторяем плейлист.';
     } catch(error) {
         if (serial===smartRadioRequestSerial && token===currentPlaybackToken)
-            showNotification('Не удалось подобрать музыку. Продолжаем плейлист.');
+            recordPlayerEvent('smart-radio-search-failed');
     } finally {
         smartRadioBusy=false;
     }
@@ -3977,8 +3978,108 @@ if(mainSearchInput) {
     });
 }
 
+
+const QUICK_MIXES={
+    russian:{title:'Русская музыка',artists:['Баста','Мияги','Мот','Макс Корж']},
+    hits:{title:'Лучшее · подборка',artists:['Miyagi','Баста','Zivert','Егор Крид']},
+    road:{title:'В дорогу',artists:['Кино','Би-2','Сплин','Земфира']},
+    rock:{title:'Рок',artists:['Кино','Ария','ДДТ','Сплин']},
+    retro:{title:'Ретро',artists:['Руки Вверх','Мираж','Комбинация','Наутилус Помпилиус']}
+};
+let quickMixRequestId=0;
+let quickMixCurrent=null;
+function quickMixUnique(tracks,known=[]) {
+    const urls=new Set(known.map(t=>String(t.url||'')));
+    const names=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
+    const result=[];
+    for(const track of tracks||[]) {
+        if(!track?.url||!track?.title||!track?.artist||!/^https?:\/\//i.test(track.url)) continue;
+        const key=normalizeTrackIdentity(track.artist)+'|'+normalizeTrackIdentity(track.title);
+        if(urls.has(track.url)||names.has(key))continue;
+        urls.add(track.url);names.add(key);result.push({...track,_quickMix:true});
+    }
+    return result;
+}
+function setQuickMixStatus(message) {
+    const el=document.getElementById('quick-mix-status');
+    if(el){el.textContent=message;el.hidden=!message;}
+}
+function renderQuickMixButtons() {
+    document.querySelectorAll('.quick-mix-btn').forEach(btn=>{
+        btn.classList.toggle('active',currentTab==='mix:'+btn.dataset.mix);
+        btn.disabled=!!quickMixCurrent?.loading;
+    });
+}
+function renderQuickMixView() {
+    if(!quickMixCurrent)return;
+    const search=document.getElementById('search-container-box');
+    const label=document.getElementById('active-tab-name');
+    if(search)search.style.display='none';
+    if(label){label.textContent=quickMixCurrent.title.toUpperCase();label.style.display='block';}
+    document.getElementById('tab-search-btn')?.classList.remove('active');
+    document.getElementById('btn-pl-select')?.classList.remove('active');
+    playlist=quickMixCurrent.tracks;
+    renderPlaylist();
+}
+async function startQuickMix(key) {
+    const config=QUICK_MIXES[key];
+    if(!config)return;
+    if(navigator.onLine===false) {
+        setQuickMixStatus('Для запуска подборки нужен интернет.');return;
+    }
+    const requestId=++quickMixRequestId;
+    quickMixCurrent={key,title:config.title,tracks:[],loading:true};
+    renderQuickMixButtons();
+    setQuickMixStatus('Ищем музыку для подборки «'+config.title+'»…');
+    // Discover actual playable-looking URLs; unlike curated charts we do not
+    // claim these are official rankings or known available tracks.
+    const artists=[...config.artists].sort(()=>Math.random()-.5);
+    let started=false;
+    for(const artist of artists) {
+        if(requestId!==quickMixRequestId)return;
+        try {
+            const net=getNetworkProfile();
+            const response=await api('search_global',{
+                query:artist,page:1,network:net.weak?'weak':'normal',
+                save_data:net.saveData?1:0
+            });
+            if(requestId!==quickMixRequestId)return;
+            if(!response?.success||!Array.isArray(response.data))continue;
+            const next=quickMixUnique(response.data,quickMixCurrent.tracks)
+                .sort(()=>Math.random()-.5).slice(0,9);
+            if(!next.length)continue;
+            quickMixCurrent.tracks.push(...next);
+            if(!started){
+                started=true;
+                currentTab='mix:'+key;
+                playlist=quickMixCurrent.tracks;
+                renderQuickMixView();
+                playTrack(0);
+                setQuickMixStatus('');
+                renderQuickMixButtons();
+            }else{
+                if(playbackTab==='mix:'+key&&playbackWanted){
+                    const urls=new Set(playbackPlaylist.map(t=>t.url));
+                    playbackPlaylist.push(...next.filter(t=>!urls.has(t.url)));
+                }
+                if(currentTab==='mix:'+key){
+                    playlist=quickMixCurrent.tracks;
+                    renderPlaylist();
+                }
+            }
+        }catch(e){recordPlayerEvent('quick-mix-search-error');}
+    }
+    if(requestId!==quickMixRequestId)return;
+    quickMixCurrent.loading=false;renderQuickMixButtons();
+    if(!started)setQuickMixStatus('Сейчас не удалось найти треки. Попробуйте другую подборку.');
+}
+
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
-function switchTab(id) { 
+function switchTab(id) {
+    if(id==='search'||!String(id).startsWith('mix:')){
+        quickMixRequestId++;
+        if(quickMixCurrent)quickMixCurrent.loading=false;
+    }
     currentTab = id; 
     const searchBtn = document.getElementById('tab-search-btn'); 
     const plSelectBtn = document.getElementById('btn-pl-select'); 
@@ -3994,7 +4095,9 @@ function switchTab(id) {
         if(searchBtn) searchBtn.classList.add('active'); 
         playlist = searchPlaylistCache; 
         renderPlaylist(); 
-    } else { 
+    } else if(String(id).startsWith('mix:')&&quickMixCurrent?.key===String(id).slice(4)){
+        renderQuickMixView();
+    } else {
         const pl = playlists.find(p => p.id == id); 
         if(pl) { 
             if(label) { label.innerText = pl.name.toUpperCase(); label.style.display = 'block'; } 
@@ -4003,7 +4106,8 @@ function switchTab(id) {
             playlist = [...pl.tracks]; 
             renderPlaylist(); 
         } 
-    } 
+    }
+    renderQuickMixButtons();
 }
 
 // --- RENDER PLAYLIST С ДИНАМИЧЕСКИМИ ЛОГОТИПАМИ ---
@@ -4084,6 +4188,7 @@ function renderPlaylist() {
     }); 
     listEl.appendChild(fragment);
     if(currentIndex !== -1) updateActiveTrackInList(currentIndex);
+    updatePlayingHeart();
 }
 
 function openPlaylistSelect(isSaving = false) { 
@@ -4103,6 +4208,26 @@ function openPlaylistSelect(isSaving = false) {
     document.getElementById('save-modal').classList.add('show'); 
 }
 
+
+function updatePlayingHeart() {
+    const button=document.getElementById('now-playing-heart');
+    if(!button) return;
+    const track=playbackPlaylist[currentIndex];
+    button.disabled=!track?.url;
+    const liked=!!track?.url && playlists.some(pl=>Array.isArray(pl.tracks) &&
+        pl.tracks.some(t=>t.url===track.url || (normalizeTrackIdentity(t.title)===normalizeTrackIdentity(track.title) &&
+        normalizeTrackIdentity(t.artist)===normalizeTrackIdentity(track.artist))));
+    button.classList.toggle('is-liked',liked);
+    button.innerHTML=liked?'<i class="fas fa-heart"></i>':'<i class="far fa-heart"></i>';
+    button.setAttribute('aria-label',liked?'Добавить в другой плейлист':'Сохранить текущую песню в плейлист');
+    button.title=liked?'Есть в плейлисте · добавить в другой':'Сохранить текущую песню';
+}
+function savePlayingTrack() {
+    const track=playbackPlaylist[currentIndex];
+    if(!track?.url)return;
+    selectedTrackForSave=track;
+    openPlaylistSelect(true);
+}
 function openSaveModal(index) { selectedTrackForSave = playlist[index]; openPlaylistSelect(true); }
 
 async function addToPlaylist(plId) { 
@@ -4113,6 +4238,7 @@ async function addToPlaylist(plId) {
     if (!response.success) return showNotification(response.error || 'Не удалось добавить трек.');
     closeModal('save-modal');
     const synced = await loadUserData(true);
+    updatePlayingHeart();
     showNotification(synced
         ? 'Трек добавлен! Сохраним его офлайн при доступном интернете.'
         : 'Трек добавлен на сервер. Список обновится после восстановления сети.'); 
@@ -4202,6 +4328,7 @@ async function handleLogout() {
     }
     playlists = [];
     playlist = [];
+    updatePlayingHeart();
     switchTab('search');
     closeModal('menu-modal');
 }

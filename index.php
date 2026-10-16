@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=7">
+    <link rel="stylesheet" href="modern.css?v=8">
 </head>
 <body>
 
@@ -56,6 +56,8 @@
         <div class="track-info-display">
             <div class="np-title" id="track-title">ВЫБЕРИТЕ ТРЕК</div>
             <div class="np-artist" id="track-artist">DAGSTUDIO PLAYER</div>
+            <button type="button" id="now-playing-heart" class="now-playing-heart" onclick="savePlayingTrack()" disabled
+                title="Сохранить текущую песню" aria-label="Добавить текущую песню в плейлист"><i class="far fa-heart"></i></button>
         </div>
         
         <div class="progress-area" id="prog-area">
@@ -84,6 +86,15 @@
             <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Очередь воспроизведения" aria-label="Очередь воспроизведения"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
         </div>
 
+        <nav id="quick-mixes" class="quick-mixes" aria-label="Быстрые музыкальные подборки">
+            <span class="quick-mixes-label"><i class="fas fa-bolt"></i> Подборки</span>
+            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')"><i class="fas fa-music"></i> Русская музыка</button>
+            <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')"><i class="fas fa-star"></i> Лучшее</button>
+            <button type="button" class="quick-mix-btn" data-mix="road" onclick="startQuickMix('road')"><i class="fas fa-car-side"></i> В дорогу</button>
+            <button type="button" class="quick-mix-btn" data-mix="rock" onclick="startQuickMix('rock')"><i class="fas fa-guitar"></i> Рок</button>
+            <button type="button" class="quick-mix-btn" data-mix="retro" onclick="startQuickMix('retro')"><i class="fas fa-compact-disc"></i> Ретро</button>
+        </nav>
+        <div id="quick-mix-status" class="quick-mix-status" role="status" aria-live="polite" hidden></div>
         <div class="search-container-wrap" id="search-container-box">
             <input type="text" id="search-input" class="search-input" placeholder="Поиск музыки..." autocomplete="off">
             <div id="search-history" class="search-suggestions"></div>
@@ -245,7 +256,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2257" defer></script>
+<script src="script.js?v=2258" defer></script>
 
 </body>
 </html>

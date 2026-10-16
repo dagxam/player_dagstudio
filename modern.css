@@ -512,3 +512,28 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 .smart-radio-setting .menu-list-btn {margin:0;min-height:46px;width:100%;text-align:left;}
 .smart-radio-toggle.active {border-color:var(--theme-middle,#ca805d);background:rgba(var(--theme-rgb,192,108,66),.14);color:var(--theme-bright,#dfaa8c);}
 .smart-radio-hint {margin-top:9px;font-size:.77rem;line-height:1.5;color:var(--theme-muted,#a6b0b9);}
+
+/* Now-playing heart and compact search-powered mixes for TEYES CC3. */
+.track-info-display{position:relative;padding-left:48px;padding-right:48px;}
+.now-playing-heart{position:absolute;right:0;top:50%;transform:translateY(-50%);width:43px;height:43px;min-width:43px;
+ display:grid;place-items:center;border-radius:13px;border:1px solid var(--theme-border,#35404b);
+ background:var(--theme-control,#1b2229);color:var(--theme-bright,#dfaa8c);font-size:1.2rem;cursor:pointer;}
+.now-playing-heart.is-liked,.now-playing-heart:hover:not(:disabled){border-color:var(--theme-middle,#ca805d);
+ background:rgba(var(--theme-rgb,192,108,66),.16);}
+.now-playing-heart:disabled{opacity:.35;cursor:default;}
+.quick-mixes{display:flex;flex-shrink:0;align-items:center;gap:8px;min-height:50px;overflow-x:auto;
+ overscroll-behavior-inline:contain;scrollbar-width:thin;padding:3px 18px 7px;}
+.quick-mixes-label{white-space:nowrap;color:var(--theme-muted,#a6b0b9);font-weight:800;text-transform:uppercase;font-size:.72rem;}
+.quick-mixes-label i{color:var(--theme-bright,#dfaa8c);}
+.quick-mix-btn{white-space:nowrap;min-height:38px;padding:7px 12px;border-radius:12px;
+ color:var(--theme-bright-text,#f5f6f8);background:var(--theme-control,#1b2229);
+ border:1px solid var(--theme-border,#35404b);cursor:pointer;font:700 .8rem var(--font-main);}
+.quick-mix-btn i{color:var(--theme-bright,#dfaa8c);margin-right:4px;}
+.quick-mix-btn.active,.quick-mix-btn:hover{border-color:var(--theme-middle,#ca805d);
+ background:rgba(var(--theme-rgb,192,108,66),.16);}
+.quick-mix-btn:disabled{opacity:.75;cursor:progress;}
+.quick-mix-status{flex-shrink:0;margin:0 18px 5px;color:var(--theme-muted,#a6b0b9);font-size:.77rem;}
+@media(min-width:900px) and (max-height:760px){
+ .quick-mixes{min-height:44px;padding-bottom:3px;}.quick-mix-btn{min-height:36px;}
+ .now-playing-heart{width:40px;height:40px;min-width:40px;}}
+@media(max-width:768px){.quick-mixes{padding:6px 12px;}}

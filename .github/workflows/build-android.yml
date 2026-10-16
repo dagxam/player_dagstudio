@@ -17,6 +17,7 @@ on:
       - ".github/workflows/build-android.yml"
       - ".github/test-native-media.mjs"
       - ".github/test-smart-radio.mjs"
+      - ".github/test-quick-mixes.mjs"
   workflow_dispatch:
 
 permissions:
@@ -64,6 +65,9 @@ jobs:
 
       - name: Test smart radio recommendations
         run: node .github/test-smart-radio.mjs
+
+      - name: Test quick mixes and favorite
+        run: node .github/test-quick-mixes.mjs
 
       - name: Build local web shell
         env:
