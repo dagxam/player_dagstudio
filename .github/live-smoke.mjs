@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2261', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2262', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -47,6 +47,7 @@ try {
     refreshAppVersionInfo: typeof window.refreshAppVersionInfo,
     downloadButton: !!document.getElementById('android-apk-download-btn'),
     equalizerButton: !!document.querySelector('.header-eq-btn'),
+    mixesButton: !!document.getElementById('header-mixes-btn'),
     updateButton: !!document.getElementById('app-update-btn'),
     versionFooter: !!document.getElementById('app-version-footer'),
     installButtonAbsent: !document.getElementById('pwa-install-btn'),
@@ -65,7 +66,7 @@ try {
   for (const name of requiredFunctions) {
     if (basics[name] !== 'function') throw new Error('Missing function: ' + name);
   }
-  for (const name of ['downloadButton','equalizerButton','updateButton','versionFooter','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
+  for (const name of ['downloadButton','equalizerButton','mixesButton','updateButton','versionFooter','installButtonAbsent','fullscreenButtonAbsent','menuButton','audio']) {
     if (!basics[name]) throw new Error('Missing/incorrect UI state: ' + name);
   }
 
@@ -83,6 +84,9 @@ try {
         noOrnamentalStrip: !document.querySelector('.ornament-footer'),
         leftX:left.x, rightX:right.x, leftWidth:left.width,
         eqVisible:eq.width>=28,
+        mixesVisible:(()=>{const btn=document.getElementById('header-mixes-btn');const r=btn.getBoundingClientRect();return r.width>=38&&r.left>=0&&r.right<=innerWidth;})(),
+        mixesBesideEq:(()=>{const r=document.getElementById('header-mixes-btn').getBoundingClientRect();return r.left>=eq.right-2&&r.left-eq.right<=24;})(),
+        oldMixStripeAbsent:!document.querySelector('.right-col > .quick-mixes'),
         eqWidth:eq.width,
         eqStyle:getComputedStyle(document.querySelector('.header-eq-btn')).display,
         eqParentWidth:document.querySelector('.header-right').getBoundingClientRect().width,
@@ -92,7 +96,7 @@ try {
       };
     });
     console.log('MODERN_CLASSIC_LAYOUT', JSON.stringify({viewport,layout}));
-    if (!layout.modern || !layout.oldSidebarRemoved || !layout.noOrnamentalStrip || !layout.eqVisible ||
+    if (!layout.modern || !layout.oldSidebarRemoved || !layout.noOrnamentalStrip || !layout.eqVisible || !layout.mixesVisible || !layout.mixesBesideEq || !layout.oldMixStripeAbsent ||
         layout.pageOverflow || layout.width > viewport.width + 2 ||
         (viewport.width > 768 && layout.rightX < layout.leftX + layout.leftWidth - 5))
       throw new Error('Classic modern layout invalid: ' + JSON.stringify({viewport,layout}));
@@ -101,10 +105,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2261', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2262', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2261'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2262'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -188,7 +192,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2261', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2262', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -274,6 +278,25 @@ try {
   console.log('QUEUE_CONTEXT_ISOLATION',JSON.stringify(isolatedQueue));
   if (!isolatedQueue.isolated || isolatedQueue.index!==0 || !isolatedQueue.buttons)
     throw new Error('Queue context isolation regression');
+
+  await page.click('#header-mixes-btn');
+  await page.waitForSelector('#quick-mixes-modal.show',{timeout:5000});
+  const dialogState=await page.evaluate(()=>{
+    const dialog=document.getElementById('quick-mixes-modal');
+    const b=document.getElementById('header-mixes-btn');
+    const buttons=[...dialog.querySelectorAll('.quick-mix-btn')];
+    return {open:dialog.classList.contains('show'),expanded:b.getAttribute('aria-expanded'),
+      choices:buttons.length,allWithinDialog:buttons.every(x=>dialog.contains(x)),
+      oldStripGone:!document.querySelector('.right-col > .quick-mixes')};
+  });
+  console.log('QUICK_MIX_DIALOG_OPEN',JSON.stringify(dialogState));
+  if(!dialogState.open||dialogState.expanded!=='true'||dialogState.choices!==7||
+      !dialogState.allWithinDialog||!dialogState.oldStripGone)
+    throw new Error('Quick mix dialog open/layout failed');
+  await page.click('#quick-mixes-modal .modal-close');
+  const closed=await page.evaluate(()=>!document.getElementById('quick-mixes-modal').classList.contains('show')&&
+    document.getElementById('header-mixes-btn').getAttribute('aria-expanded')==='false');
+  if(!closed) throw new Error('Quick mix dialog did not close');
 
   const uiChanges=await page.evaluate(()=>({
     heart:!!document.getElementById('now-playing-heart'),
@@ -602,7 +625,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2261', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2262', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2261';
+const WEB_BUILD_LABEL = '2262';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2261', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2262', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2261') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2261', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2262') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2262', '1');
         window.location.reload();
     });
 }
@@ -2429,7 +2429,10 @@ function showConfirm(msg, callback) {
     newBtn.addEventListener('click', () => { closeModal('confirm-modal'); callback(); }); 
     document.getElementById('confirm-modal').classList.add('show'); 
 }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function closeModal(id) {
+    document.getElementById(id)?.classList.remove('show');
+    if(id==='quick-mixes-modal') document.getElementById('header-mixes-btn')?.setAttribute('aria-expanded','false');
+}
 function showLoader(show) { 
     const loader = document.getElementById('loader-overlay');
     if(show) loader.classList.add('active'); 
@@ -4043,6 +4046,23 @@ function quickMixRankTracks(tracks,config) {
     }
     return ordered;
 }
+function openQuickMixes() {
+    const dialog=document.getElementById('quick-mixes-modal');
+    if(!dialog)return;
+    // Existing playback continues untouched when opening or closing the list.
+    renderQuickMixButtons();
+    dialog.classList.add('show');
+    const button=document.getElementById('header-mixes-btn');
+    if(button)button.setAttribute('aria-expanded','true');
+    (dialog.querySelector('.quick-mix-btn.active')||dialog.querySelector('.quick-mix-btn'))?.focus();
+}
+document.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && document.getElementById('quick-mixes-modal')?.classList.contains('show')) {
+        event.preventDefault();
+        closeModal('quick-mixes-modal');
+        document.getElementById('header-mixes-btn')?.focus();
+    }
+});
 function setQuickMixStatus(message) {
     const el=document.getElementById('quick-mix-status');
     if(el){el.textContent=message;el.hidden=!message;}
@@ -4071,6 +4091,7 @@ async function startQuickMix(key) {
     if(navigator.onLine===false) {
         setQuickMixStatus('Для подборок нужен интернет.');return;
     }
+    closeModal('quick-mixes-modal');
     const requestId=++quickMixRequestId;
     quickMixCurrent={key,title:config.title,tracks:[],loading:true};
     renderQuickMixButtons();
@@ -4123,6 +4144,7 @@ async function startQuickMix(key) {
     if(requestId!==quickMixRequestId)return;
     quickMixCurrent.loading=false;renderQuickMixButtons();
     if(!started)setQuickMixStatus('Пока не удалось получить треки. Попробуйте другую подборку.');
+    else setQuickMixStatus('Подборка готова · '+quickMixCurrent.tracks.length+' треков');
 }
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) {

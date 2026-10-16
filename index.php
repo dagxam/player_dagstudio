@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=8">
+    <link rel="stylesheet" href="modern.css?v=9">
 </head>
 <body>
 
@@ -41,6 +41,7 @@
 
         <div class="header-right">
             <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
+            <button class="icon-btn header-mixes-btn" id="header-mixes-btn" onclick="openQuickMixes()" type="button" aria-label="Музыкальные подборки" aria-haspopup="dialog" aria-controls="quick-mixes-modal" aria-expanded="false" title="Подборки"><i class="fas fa-layer-group"></i></button>
             <button class="mobile-menu-btn" onclick="openMenu()" aria-label="Меню"><i class="fas fa-bars"></i></button>
             <button class="menu-btn" onclick="openMenu()" aria-label="Профиль"><i class="fas fa-user"></i></button>
         </div>
@@ -86,16 +87,6 @@
             <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Очередь воспроизведения" aria-label="Очередь воспроизведения"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
         </div>
 
-        <nav id="quick-mixes" class="quick-mixes" aria-label="Быстрые музыкальные подборки">
-            <span class="quick-mixes-label"><i class="fas fa-bolt"></i> Подборки</span>
-            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')"><i class="fas fa-music"></i> Русские</button>
-            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')"><i class="fas fa-mountain"></i> Кавказские</button>
-            <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')"><i class="fas fa-globe"></i> Зарубежные</button>
-            <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')"><i class="fas fa-star"></i> Лучшее</button>
-            <button type="button" class="quick-mix-btn" data-mix="road" onclick="startQuickMix('road')"><i class="fas fa-car-side"></i> В дорогу</button>
-            <button type="button" class="quick-mix-btn" data-mix="rock" onclick="startQuickMix('rock')"><i class="fas fa-guitar"></i> Рок</button>
-            <button type="button" class="quick-mix-btn" data-mix="retro" onclick="startQuickMix('retro')"><i class="fas fa-compact-disc"></i> Ретро</button>
-        </nav>
         <div id="quick-mix-status" class="quick-mix-status" role="status" aria-live="polite" hidden></div>
         <div class="search-container-wrap" id="search-container-box">
             <input type="text" id="search-input" class="search-input" placeholder="Поиск музыки..." autocomplete="off">
@@ -111,6 +102,38 @@
 </div>
 
 <!-- МОДАЛЬНЫЕ ОКНА -->
+<!-- Подборки собраны в одну кнопку около эквалайзера: без длинной полосы над поиском. -->
+<div id="quick-mixes-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quick-mixes-title" onclick="if(event.target===this)closeModal('quick-mixes-modal')">
+    <div class="modal-box quick-mixes-modal-box">
+        <button type="button" class="modal-close" onclick="closeModal('quick-mixes-modal')" aria-label="Закрыть подборки">&times;</button>
+        <div class="quick-mixes-heading">
+            <div class="quick-mixes-logo" aria-hidden="true"><i class="fas fa-layer-group"></i></div>
+            <div>
+                <div class="quick-mixes-eyebrow">DAGSTUDIO RADIO</div>
+                <h3 class="modal-title" id="quick-mixes-title">ПОДБОРКИ</h3>
+                <p class="quick-mixes-intro">Выбери настроение — музыка включится автоматически.</p>
+            </div>
+        </div>
+        <div class="quick-mixes-grid" id="quick-mixes">
+            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span><span class="mix-copy"><strong>Русские</strong><small>Хиты и новинки</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-mountain"></i></span><span class="mix-copy"><strong>Кавказские</strong><small>Любимые исполнители</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-globe"></i></span><span class="mix-copy"><strong>Зарубежные</strong><small>Мировые хиты</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-star"></i></span><span class="mix-copy"><strong>Лучшее</strong><small>Популярное сейчас</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="road" onclick="startQuickMix('road')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-car-side"></i></span><span class="mix-copy"><strong>В дорогу</strong><small>Для поездок</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="rock" onclick="startQuickMix('rock')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-guitar"></i></span><span class="mix-copy"><strong>Рок</strong><small>Гитары и драйв</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="retro" onclick="startQuickMix('retro')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-compact-disc"></i></span><span class="mix-copy"><strong>Ретро</strong><small>Знакомая классика</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+        </div>
+        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Ищем песни в сети. Текущий трек не прервётся, пока новая подборка не найдена.</div>
+    </div>
+</div>
+
 <div id="alert-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('alert-modal')">&times;</span><h3 class="modal-title">УВЕДОМЛЕНИЕ</h3><p style="color:#ccc; margin-bottom:30px; font-size:1.1rem; line-height:1.5;" id="alert-msg">Сообщение</p><button class="modal-btn btn-primary" onclick="closeModal('alert-modal')">OK</button></div></div>
 <div id="confirm-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('confirm-modal')">&times;</span><h3 class="modal-title">ПОДТВЕРЖДЕНИЕ</h3><p style="color:#ccc; margin-bottom:30px; font-size:1.1rem;" id="confirm-msg">Вы уверены?</p><div style="display:flex; gap:15px;"><button class="modal-btn btn-danger" onclick="closeModal('confirm-modal')">НЕТ</button><button class="modal-btn btn-primary" id="confirm-btn-yes">ДА</button></div></div></div>
 
@@ -258,7 +281,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2261" defer></script>
+<script src="script.js?v=2262" defer></script>
 
 </body>
 </html>
