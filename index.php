@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=13">
+    <link rel="stylesheet" href="modern.css?v=14">
 </head>
 <body>
 
@@ -100,6 +100,10 @@
         </div>
         
         <div class="active-pl-label" id="active-tab-name"></div>
+        <div class="playlist-download-bar" id="playlist-download-bar" hidden>
+            <button type="button" onclick="preparePlaylistDownload()"><i class="fas fa-download"></i> Скачать плейлист</button>
+            <span id="playlist-download-state">Для офлайн-прослушивания</span>
+        </div>
 
         <div class="playlist-area" id="playlist-container">
             <div style="text-align:center; padding:40px; color:#444;" id="empty-msg">...</div>
@@ -259,6 +263,7 @@
             <button type="button" data-eq-preset="bass">Бас</button>
             <button type="button" data-eq-preset="vocal">Вокал</button>
             <button type="button" data-eq-preset="rock">Рок</button>
+            <button type="button" data-eq-preset="car">В автомобиле</button>
             <button type="button" data-eq-preset="electro">Электро</button>
         </div>
         <div id="eq-bands" class="eq-bands"></div>
@@ -318,6 +323,15 @@
         <h3 class="modal-title">Кэш устройства</h3><p class="utility-info" id="cache-dashboard-info">Проверяем…</p>
         <p class="utility-info" id="cache-progress-info">Фоновое скачивание не выполняется</p>
         <p class="utility-info" id="cache-verify-info"></p>
+        <div class="offline-settings">
+            <label for="cache-limit-select">Лимит кэша (на Android)</label>
+            <select id="cache-limit-select" onchange="changeOfflineLimit(this.value)">
+                <option value="256">256 МБ</option><option value="512" selected>512 МБ</option>
+                <option value="1024">1024 МБ</option>
+            </select>
+            <label class="offline-economy"><input type="checkbox" id="traffic-saver-switch" onchange="toggleTrafficSaver(this.checked)"> Экономить мобильный трафик</label>
+            <p>Режим экономии сокращает фоновые запросы. Битрейт зависит от музыкального источника.</p>
+        </div>
         <div class="utility-buttons">
             <button type="button" onclick="downloadCurrentPlaylistOffline()">Сохранить текущий плейлист</button>
             <button type="button" onclick="verifyOfflineCache()">Проверить файлы</button>
@@ -327,7 +341,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2270" defer></script>
+<script src="script.js?v=2271" defer></script>
 
 </body>
 </html>

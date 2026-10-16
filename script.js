@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2270';
+const WEB_BUILD_LABEL = '2271';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2270', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2271', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2270') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2270', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2271') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2271', '1');
         window.location.reload();
     });
 }
@@ -589,6 +589,7 @@ const EQ_PRESETS = {
     bass:    { label: 'Бас', gains: [7, 5, 2, 0, -1, -2, -2] },
     vocal:   { label: 'Вокал', gains: [-2, -1, 0, 3, 5, 3, 1] },
     rock:    { label: 'Рок', gains: [4, 2, -1, 1, 3, 4, 3] },
+    car:     { label: 'В автомобиле', gains: [4, 3, 0, 1, 2, 1, -1] },
     electro: { label: 'Электро', gains: [6, 4, 0, -1, 2, 5, 6] }
 };
 
@@ -817,7 +818,7 @@ function getNetworkProfile() {
     const effectiveType = info && info.effectiveType ? String(info.effectiveType) : '';
     const downlink = info && Number(info.downlink) > 0 ? Number(info.downlink) : 0;
     const rtt = info && Number(info.rtt) > 0 ? Number(info.rtt) : 0;
-    const saveData = !!(info && info.saveData);
+    const saveData = !!(info && info.saveData) || trafficSaverEnabled();
     const offline = navigator.onLine === false;
     const inferredWeak = Date.now() < inferredWeakNetworkUntil;
     const weak = inferredWeak || offline || saveData || effectiveType === 'slow-2g' || effectiveType === '2g' ||
@@ -860,6 +861,49 @@ const currTimeEl = document.getElementById('curr-time');
 const durTimeEl = document.getElementById('dur-time');
 
 // --- УМНОЕ ЦЕЛЕВОЕ КЭШИРОВАНИЕ ---
+const OFFLINE_LIMIT_KEY='dag_offline_cache_limit_mb_v1';
+const STREAM_ECONOMY_KEY='dag_stream_economy_v1';
+function offlineLimitMb(){
+    const value=Number(localStorage.getItem(OFFLINE_LIMIT_KEY)||512);
+    return [256,512,1024].includes(value)?value:512;
+}
+function changeOfflineLimit(value){
+    if(![256,512,1024].includes(Number(value)))return;
+    localStorage.setItem(OFFLINE_LIMIT_KEY,String(value));
+    showDeviceCacheStatus();
+    openCacheDashboard().catch(()=>{});
+}
+function nativeCacheUsedBytes(){
+    return Object.values(readNativeAudioIndex()).reduce((sum,e)=>sum+
+        (e?.path?Math.max(0,Number(e.size)||0):0),0);
+}
+function offlineStorageAtLimit(){
+    // Leave headroom for the next compressed audio file (32 MB worst-case).
+    return nativeCacheUsedBytes()+32*1048576>=offlineLimitMb()*1048576;
+}
+let offlineBatch=null;
+function offlineBatchProgress(url,failed=false){
+    if(!offlineBatch||!offlineBatch.pending.has(url))return;
+    offlineBatch.pending.delete(url);
+    if(failed)offlineBatch.failed++;
+    else offlineBatch.finished++;
+    const text='Офлайн: '+offlineBatch.finished+' из '+offlineBatch.total+
+        (offlineBatch.failed?' · ошибок: '+offlineBatch.failed:'');
+    const label=document.getElementById('playlist-download-state');
+    if(label)label.textContent=text;
+    const cache=document.getElementById('cache-progress-info');
+    if(cache)cache.textContent=text;
+}
+function toggleTrafficSaver(value){
+    localStorage.setItem(STREAM_ECONOMY_KEY,value?'on':'off');
+    const input=document.getElementById('traffic-saver-switch');
+    if(input)input.checked=!!value;
+}
+function trafficSaverEnabled(){return localStorage.getItem(STREAM_ECONOMY_KEY)==='on';}
+function preparePlaylistDownload(){
+    downloadCurrentPlaylistOffline();
+}
+
 const NATIVE_AUDIO_INDEX_KEY = 'dag_native_audio_index_v1';
 const LOCAL_PLAYLISTS_PREFIX = 'dag_offline_playlists_v2:';
 const LEGACY_LOCAL_PLAYLISTS_PREFIX = 'dag_offline_playlists_v1:';
@@ -1205,7 +1249,7 @@ function enqueueNativeTrackCache(trackOrUrl, reason = 'played', priority = false
     }
 
     // Ограничиваем число задач в RAM на TEYES; текущий/следующий трек не блокируем.
-    if (IS_NATIVE_APP && reason === 'playlist' && nativeCacheQueue.length >= 80) return;
+    if (IS_NATIVE_APP && reason === 'playlist' && nativeCacheQueue.length >= 35) return;
     nativeCacheQueuedUrls.add(resolved);
     const job = { track, reason, attempts: 0, resolved };
     if (priority) nativeCacheQueue.unshift(job);
@@ -1245,9 +1289,17 @@ async function processNativeCacheQueue() {
                 break;
             }
 
+            if(offlineStorageAtLimit()){
+                nativeCacheQueuedUrls.delete(job.resolved);
+                offlineBatchProgress(job.resolved,true);
+                const el=document.getElementById('cache-verify-info');
+                if(el)el.textContent='Достигнут лимит кэша '+offlineLimitMb()+' МБ. Освободите место или измените лимит.';
+                break;
+            }
             try {
                 if (!await storeNativeTrackNow(job.track, job.reason)) throw new Error('Файл не сохранён');
                 nativeCacheQueuedUrls.delete(job.resolved);
+                offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
             } catch (error) {
                 job.attempts += 1;
@@ -1257,6 +1309,7 @@ async function processNativeCacheQueue() {
                     break;
                 }
                 nativeCacheQueuedUrls.delete(job.resolved);
+                offlineBatchProgress(job.resolved,true);
                 console.warn('Audio cache download failed:', job.resolved, error);
             }
         }
@@ -1385,6 +1438,7 @@ async function processWebCacheQueue() {
                 }
 
                 webCacheQueuedUrls.delete(job.resolved);
+                offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
 
                 // На слабой сети качаем строго по одному треку и даём каналу передышку.
@@ -1400,6 +1454,7 @@ async function processWebCacheQueue() {
                     break;
                 }
                 webCacheQueuedUrls.delete(job.resolved);
+                offlineBatchProgress(job.resolved,true);
                 console.warn('PWA audio cache download failed:', job.resolved, error);
             }
         }
@@ -1540,7 +1595,9 @@ function syncPlaylistOfflineCache() {
     }
 
     const seen = new Set();
-    playlists.forEach(pl => {
+    // Automatic preparation is limited to explicitly liked/favorite lists;
+    // downloading every playlist silently can exhaust TEYES storage.
+    playlists.filter(pl=>/любим|избран|favorite|liked/i.test(String(pl.name||''))).forEach(pl => {
         (pl.tracks || []).forEach(track => {
             const resolved = canonicalTrackUrl(track);
             if (!resolved || seen.has(resolved)) return;
@@ -2338,16 +2395,30 @@ window.addEventListener('dag-cache-progress', event => {
     }
 });
 function downloadCurrentPlaylistOffline() {
-    if (navigator.onLine === false) return showNotification('Для скачивания нужна сеть.');
-    if (!playlist.length) return showNotification('В этом списке нет треков.');
-    let count = 0;
-    for (const track of playlist) {
-        if (!track?.url || !isRemoteMediaUrl(track.url)) continue;
-        if (IS_NATIVE_APP) enqueueNativeTrackCache(track, 'playlist', false);
-        else enqueueWebTrackCache(track, 'playlist', false);
-        count++;
+    if(navigator.onLine===false)return showNotification('Для скачивания нужна сеть.');
+    if(!playlist.length)return showNotification('В этом списке нет треков.');
+    const tracks=playlist.filter(track=>track?.url&&isRemoteMediaUrl(track.url));
+    const jobs=[],seen=new Set();
+    for(const track of tracks){
+        const url=canonicalTrackUrl(track);
+        if(!url||seen.has(url))continue;
+        seen.add(url);
+        if(IS_NATIVE_APP){
+            if(nativeCacheQueuedUrls.has(url)||nativeCacheQueue.length>=35)continue;
+            enqueueNativeTrackCache(track,'playlist',false);
+            if(nativeCacheQueuedUrls.has(url))jobs.push(url);
+        }else{
+            if(webCacheQueuedUrls.has(url)||webCacheQueue.length>=35)continue;
+            enqueueWebTrackCache(track,'playlist',false);
+            if(webCacheQueuedUrls.has(url))jobs.push(url);
+        }
     }
-    showNotification('Добавлено в очередь кэширования: ' + count + '. Загрузка выполняется в фоне по одному файлу.');
+    offlineBatch={total:jobs.length,finished:0,failed:0,pending:new Set(jobs)};
+    const label=document.getElementById('playlist-download-state');
+    if(label)label.textContent=jobs.length?'Офлайн: 0 из '+jobs.length+
+        ' · скачиваем по очереди':'Нет новых задач: файлы уже в кэше или очередь заполнена';
+    const cache=document.getElementById('cache-progress-info');
+    if(cache)cache.textContent=label?.textContent||'';
 }
 async function verifyOfflineCache() {
     const result = document.getElementById('cache-verify-info');
@@ -2423,6 +2494,8 @@ function clearOfflineAudioCache() {
 async function openCacheDashboard() {
     const out=document.getElementById('cache-dashboard-info');
     if(!out)return;
+    const saver=document.getElementById('traffic-saver-switch');
+    if(saver)saver.checked=trafficSaverEnabled();
     document.getElementById('cache-dashboard-modal').classList.add('show');
     out.textContent='Подсчёт кэша…';
     const urls=new Set();
@@ -2432,6 +2505,8 @@ async function openCacheDashboard() {
         const entries=Object.values(readNativeAudioIndex()).filter(x=>
             x?.path&&Array.isArray(x.owners)&&x.owners.includes(owner));
         const size=entries.reduce((n,x)=>n+(Number(x.size)||0),0);
+        const cap=document.getElementById('cache-limit-select');
+        if(cap)cap.value=String(offlineLimitMb());
         out.textContent='На этом устройстве: '+entries.length+' из '+urls.size+
             ' треков в плейлистах. Размер: '+(size/1048576).toFixed(1)+
             ' МБ. На новой магнитоле или телефоне кэш создаётся отдельно.';
@@ -3730,7 +3805,7 @@ async function findSmartRadioTrack() {
     return null;
 }
 function maybePrefetchSmartRadio() {
-    if (!smartRadioEnabled || smartRadioBusy || isRepeat || playbackQueue.length ||
+    if (trafficSaverEnabled() || !smartRadioEnabled || smartRadioBusy || isRepeat || playbackQueue.length ||
         playbackTab==='search' || navigator.onLine===false || !playbackWanted ||
         currentIndex!==playbackPlaylist.length-1 || !playbackPlaylist[currentIndex]) return;
     if (isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
@@ -4438,6 +4513,8 @@ async function startQuickMix(key) {
 }
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) {
+    const downloadBar=document.getElementById('playlist-download-bar');
+    if(downloadBar)downloadBar.hidden=(id==='search'||String(id).startsWith('mix:'));
     if(id==='search'||!String(id).startsWith('mix:')){
         quickMixRequestId++;
         if(quickMixCurrent)quickMixCurrent.loading=false;

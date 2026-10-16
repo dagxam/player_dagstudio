@@ -774,3 +774,22 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 .caucasus-region-btn small{font-size:.72rem;color:var(--theme-muted,#a6b0b9);}
 @media(max-width:460px){.caucasus-radio-grid{grid-template-columns:1fr;max-height:52dvh;}
 .caucasus-region-btn{min-height:54px;}}
+
+.playlist-download-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+ margin:0 17px 8px;padding:8px 11px;border:1px solid var(--theme-border,#35404b);
+ border-radius:12px;background:var(--theme-control,#1b2229);}
+.playlist-download-bar[hidden]{display:none!important;}
+.playlist-download-bar button{padding:8px 12px;min-height:37px;border-radius:9px;
+ color:var(--theme-on-accent,#101317);background:var(--theme-middle,#ca805d);
+ border:0;font-size:.78rem;font-weight:800;}
+.playlist-download-bar span{font-size:.75rem;color:var(--theme-muted,#a6b0b9);}
+.offline-settings{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0;}
+.offline-settings label{font-size:.79rem;color:var(--theme-bright-text,#f5f6f8);}
+.offline-settings select{min-height:37px;border-radius:9px;
+ border:1px solid var(--theme-border,#35404b);background:var(--theme-control,#1b2229);
+ color:var(--theme-bright-text,#f5f6f8);padding:6px;}
+.offline-settings p{font-size:.76rem;color:var(--theme-muted,#a6b0b9);width:100%;margin:0;}
+.offline-economy{display:flex;align-items:center;gap:6px;}
+@media(max-width:768px){.playlist-download-bar{margin:0 12px 6px;padding:6px 9px;gap:7px;}
+.playlist-download-bar button{min-height:34px;}
+.playlist-download-bar span{font-size:.7rem;}}
