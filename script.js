@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2262';
+const WEB_BUILD_LABEL = '2263';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2262', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2263', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2262') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2262', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2263') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2263', '1');
         window.location.reload();
     });
 }
@@ -4056,13 +4056,6 @@ function openQuickMixes() {
     if(button)button.setAttribute('aria-expanded','true');
     (dialog.querySelector('.quick-mix-btn.active')||dialog.querySelector('.quick-mix-btn'))?.focus();
 }
-document.addEventListener('keydown',event=>{
-    if(event.key==='Escape' && document.getElementById('quick-mixes-modal')?.classList.contains('show')) {
-        event.preventDefault();
-        closeModal('quick-mixes-modal');
-        document.getElementById('header-mixes-btn')?.focus();
-    }
-});
 function setQuickMixStatus(message) {
     const el=document.getElementById('quick-mix-status');
     if(el){el.textContent=message;el.hidden=!message;}
@@ -4074,6 +4067,13 @@ function renderQuickMixButtons() {
         btn.disabled=false;
     });
 }
+document.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && document.getElementById('quick-mixes-modal')?.classList.contains('show')) {
+        event.preventDefault();
+        closeModal('quick-mixes-modal');
+        document.getElementById('header-mixes-btn')?.focus();
+    }
+});
 function renderQuickMixView() {
     if(!quickMixCurrent)return;
     const search=document.getElementById('search-container-box');
