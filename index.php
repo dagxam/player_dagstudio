@@ -140,6 +140,8 @@
             </div>
         </div>
         <div class="quick-mixes-grid" id="quick-mixes">
+            <button type="button" class="quick-mix-btn wave-mix-btn" data-mix="wave" onclick="startQuickMix('wave')">
+                <span class="mix-icon"><i class="fas fa-wave-square"></i></span><span class="mix-copy"><strong>Моя волна</strong><small>На основе твоих прослушиваний</small></span><i class="fas fa-chevron-right mix-arrow"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span><span class="mix-copy"><strong>Русские</strong><small>Хиты и новинки</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')">
@@ -263,6 +265,11 @@
                 <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-queue-label">Умное продолжение: включено</span>
             </button>
             <div class="smart-radio-hint">После последнего трека плейлиста — случайные новые песни знакомых исполнителей из сети. Ручная очередь имеет приоритет.</div>
+            <div class="smart-radio-hint" id="personal-radio-hint">Лайки и прослушивания улучшают рекомендации на этом устройстве.</div>
+            <div class="personal-radio-actions">
+                <button type="button" onclick="dislikeCurrentTrack()"><i class="fas fa-thumbs-down"></i> Не нравится</button>
+                <button type="button" onclick="tasteReset()"><i class="fas fa-eraser"></i> Сбросить предпочтения</button>
+            </div>
             <div class="smart-radio-hint" id="smart-radio-next-info" aria-live="polite">Подбор начнётся ближе к концу плейлиста.</div>
         </div>
         <div id="queue-list" class="queue-list"></div>
@@ -307,7 +314,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2267" defer></script>
+<script src="script.js?v=2268" defer></script>
 
 </body>
 </html>

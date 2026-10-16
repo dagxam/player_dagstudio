@@ -17,6 +17,7 @@ on:
       - ".github/workflows/build-android.yml"
       - ".github/test-native-media.mjs"
       - ".github/test-smart-radio.mjs"
+      - ".github/test-personal-radio.mjs"
       - ".github/test-quick-mixes.mjs"
   workflow_dispatch:
 
@@ -65,6 +66,9 @@ jobs:
 
       - name: Test smart radio recommendations
         run: node .github/test-smart-radio.mjs
+
+      - name: Test private personalized radio
+        run: node .github/test-personal-radio.mjs
 
       - name: Test quick mixes and favorite
         run: node .github/test-quick-mixes.mjs

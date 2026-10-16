@@ -34,3 +34,10 @@ assert.ok(text.includes('function maybePrefetchSmartRadio()'));
 assert.ok(text.includes('smartRadioPrefetch===prefetched'));
 assert.ok(text.includes("mainAudio.addEventListener('prematureend',()=>handlePrematureTrackEnd(true))"));
 console.log('SMART_RADIO_EARLY_PREFETCH_AND_END_GUARDS_OK');
+
+assert.ok(text.includes('function tasteRecord(kind,track)'));
+assert.ok(text.includes("tasteRecord('finish',finishedTrack)"));
+assert.ok(text.includes("tasteRecord('like',track)"));
+assert.ok(text.includes("key==='wave'"));
+assert.ok(text.includes("tastePreferredArtists(seeds)"));
+console.log('PERSONAL_RADIO_HOOKS_OK');
