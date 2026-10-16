@@ -16,3 +16,7 @@ assert.equal(ctx.quickMixUnique([a],[a]).length,0);
 assert.ok(source.includes('selectedTrackForSave=track;'));
 assert.ok(!source.slice(source.indexOf('async function playSmartRadioNext()'),source.indexOf('function toggleShuffle()')).includes('showNotification('));
 console.log('QUICK_MIXES_AND_HEART_OK');
+
+assert.ok(source.includes('btn.disabled=false;'),'mixes must be switchable during a search');
+assert.ok(source.includes('playlistSnapshotOwner = username;\n        updatePlayingHeart();'),'heart should update after server playlist sync');
+console.log('QUICK_MIXES_SWITCH_AND_FAVORITE_SYNC_OK');

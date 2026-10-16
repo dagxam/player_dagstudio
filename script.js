@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2258';
+const WEB_BUILD_LABEL = '2259';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2258', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2259', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2258') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2258', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2259') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2259', '1');
         window.location.reload();
     });
 }
@@ -1914,6 +1914,7 @@ function hydrateCachedAccount(username) {
     currentUser = username;
     playlists = [...cached];
     playlistSnapshotOwner = username;
+    updatePlayingHeart();
     renderCurrentPlaylistFromAccountData();
     return cached.length > 0;
 }
@@ -1999,6 +2000,7 @@ async function loadUserData(force = false) {
         // Локальную копию заменяем только полным успешным ответом сервера.
         playlists = [...data];
         playlistSnapshotOwner = username;
+        updatePlayingHeart();
         saveOfflinePlaylistsSnapshot(data);
         renderCurrentPlaylistFromAccountData();
         playlistSyncErrors = 0;
@@ -4007,7 +4009,8 @@ function setQuickMixStatus(message) {
 function renderQuickMixButtons() {
     document.querySelectorAll('.quick-mix-btn').forEach(btn=>{
         btn.classList.toggle('active',currentTab==='mix:'+btn.dataset.mix);
-        btn.disabled=!!quickMixCurrent?.loading;
+        // Category buttons stay available while a previous search is running.
+        btn.disabled=false;
     });
 }
 function renderQuickMixView() {
