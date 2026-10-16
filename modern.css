@@ -757,3 +757,6 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 .ios-install-step small{font-size:.77rem;line-height:1.4;color:var(--theme-muted,#a6b0b9);}
 .ios-install-step i,.ios-install-disclaimer i{color:var(--theme-bright,#dfaa8c);}
 .ios-install-disclaimer{font-size:.78rem;color:var(--theme-muted,#a6b0b9);line-height:1.6;margin:14px 0;}
+
+/* iPhone sees its installation route instead of an unusable Android APK. */
+#android-apk-download-btn[hidden]{display:none!important;}

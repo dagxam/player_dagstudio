@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2266';
+const WEB_BUILD_LABEL = '2267';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2266', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2267', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2266') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2266', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2267') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2267', '1');
         window.location.reload();
     });
 }
@@ -1813,6 +1813,9 @@ function refreshIOSInstallControls() {
     const banner=document.getElementById('ios-install-banner');
     if(menu)menu.hidden=!visible;
     if(banner)banner.hidden=!(visible&&localStorage.getItem(IOS_BANNER_HIDDEN_KEY)!=='1');
+    const androidApk=document.getElementById('android-apk-download-btn');
+    // Never invite iPhone users to download an Android-only APK.
+    if(androidApk)androidApk.hidden=isIOS;
 }
 refreshIOSInstallControls();
 window.addEventListener('appinstalled',refreshIOSInstallControls);
