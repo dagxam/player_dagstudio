@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2268';
+const WEB_BUILD_LABEL = '2269';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2268', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2269', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2268') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2268', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2269') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2269', '1');
         window.location.reload();
     });
 }
@@ -2738,6 +2738,25 @@ function normalizeTrackIdentity(value) {
         .trim();
 }
 
+
+const SOURCE_HEALTH_KEY='dag_music_source_health_v1';
+function sourceHealthLoad(){
+    try{return JSON.parse(localStorage.getItem(SOURCE_HEALTH_KEY)||'{}')||{};}
+    catch(e){return {};}
+}
+function sourceHealthUpdate(track,kind){
+    const source=String(track?.source||'UNKNOWN').toUpperCase().slice(0,40),
+        all=sourceHealthLoad(),record=all[source]||{success:0,error:0,at:0};
+    if(kind==='success')record.success=Math.min(200,(record.success||0)+1);
+    else record.error=Math.min(200,(record.error||0)+1);
+    record.at=Date.now();all[source]=record;
+    try{localStorage.setItem(SOURCE_HEALTH_KEY,JSON.stringify(Object.fromEntries(
+        Object.entries(all).sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,20))));}catch(e){}
+}
+function sourceHealthScore(source) {
+    const r=sourceHealthLoad()[String(source||'UNKNOWN').toUpperCase().slice(0,40)];
+    return r?Math.max(-15,Math.min(15,(r.success||0)*2-(r.error||0)*4)):0;
+}
 function scoreReplacementTrack(saved, candidate) {
     const savedTitle = normalizeTrackIdentity(saved.title);
     const savedArtist = normalizeTrackIdentity(saved.artist);
@@ -2766,7 +2785,8 @@ function scoreReplacementTrack(saved, candidate) {
 async function refreshSavedTrackSource(track) {
     if (!track || track._refreshAttempted || navigator.onLine === false) return false;
     track._refreshAttempted = true;
-    const persisted = playbackTab !== 'search' && !!track.id;
+    const persisted=!!track.id&&playlists.some(pl=>Array.isArray(pl.tracks)&&
+        pl.tracks.some(t=>String(t.id)===String(track.id)));
     const savedArtist = normalizeTrackIdentity(track.artist);
 
     const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
@@ -2783,47 +2803,32 @@ async function refreshSavedTrackSource(track) {
     const candidates = result && Array.isArray(result.data) ? result.data : [];
     if (!candidates.length) return false;
 
-    const ranked = candidates
-        .map(candidate => ({ candidate, score: scoreReplacementTrack(track, candidate) }))
-        .filter(item => item.score >= (savedArtist ? 170 : 100) && item.candidate && item.candidate.url)
-        .sort((a, b) => b.score - a.score);
+    const excluded=new Set([String(track.url||''),...(track._failedAlternateUrls||[])]);
+    const ranked=candidates
+        .map(candidate=>({candidate,score:scoreReplacementTrack(track,candidate)+
+            sourceHealthScore(candidate.source)}))
+        .filter(item=>item.score>=(savedArtist?155:85)&&item.candidate?.url&&
+            !excluded.has(String(item.candidate.url)))
+        .sort((a,b)=>b.score-a.score);
 
     if (!ranked.length) return false;
 
     const replacement = ranked[0].candidate;
     const newUrl = String(replacement.url || '').trim();
     if (!newUrl || newUrl === String(track.url || '').trim()) return false;
+    if((track._sourceSwitches||0)>=3)return false;
+    track._sourceSwitches=(track._sourceSwitches||0)+1;
+    track._failedAlternateUrls=[...(track._failedAlternateUrls||[]),String(track.url||'')].slice(-8);
 
-    // Временный результат поиска не имеет track.id: обновляем только в памяти.
-    // Постоянный плейлист исправляем на сервере, чтобы ссылка работала и на других устройствах.
-    if (persisted) {
-        const update = await api('update_track_url', {
-            track_id: track.id,
-            url: newUrl,
-            thumb: replacement.thumb || track.thumb || ''
-        });
-        if (!update || update.success !== true) return false;
-    }
-
-    track.url = newUrl;
-    if (replacement.thumb) track.thumb = replacement.thumb;
-    track.source = replacement.source || track.source || '';
-    track._streamRetries = 0;
-    track._playingFromCache = false;
-
-    // Синхронизируем тот же объект в пользовательском списке и локальном снимке.
-    const ownerPlaylist = playlists.find(pl =>
-        Array.isArray(pl.tracks) && pl.tracks.some(t => String(t.id) === String(track.id))
-    );
-    if (ownerPlaylist) {
-        const stored = ownerPlaylist.tracks.find(t => String(t.id) === String(track.id));
-        if (stored) {
-            stored.url = newUrl;
-            if (replacement.thumb) stored.thumb = replacement.thumb;
-            stored.source = replacement.source || stored.source || '';
-        }
-    }
-    if (currentUser) saveOfflinePlaylistsSnapshot(playlists);
+    // Trial-run the URL. A saved playlist is updated only after 12 seconds
+    // of successful audio, never merely because a search returned a match.
+    track._pendingSaveSource=persisted?{url:newUrl,thumb:replacement.thumb||track.thumb||'',
+        source:replacement.source||'',at:Date.now()}:null;
+    track.url=newUrl;
+    if(replacement.thumb)track.thumb=replacement.thumb;
+    track.source=replacement.source||track.source||'';
+    track._streamRetries=0;
+    track._playingFromCache=false;
 
     return true;
 }
@@ -2964,7 +2969,7 @@ async function recoverCurrentStreamInternal(reason, track) {
     if (track._streamRetries > MAX_STREAM_RETRIES) {
         // Для сохранённого трека сначала восстанавливаем устаревшую ссылку.
         // Только если найти новый источник не удалось, оставляем трек остановленным.
-        const refreshed = await refreshSavedTrackSource(track);
+        const refreshed = (track._sourceSwitches||0)<3 ? await refreshSavedTrackSource(track) : false;
         if (!playbackWanted || token !== currentPlaybackToken ||
             playbackPlaylist[currentIndex] !== track) return;
         if (refreshed && playbackPlaylist[currentIndex] === track) {
@@ -2972,7 +2977,7 @@ async function recoverCurrentStreamInternal(reason, track) {
             track._streamRetries = 0;
             pendingResumeTime = 0;
             setTimeout(function() {
-                if (playbackPlaylist[currentIndex] === track) playTrack(currentIndex, {fromPlayback:true});
+                if (playbackPlaylist[currentIndex] === track) playTrack(currentIndex, {fromPlayback:true,resumeAt:resumeAt});
             }, 150);
             return;
         }
@@ -2988,6 +2993,17 @@ async function recoverCurrentStreamInternal(reason, track) {
         return;
     }
 
+    if(track._streamRetries===2&&(track._sourceSwitches||0)<3){
+        let changed=false;
+        try{changed=await refreshSavedTrackSource(track);}catch(error){
+            recordPlayerEvent('alternate-provider-search-failed');}
+        if(!playbackWanted||token!==currentPlaybackToken||playbackPlaylist[currentIndex]!==track)return;
+        if(changed){
+            artistEl.textContent='Другой сервер найден — продолжаем…';
+            playTrack(currentIndex,{fromPlayback:true,resumeAt:resumeAt});
+            return;
+        }
+    }
     const retry = track._streamRetries;
     const useNoRange = AUDIO_COMPAT_PROFILE.fullFileFallback || retry >= 2;
     let retryUrl = resolveMediaUrl(track.url);
@@ -3169,6 +3185,26 @@ mainAudio.addEventListener('timeupdate', function() {
         track._resumeTime = mainAudio.currentTime;
         saveNativePlaybackSnapshot();
         maybePrefetchSmartRadio();
+        if(mainAudio.currentTime>=10&&track._serverRecordedForUrl!==track.url){
+            track._serverRecordedForUrl=track.url;
+            sourceHealthUpdate(track,'success');
+        }
+        if(mainAudio.currentTime>=12&&track._pendingSaveSource&&
+            track._pendingSaveSource.url===track.url&&!track._savingNewSource){
+            const saved=track._pendingSaveSource;
+            track._savingNewSource=true;
+            api('update_track_url',{track_id:track.id,url:saved.url,thumb:saved.thumb})
+              .then(result=>{
+                if(result?.success){
+                    const owner=playlists.find(pl=>(pl.tracks||[]).some(t=>String(t.id)===String(track.id)));
+                    const original=owner?.tracks?.find(t=>String(t.id)===String(track.id));
+                    if(original){original.url=saved.url;original.thumb=saved.thumb;
+                        original.source=saved.source;
+                        if(currentUser)saveOfflinePlaylistsSnapshot(playlists);}
+                    if(track._pendingSaveSource===saved)track._pendingSaveSource=null;
+                }
+              }).catch(()=>{}).finally(()=>{track._savingNewSource=false;});
+        }
 
         // Дополнительная страховка: после 8 секунд онлайн-прослушивания
         // ставим трек в очередь постоянного кэша только один раз за запуск.
@@ -3186,6 +3222,7 @@ mainAudio.addEventListener('error', function() {
     const mediaCode = mainAudio.error?.code || 0;
     console.warn('Audio media error', { code: mediaCode, source: track.source || '', retries: track._streamRetries || 0 });
     recordPlayerEvent('media-error',mediaCode);
+    if(!track._playingFromCache)sourceHealthUpdate(track,'error');
     showLoader(false);
     if (mediaCode === 4 && (track._streamRetries || 0) >= MAX_STREAM_RETRIES) {
         artistEl.textContent = 'Источник не поддерживается на устройстве';
@@ -3241,6 +3278,9 @@ async function playTrack(index, options = {}) {
     const targetList = options.fromPlayback ? playbackPlaylist : playlist;
     if(index < 0 || index >= targetList.length) return;
     if (!options.fromPlayback) {
+        const selected=targetList[index];
+        if(selected){selected._sourceSwitches=0;selected._failedAlternateUrls=[];
+            selected._pendingSaveSource=null;}
         recordManualPlaybackTransition();
         playbackPlaylist = [...targetList];
         playbackTab = String(currentTab);
@@ -3260,6 +3300,7 @@ async function playTrack(index, options = {}) {
     const token = currentPlaybackToken;
 
     track._streamRetries = 0;
+    track._serverRecordedForUrl='';
     track._earlyEndRetries = 0;
     track._cachedRecoveryAttempts = 0;
     track._refreshAttempted = false;

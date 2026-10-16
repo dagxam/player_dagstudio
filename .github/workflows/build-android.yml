@@ -18,6 +18,7 @@ on:
       - ".github/test-native-media.mjs"
       - ".github/test-smart-radio.mjs"
       - ".github/test-personal-radio.mjs"
+      - ".github/test-source-switch.mjs"
       - ".github/test-quick-mixes.mjs"
   workflow_dispatch:
 
@@ -69,6 +70,9 @@ jobs:
 
       - name: Test private personalized radio
         run: node .github/test-personal-radio.mjs
+
+      - name: Test alternate stream source failover
+        run: node .github/test-source-switch.mjs
 
       - name: Test quick mixes and favorite
         run: node .github/test-quick-mixes.mjs

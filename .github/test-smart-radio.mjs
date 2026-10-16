@@ -6,7 +6,7 @@ const text=readFileSync(new URL('../script.js',import.meta.url),'utf8');
 const a=text.indexOf('// SMART RADIO MATCHER START');
 const b=text.indexOf('// SMART RADIO MATCHER END');
 assert.ok(a>=0 && b>a);
-const ctx={};
+const ctx={tasteCandidateScore:()=>0};
 runInNewContext(text.slice(a,b),ctx);
 const base=[{title:'Пустота',artist:'Miyagi & Andy Panda',url:'https://example.org/seed.mp3'},
  {title:'Captain',artist:'Miyagi',url:'https://example.org/captain.mp3'}];
