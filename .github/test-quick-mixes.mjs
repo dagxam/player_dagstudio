@@ -78,3 +78,8 @@ assert.ok(apiSource.includes('foreach ($urls as $key => $url)'));
 assert.ok(source.includes("response?.sources"));
 assert.ok(source.includes("_mixRegion:item.region"));
 console.log('CAUCASUS_REPUBLICS_AND_ALL_SEVEN_SOURCES_OK');
+
+assert.ok(source.includes('function openCaucasusRadio()'));
+assert.ok(source.includes('function startCaucasusRadio(regionId)'));
+assert.ok(source.includes('caucasus_selected={title:region.label'));
+console.log('CAUCASUS_PICKER_OK');

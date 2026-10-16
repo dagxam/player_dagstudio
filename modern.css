@@ -760,3 +760,17 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 
 /* iPhone sees its installation route instead of an unusable Android APK. */
 #android-apk-download-btn[hidden]{display:none!important;}
+
+/* Compact republic/language selection nested inside Caucasian radio. */
+.caucasus-radio-box{max-width:680px!important;}
+.caucasus-radio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+ max-height:min(57dvh,440px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px;}
+.caucasus-region-btn{min-height:64px;padding:11px 13px;display:flex;flex-direction:column;gap:5px;
+ text-align:left;border:1px solid var(--theme-border,#35404b);border-radius:13px;
+ color:var(--theme-bright-text,#f5f6f8);background:var(--theme-control,#1b2229);cursor:pointer;}
+.caucasus-region-btn:hover,.caucasus-region-btn:focus-visible{outline:0;border-color:var(--theme-middle,#ca805d);
+ background:rgba(var(--theme-rgb,192,108,66),.14);}
+.caucasus-region-btn strong{font-size:.85rem;}
+.caucasus-region-btn small{font-size:.72rem;color:var(--theme-muted,#a6b0b9);}
+@media(max-width:460px){.caucasus-radio-grid{grid-template-columns:1fr;max-height:52dvh;}
+.caucasus-region-btn{min-height:54px;}}

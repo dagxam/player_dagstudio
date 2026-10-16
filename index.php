@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=12">
+    <link rel="stylesheet" href="modern.css?v=13">
 </head>
 <body>
 
@@ -128,6 +128,19 @@
   </div>
 </div>
 <!-- Подборки собраны в одну кнопку около эквалайзера: без длинной полосы над поиском. -->
+<div id="caucasus-radio-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="caucasus-radio-title" onclick="if(event.target===this)closeModal('caucasus-radio-modal')">
+    <div class="modal-box quick-mixes-modal-box caucasus-radio-box">
+        <button type="button" class="modal-close" onclick="closeModal('caucasus-radio-modal')" aria-label="Закрыть">&times;</button>
+        <div class="quick-mixes-heading">
+            <div class="quick-mixes-logo"><i class="fas fa-mountain"></i></div>
+            <div><span class="quick-mixes-eyebrow">DAGSTUDIO RADIO</span>
+                <h3 class="modal-title" id="caucasus-radio-title">Кавказское радио</h3>
+                <p class="quick-mixes-intro">Выбери республику или язык поиска</p></div>
+        </div>
+        <div id="caucasus-regions" class="caucasus-radio-grid"></div>
+        <p class="quick-mixes-footer">Язык песен не определяется автоматически: разделы задают направление поиска.</p>
+    </div>
+</div>
 <div id="quick-mixes-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quick-mixes-title" onclick="if(event.target===this)closeModal('quick-mixes-modal')">
     <div class="modal-box quick-mixes-modal-box">
         <button type="button" class="modal-close" onclick="closeModal('quick-mixes-modal')" aria-label="Закрыть подборки">&times;</button>
@@ -144,7 +157,7 @@
                 <span class="mix-icon"><i class="fas fa-wave-square"></i></span><span class="mix-copy"><strong>Моя волна</strong><small>На основе твоих прослушиваний</small></span><i class="fas fa-chevron-right mix-arrow"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span><span class="mix-copy"><strong>Русские</strong><small>Хиты и новинки</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
-            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')">
+            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="openCaucasusRadio()">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-mountain"></i></span><span class="mix-copy"><strong>Кавказские</strong><small>Дагестан и республики Кавказа</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-globe"></i></span><span class="mix-copy"><strong>Зарубежные</strong><small>Мировые хиты</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
@@ -314,7 +327,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2269" defer></script>
+<script src="script.js?v=2270" defer></script>
 
 </body>
 </html>

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2269';
+const WEB_BUILD_LABEL = '2270';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2269', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2270', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2269') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2269', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2270') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2270', '1');
         window.location.reload();
     });
 }
@@ -4236,6 +4236,35 @@ function openQuickMixes() {
 // Every query uses search_global: the PHP endpoint fans it out across its
 // seven configured providers and reports availability per provider. Results
 // are merged across providers while keeping different regions represented.
+function openCaucasusRadio() {
+    closeModal('quick-mixes-modal');
+    const root=document.getElementById('caucasus-regions');
+    const modal=document.getElementById('caucasus-radio-modal');
+    if(!root||!modal)return;
+    root.innerHTML='';
+    const add=(name,description,id)=>{
+        const btn=document.createElement('button');
+        btn.type='button';btn.className='caucasus-region-btn';
+        const title=document.createElement('strong'),sub=document.createElement('small');
+        title.textContent=name;sub.textContent=description;
+        btn.append(title,sub);
+        btn.onclick=()=>startCaucasusRadio(id);
+        root.appendChild(btn);
+    };
+    add('Весь Кавказ','Все республики и направления','all');
+    for(const region of QUICK_MIXES.caucasus.regions)
+        add(region.label,'Поиск по исполнителям и названиям',region.id);
+    modal.classList.add('show');
+}
+function startCaucasusRadio(regionId) {
+    const config=QUICK_MIXES.caucasus;
+    closeModal('caucasus-radio-modal');
+    if(regionId==='all')return startQuickMix('caucasus');
+    const region=config.regions.find(item=>item.id===regionId);
+    if(!region)return;
+    QUICK_MIXES.caucasus_selected={title:region.label,mode:'popular',regions:[region]};
+    startQuickMix('caucasus_selected');
+}
 function quickMixSearchPlan(config) {
     if (Array.isArray(config?.regions)) {
         return config.regions.map(region=>({
@@ -4280,6 +4309,10 @@ function renderQuickMixButtons() {
     });
 }
 document.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && document.getElementById('caucasus-radio-modal')?.classList.contains('show')) {
+        event.preventDefault();closeModal('caucasus-radio-modal');
+        document.getElementById('header-mixes-btn')?.focus();
+    }
     if(event.key==='Escape' && document.getElementById('quick-mixes-modal')?.classList.contains('show')) {
         event.preventDefault();
         closeModal('quick-mixes-modal');
