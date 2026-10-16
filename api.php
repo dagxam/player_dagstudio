@@ -451,7 +451,11 @@ elseif ($action === 'search_global') {
                     'url' => 'https://api.audius.co/v1/tracks/' . rawurlencode($id) . '/stream',
                     'type' => 'audio',
                     'thumb' => $thumb,
-                    'source' => '[AUDIUS]'
+                    'source' => '[AUDIUS]',
+                    'play_count' => max(0, (int)($track['play_count'] ?? 0)),
+                    'favorite_count' => max(0, (int)($track['favorite_count'] ?? 0)),
+                    'release_date' => is_string($track['release_date'] ?? null)
+                        ? mb_substr($track['release_date'], 0, 30) : ''
                 ];
             }
         }

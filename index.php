@@ -88,7 +88,9 @@
 
         <nav id="quick-mixes" class="quick-mixes" aria-label="Быстрые музыкальные подборки">
             <span class="quick-mixes-label"><i class="fas fa-bolt"></i> Подборки</span>
-            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')"><i class="fas fa-music"></i> Русская музыка</button>
+            <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')"><i class="fas fa-music"></i> Русская</button>
+            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')"><i class="fas fa-mountain"></i> Кавказские</button>
+            <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')"><i class="fas fa-globe"></i> Зарубежные</button>
             <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')"><i class="fas fa-star"></i> Лучшее</button>
             <button type="button" class="quick-mix-btn" data-mix="road" onclick="startQuickMix('road')"><i class="fas fa-car-side"></i> В дорогу</button>
             <button type="button" class="quick-mix-btn" data-mix="rock" onclick="startQuickMix('rock')"><i class="fas fa-guitar"></i> Рок</button>
@@ -256,7 +258,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2259" defer></script>
+<script src="script.js?v=2260" defer></script>
 
 </body>
 </html>

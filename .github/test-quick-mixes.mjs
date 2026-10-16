@@ -20,3 +20,20 @@ console.log('QUICK_MIXES_AND_HEART_OK');
 assert.ok(source.includes('btn.disabled=false;'),'mixes must be switchable during a search');
 assert.ok(source.includes('playlistSnapshotOwner = username;\n        updatePlayingHeart();'),'heart should update after server playlist sync');
 console.log('QUICK_MIXES_SWITCH_AND_FAVORITE_SYNC_OK');
+
+const rankBegin=source.indexOf('function quickMixReleaseTimestamp(');
+const rankEnd=source.indexOf('function setQuickMixStatus(',rankBegin);
+assert.ok(rankBegin>0&&rankEnd>rankBegin);
+runInNewContext(source.slice(rankBegin,rankEnd),ctx);
+const popular={title:'Popular',artist:'Singer',url:'https://example.org/popular.mp3',play_count:300000,favorite_count:12000};
+const less={title:'Less',artist:'Singer',url:'https://example.org/less.mp3',play_count:5};
+const sorted=ctx.quickMixRankTracks([less,popular],{mode:'popular'});
+assert.equal(sorted[0].title,'Popular');
+const recent={title:'Recent',artist:'Singer',url:'https://example.org/recent.mp3',
+    play_count:1000,release_date:new Date(Date.now()-30*86400000).toISOString().slice(0,10)};
+assert.ok(ctx.quickMixRank(recent,{mode:'popular'})>ctx.quickMixRank({...recent,release_date:''},{mode:'popular'}));
+assert.equal(ctx.quickMixReleaseTimestamp({release_date:'not-a-date'}),0);
+assert.ok(source.includes('QUICK_MIXES={'));
+assert.ok(source.includes('caucasus:')&&source.includes('foreign:'));
+assert.ok(source.includes("String(currentTab).startsWith('mix:')"));
+console.log('POPULARITY_AND_RELEASE_RANKING_OK');

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2259';
+const WEB_BUILD_LABEL = '2260';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2259', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2260', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2259') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2259', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2260') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2260', '1');
         window.location.reload();
     });
 }
@@ -3982,11 +3982,13 @@ if(mainSearchInput) {
 
 
 const QUICK_MIXES={
-    russian:{title:'Русская музыка',artists:['Баста','Мияги','Мот','Макс Корж']},
-    hits:{title:'Лучшее · подборка',artists:['Miyagi','Баста','Zivert','Егор Крид']},
-    road:{title:'В дорогу',artists:['Кино','Би-2','Сплин','Земфира']},
-    rock:{title:'Рок',artists:['Кино','Ария','ДДТ','Сплин']},
-    retro:{title:'Ретро',artists:['Руки Вверх','Мираж','Комбинация','Наутилус Помпилиус']}
+    russian:{title:'Русская',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
+    caucasus:{title:'Кавказские',mode:'popular',artists:['Ислам Итляшев','Султан Лагучев','Магомед Дзыбов','Эльбрус Джанмирзоев','Мурат Тхагалегов','Рустам Нахушев']},
+    foreign:{title:'Зарубежные',mode:'popular',artists:['Taylor Swift','The Weeknd','Dua Lipa','Bruno Mars','Billie Eilish','Lady Gaga']},
+    hits:{title:'Лучшее · подборка',mode:'popular',artists:['Баста','Zivert','Miyagi','Ислам Итляшев','The Weeknd','Dua Lipa']},
+    road:{title:'В дорогу',mode:'popular',artists:['Кино','Би-2','Сплин','Баста','Zivert','Макс Корж']},
+    rock:{title:'Рок',mode:'popular',artists:['Кино','Ария','ДДТ','Сплин','Би-2','Наутилус Помпилиус']},
+    retro:{title:'Ретро',mode:'classic',artists:['Руки Вверх','Мираж','Комбинация','Наутилус Помпилиус','Ласковый май','Алла Пугачёва']}
 };
 let quickMixRequestId=0;
 let quickMixCurrent=null;
@@ -4001,6 +4003,45 @@ function quickMixUnique(tracks,known=[]) {
         urls.add(track.url);names.add(key);result.push({...track,_quickMix:true});
     }
     return result;
+}
+// Audius exposes real play counters and release dates. Unknown metadata from
+// other providers remains unknown rather than being guessed from filenames.
+function quickMixReleaseTimestamp(track) {
+    const raw=String(track?.release_date||'');
+    if(!/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(raw))return 0;
+    const parsed=Date.parse(raw.slice(0,10)+'T00:00:00Z');
+    return Number.isFinite(parsed)&&parsed>0&&parsed<Date.now()+86400000?parsed:0;
+}
+function quickMixRank(track,config,sourcePosition=0,now=Date.now()) {
+    const plays=Math.max(0,Number(track?.play_count)||0);
+    const favorites=Math.max(0,Number(track?.favorite_count)||0);
+    const date=quickMixReleaseTimestamp(track);
+    const age=date?Math.max(0,(now-date)/86400000):Infinity;
+    const popularity=Math.min(65,Math.log10(plays+1)*10+Math.log10(favorites+1)*5);
+    const recent=age<365?22*(1-age/730):age<730?11*(1-(age-365)/365):0;
+    // Result order remains a fallback for sources without public metrics.
+    const relevance=Math.max(0,12-Math.floor(sourcePosition/3));
+    if(config?.mode==='classic')
+        return popularity+relevance+(age>7*365&&age<Infinity?12:0);
+    return popularity+recent+relevance;
+}
+function quickMixRankTracks(tracks,config) {
+    const now=Date.now();
+    const ranked=(tracks||[]).map((track,index)=>({
+        track,index,score:quickMixRank(track,config,index,now),
+        fresh:!!quickMixReleaseTimestamp(track)&&now-quickMixReleaseTimestamp(track)<=365*86400000
+    })).sort((a,b)=>b.score-a.score||a.index-b.index);
+    if(config?.mode==='classic')return ranked.map(e=>e.track);
+    // Mix popular records and verified newer releases. Only metadata-backed
+    // recency can receive this boost; other sources keep relevance order.
+    const popular=ranked.filter(e=>!e.fresh),recent=ranked.filter(e=>e.fresh),ordered=[];
+    let i=0,j=0;
+    while(i<popular.length||j<recent.length){
+        for(let n=0;n<3&&i<popular.length;n++)ordered.push(popular[i++].track);
+        if(j<recent.length)ordered.push(recent[j++].track);
+        if(i>=popular.length&&j<recent.length)ordered.push(recent[j++].track);
+    }
+    return ordered;
 }
 function setQuickMixStatus(message) {
     const el=document.getElementById('quick-mix-status');
@@ -4028,55 +4069,61 @@ async function startQuickMix(key) {
     const config=QUICK_MIXES[key];
     if(!config)return;
     if(navigator.onLine===false) {
-        setQuickMixStatus('Для запуска подборки нужен интернет.');return;
+        setQuickMixStatus('Для подборок нужен интернет.');return;
     }
     const requestId=++quickMixRequestId;
     quickMixCurrent={key,title:config.title,tracks:[],loading:true};
     renderQuickMixButtons();
-    setQuickMixStatus('Ищем музыку для подборки «'+config.title+'»…');
-    // Discover actual playable-looking URLs; unlike curated charts we do not
-    // claim these are official rankings or known available tracks.
-    const artists=[...config.artists].sort(()=>Math.random()-.5);
+    setQuickMixStatus(config.mode==='classic'?'Ищем любимую классику…':'Ищем популярные песни и новинки…');
+    // Fixed relevant-artist order, not random. Rank the results before
+    // playback, but do not delay audio for every artist in a large category.
+    const batchSize=getNetworkProfile().weak?1:2;
     let started=false;
-    for(const artist of artists) {
+    for(let offset=0;offset<config.artists.length;offset+=batchSize){
         if(requestId!==quickMixRequestId)return;
-        try {
-            const net=getNetworkProfile();
-            const response=await api('search_global',{
-                query:artist,page:1,network:net.weak?'weak':'normal',
-                save_data:net.saveData?1:0
-            });
-            if(requestId!==quickMixRequestId)return;
-            if(!response?.success||!Array.isArray(response.data))continue;
-            const next=quickMixUnique(response.data,quickMixCurrent.tracks)
-                .sort(()=>Math.random()-.5).slice(0,9);
-            if(!next.length)continue;
-            quickMixCurrent.tracks.push(...next);
-            if(!started){
-                started=true;
-                currentTab='mix:'+key;
-                playlist=quickMixCurrent.tracks;
-                renderQuickMixView();
-                playTrack(0);
-                setQuickMixStatus('');
-                renderQuickMixButtons();
-            }else{
-                if(playbackTab==='mix:'+key&&playbackWanted){
-                    const urls=new Set(playbackPlaylist.map(t=>t.url));
-                    playbackPlaylist.push(...next.filter(t=>!urls.has(t.url)));
-                }
-                if(currentTab==='mix:'+key){
-                    playlist=quickMixCurrent.tracks;
-                    renderPlaylist();
-                }
+        const net=getNetworkProfile();
+        const names=config.artists.slice(offset,offset+batchSize);
+        const results=await Promise.all(names.map(async name=>{
+            try {
+                const response=await api('search_global',{
+                    query:name,page:1,network:net.weak?'weak':'normal',
+                    save_data:net.saveData?1:0
+                });
+                return response?.success&&Array.isArray(response.data)?response.data:[];
+            }catch(error) {
+                recordPlayerEvent('quick-mix-search-error');return [];
             }
-        }catch(e){recordPlayerEvent('quick-mix-search-error');}
+        }));
+        if(requestId!==quickMixRequestId)return;
+        const unique=quickMixUnique(results.flat(),quickMixCurrent.tracks);
+        const next=quickMixRankTracks(unique,config).slice(0,16);
+        if(!next.length)continue;
+        quickMixCurrent.tracks.push(...next);
+        if(!started) {
+            started=true;
+            currentTab='mix:'+key;
+            playlist=quickMixCurrent.tracks;
+            renderQuickMixView();
+            playTrack(0);
+            setQuickMixStatus('');
+            renderQuickMixButtons();
+        } else {
+            // Don't reorder or interrupt currently playing tracks while
+            // subsequent artist searches append more songs to the mix.
+            if(playbackTab==='mix:'+key&&playbackWanted){
+                const urls=new Set(playbackPlaylist.map(t=>t.url));
+                playbackPlaylist.push(...next.filter(t=>!urls.has(t.url)));
+            }
+            if(currentTab==='mix:'+key){
+                playlist=quickMixCurrent.tracks;
+                renderPlaylist();
+            }
+        }
     }
     if(requestId!==quickMixRequestId)return;
     quickMixCurrent.loading=false;renderQuickMixButtons();
-    if(!started)setQuickMixStatus('Сейчас не удалось найти треки. Попробуйте другую подборку.');
+    if(!started)setQuickMixStatus('Пока не удалось получить треки. Попробуйте другую подборку.');
 }
-
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) {
     if(id==='search'||!String(id).startsWith('mix:')){
@@ -4152,7 +4199,7 @@ function renderPlaylist() {
             : '';
 
         let actionBtn = ''; 
-        if(currentTab === 'search') { 
+        if(currentTab === 'search' || String(currentTab).startsWith('mix:')) {
             const isLiked = playlists.some(pl => pl.tracks.some(track => track.url === t.url)); 
             const likeClass = isLiked ? 'fas fa-heart liked' : 'far fa-heart'; 
             actionBtn = `
