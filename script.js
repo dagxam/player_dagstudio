@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2273';
+const WEB_BUILD_LABEL = '2274';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2273', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2274', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2273') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2273', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2274') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2274', '1');
         window.location.reload();
     });
 }
@@ -3694,7 +3694,7 @@ function tastePreferredArtists(seeds=[]) {
     const state=tasteLoad(),names=new Map();
     for(const [name,data] of Object.entries(state.artists||{}))
         if(data?.label)names.set(name,data.label);
-    for(const track of seedsif(track?.artist&&!track?._smartRadio)
+    for(const track of seeds)if(track?.artist&&!track?._smartRadio)
         names.set(normalizeTrackIdentity(track.artist),String(track.artist));
     for(const p of playlists)for(const track of (p.tracks||[]))if(track?.artist)
         names.set(normalizeTrackIdentity(track.artist),String(track.artist));
