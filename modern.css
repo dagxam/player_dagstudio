@@ -600,3 +600,11 @@ button:focus-visible,a:focus-visible,input:focus-visible {
  .quick-mixes-modal-box{max-height:82dvh;}
 }
 @media(prefers-reduced-motion:reduce){.quick-mix-btn{transition:none;}}
+
+/* Caucasus search-direction marker; unobtrusive on narrow TEYES rows. */
+.mix-region-badge{display:inline-block;vertical-align:baseline;max-width:185px;
+ padding:2px 6px;margin-left:4px;border:1px solid var(--theme-border,#35404b);
+ border-radius:7px;background:rgba(var(--theme-rgb,192,108,66),.10);
+ color:var(--theme-bright,#dfaa8c);font-size:.64rem;
+ line-height:1.25;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+@media (max-width:768px){.mix-region-badge{max-width:115px;font-size:.59rem;}}

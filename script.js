@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2263';
+const WEB_BUILD_LABEL = '2264';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2263', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2264', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2263') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2263', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2264') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2264', '1');
         window.location.reload();
     });
 }
@@ -3986,7 +3986,25 @@ if(mainSearchInput) {
 
 const QUICK_MIXES={
     russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
-    caucasus:{title:'Кавказские',mode:'popular',artists:['Ислам Итляшев','Султан Лагучев','Магомед Дзыбов','Эльбрус Джанмирзоев','Мурат Тхагалегов','Рустам Нахушев']},
+    caucasus:{title:'Кавказские',mode:'popular',regions:[
+        // Region labels are search directions, not verified audio-language tags.
+        {id:'dag_ru',label:'Дагестан · на русском',queries:['Эльдар Далгатов','Тимур Темиров']},
+        {id:'dag_avar',label:'Дагестан · аварские',queries:['Зара Гамзатова','аварские']},
+        {id:'chechnya',label:'Чечня',queries:['чеченские','Тимур Муцураев']},
+        {id:'ingushetia',label:'Ингушетия',queries:['ингушские','ингушская']},
+        {id:'ossetia',label:'Северная Осетия',queries:['осетинские','осетинская']},
+        {id:'kabardino',label:'Кабардино-Балкария',queries:['кабардинские','балкарские']},
+        {id:'karachay',label:'Карачаево-Черкесия',queries:['Ислам Итляшев','карачаевские']},
+        {id:'adygea',label:'Адыгея',queries:['адыгейские','Мурат Калакуток']},
+        {id:'dag_dargin',label:'Дагестан · даргинские',queries:['даргинские','Фатима Рабаданова']},
+        {id:'dag_lezgin',label:'Дагестан · лезгинские',queries:['Мика Рамазанова','лезгинские']},
+        {id:'dag_kumyk',label:'Дагестан · кумыкские',queries:['Ислам Айдаров','кумыкские']},
+        {id:'dag_lak',label:'Дагестан · лакские',queries:['лакские','лакская']},
+        {id:'dag_tabasaran',label:'Дагестан · табасаранские',queries:['табасаранские','табасаранская']},
+        {id:'south_georgia',label:'Грузия',queries:['грузинские','Сосо Павлиашвили']},
+        {id:'south_armenia',label:'Армения',queries:['армянские','Тата Симонян']},
+        {id:'south_azerbaijan',label:'Азербайджан',queries:['азербайджанские','Ройа Айхан']}
+    ]},
     foreign:{title:'Зарубежные',mode:'popular',artists:['Taylor Swift','The Weeknd','Dua Lipa','Bruno Mars','Billie Eilish','Lady Gaga']},
     hits:{title:'Лучшее · подборка',mode:'popular',artists:['Баста','Zivert','Miyagi','Ислам Итляшев','The Weeknd','Dua Lipa']},
     road:{title:'В дорогу',mode:'popular',artists:['Кино','Би-2','Сплин','Баста','Zivert','Макс Корж']},
@@ -4056,6 +4074,41 @@ function openQuickMixes() {
     if(button)button.setAttribute('aria-expanded','true');
     (dialog.querySelector('.quick-mix-btn.active')||dialog.querySelector('.quick-mix-btn'))?.focus();
 }
+// Every query uses search_global: the PHP endpoint fans it out across its
+// seven configured providers and reports availability per provider. Results
+// are merged across providers while keeping different regions represented.
+function quickMixSearchPlan(config) {
+    if (Array.isArray(config?.regions)) {
+        return config.regions.map(region=>({
+            region:region.label,queries:[...region.queries],
+            id:region.id
+        }));
+    }
+    return (config?.artists||[]).map(artist=>({region:'',queries:[artist],id:artist}));
+}
+function quickMixSpreadSources(tracks,limit=8) {
+    const buckets=new Map();
+    for(const track of tracks||[]) {
+        const source=String(track.source||'UNKNOWN');
+        if(!buckets.has(source))buckets.set(source,[]);
+        buckets.get(source).push(track);
+    }
+    const result=[];
+    while(result.length<limit) {
+        let added=false;
+        for(const queue of buckets.values()) {
+            if(queue.length) { result.push(queue.shift());added=true; }
+            if(result.length>=limit)break;
+        }
+        if(!added)break;
+    }
+    return result;
+}
+function quickMixSourcesCaption(state) {
+    const checked=state?.checkedSources?.size||0;
+    const found=state?.activeSources?.size||0;
+    return checked?(' · источников с результатами: '+found+'/'+checked):'';
+}
 function setQuickMixStatus(message) {
     const el=document.getElementById('quick-mix-status');
     if(el){el.textContent=message;el.hidden=!message;}
@@ -4093,32 +4146,64 @@ async function startQuickMix(key) {
     }
     closeModal('quick-mixes-modal');
     const requestId=++quickMixRequestId;
-    quickMixCurrent={key,title:config.title,tracks:[],loading:true};
+    quickMixCurrent={key,title:config.title,tracks:[],loading:true,
+        checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
     renderQuickMixButtons();
-    setQuickMixStatus(config.mode==='classic'?'Ищем любимую классику…':'Ищем популярные песни и новинки…');
-    // Fixed relevant-artist order, not random. Rank the results before
-    // playback, but do not delay audio for every artist in a large category.
+    setQuickMixStatus(config.regions?'Ищем песни народов Кавказа…':
+        config.mode==='classic'?'Ищем любимую классику…':'Ищем популярные песни и новинки…');
     const batchSize=getNetworkProfile().weak?1:2;
+    const plan=quickMixSearchPlan(config);
     let started=false;
-    for(let offset=0;offset<config.artists.length;offset+=batchSize){
+    for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;
-        const net=getNetworkProfile();
-        const names=config.artists.slice(offset,offset+batchSize);
-        const results=await Promise.all(names.map(async name=>{
-            try {
-                const response=await api('search_global',{
-                    query:name,page:1,network:net.weak?'weak':'normal',
-                    save_data:net.saveData?1:0
-                });
-                return response?.success&&Array.isArray(response.data)?response.data:[];
-            }catch(error) {
-                recordPlayerEvent('quick-mix-search-error');return [];
+        const batch=plan.slice(offset,offset+batchSize);
+        const results=await Promise.all(batch.map(async item=>{
+            // A fallback spelling/performer is tried only when the earlier
+            // query returned no tracks. Each attempt still fans out to every
+            // configured music provider in search_global.
+            for(const query of item.queries) {
+                if(requestId!==quickMixRequestId)return [];
+                try {
+                    const net=getNetworkProfile();
+                    const response=await api('search_global',{
+                        query,page:1,network:net.weak?'weak':'normal',
+                        save_data:net.saveData?1:0
+                    });
+                    if(requestId!==quickMixRequestId)return [];
+                    if(response?.sources&&typeof response.sources==='object') {
+                        for(const [server,status] of Object.entries(response.sources)) {
+                            quickMixCurrent.checkedSources.add(server);
+                            if(status?.ok)quickMixCurrent.activeSources.add(server);
+                        }
+                    }
+                    if(response?.success&&Array.isArray(response.data)&&response.data.length) {
+                        return quickMixRankTracks(
+                            quickMixUnique(response.data),config
+                        ).map(track=>({...track,_mixRegion:item.region,
+                            _mixSearchQuery:query}));
+                    }
+                } catch(error) {recordPlayerEvent('quick-mix-search-error');}
             }
+            return [];
         }));
         if(requestId!==quickMixRequestId)return;
-        const unique=quickMixUnique(results.flat(),quickMixCurrent.tracks);
-        const next=quickMixRankTracks(unique,config).slice(0,16);
-        if(!next.length)continue;
+        // Cap each direction so one language or one republic cannot
+        // monopolize the Caucasian playlist before others are searched.
+        const next=[];
+        for(let i=0;i<batch.length;i++){
+            const item=batch[i];
+            const fresh=quickMixUnique(results[i],quickMixCurrent.tracks);
+            const spread=quickMixSpreadSources(fresh,config.regions?5:12);
+            if(spread.length){
+                next.push(...spread);
+                if(item.region)quickMixCurrent.searchedRegions.add(item.region);
+            }
+        }
+        if(!next.length) {
+            if(config.regions)setQuickMixStatus('Ищем песни других республик…'+
+                quickMixSourcesCaption(quickMixCurrent));
+            continue;
+        }
         quickMixCurrent.tracks.push(...next);
         if(!started) {
             started=true;
@@ -4126,25 +4211,29 @@ async function startQuickMix(key) {
             playlist=quickMixCurrent.tracks;
             renderQuickMixView();
             playTrack(0);
-            setQuickMixStatus('');
             renderQuickMixButtons();
         } else {
-            // Don't reorder or interrupt currently playing tracks while
-            // subsequent artist searches append more songs to the mix.
-            if(playbackTab==='mix:'+key&&playbackWanted){
+            if(playbackTab==='mix:'+key&&playbackWanted) {
                 const urls=new Set(playbackPlaylist.map(t=>t.url));
                 playbackPlaylist.push(...next.filter(t=>!urls.has(t.url)));
             }
-            if(currentTab==='mix:'+key){
+            if(currentTab==='mix:'+key) {
                 playlist=quickMixCurrent.tracks;
                 renderPlaylist();
             }
         }
+        setQuickMixStatus('Найдено '+quickMixCurrent.tracks.length+' треков'+
+            (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
+            quickMixSourcesCaption(quickMixCurrent));
     }
     if(requestId!==quickMixRequestId)return;
-    quickMixCurrent.loading=false;renderQuickMixButtons();
-    if(!started)setQuickMixStatus('Пока не удалось получить треки. Попробуйте другую подборку.');
-    else setQuickMixStatus('Подборка готова · '+quickMixCurrent.tracks.length+' треков');
+    quickMixCurrent.loading=false;
+    renderQuickMixButtons();
+    if(!started)setQuickMixStatus('Нет доступных песен. Попробуйте другую подборку.'+
+        quickMixSourcesCaption(quickMixCurrent));
+    else setQuickMixStatus('Подборка готова · '+quickMixCurrent.tracks.length+' треков'+
+        (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
+        quickMixSourcesCaption(quickMixCurrent));
 }
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) {
@@ -4240,8 +4329,22 @@ function renderPlaylist() {
         const title = document.createElement('div'); title.className = 't-title'; title.textContent = t.title || '';
         const artist = document.createElement('div'); artist.className = 't-artist'; 
         
-        let sourceHtml = (currentTab === 'search' && t.source) ? `<span class="source-badge">${t.source}</span>` : '';
-        artist.innerHTML = `${t.artist || 'Неизвестен'} ${sourceHtml}`;
+        artist.textContent=t.artist||'Неизвестен';
+        if(t.source && (currentTab==='search'||String(currentTab).startsWith('mix:'))) {
+            const sourceBadge=document.createElement('span');
+            sourceBadge.className='source-badge';
+            sourceBadge.textContent=t.source;
+            artist.appendChild(document.createTextNode(' '));
+            artist.appendChild(sourceBadge);
+        }
+        if(currentTab==='mix:caucasus' && t._mixRegion) {
+            const regionBadge=document.createElement('span');
+            regionBadge.className='mix-region-badge';
+            regionBadge.title='Поисковое направление: '+t._mixRegion+'. Язык исполнения не проверен.';
+            regionBadge.textContent=t._mixRegion;
+            artist.appendChild(document.createTextNode(' '));
+            artist.appendChild(regionBadge);
+        }
         
         left.appendChild(title); left.appendChild(artist);
 

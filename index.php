@@ -24,7 +24,7 @@
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
-    <link rel="stylesheet" href="modern.css?v=9">
+    <link rel="stylesheet" href="modern.css?v=10">
 </head>
 <body>
 
@@ -118,7 +118,7 @@
             <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span><span class="mix-copy"><strong>Русские</strong><small>Хиты и новинки</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-mountain"></i></span><span class="mix-copy"><strong>Кавказские</strong><small>Любимые исполнители</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-mountain"></i></span><span class="mix-copy"><strong>Кавказские</strong><small>Дагестан и республики Кавказа</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-globe"></i></span><span class="mix-copy"><strong>Зарубежные</strong><small>Мировые хиты</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')">
@@ -130,7 +130,7 @@
             <button type="button" class="quick-mix-btn" data-mix="retro" onclick="startQuickMix('retro')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-compact-disc"></i></span><span class="mix-copy"><strong>Ретро</strong><small>Знакомая классика</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
         </div>
-        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Ищем песни в сети. Текущий трек не прервётся, пока новая подборка не найдена.</div>
+        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Поиск по всем подключённым музыкальным источникам. Если один сервер недоступен, используются результаты остальных. Подборки не подтверждают язык исполнения автоматически.</div>
     </div>
 </div>
 
@@ -281,7 +281,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2263" defer></script>
+<script src="script.js?v=2264" defer></script>
 
 </body>
 </html>

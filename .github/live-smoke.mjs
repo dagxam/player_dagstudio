@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2263', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2264', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -105,10 +105,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2263', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2264', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2263'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2264'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -192,7 +192,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2263', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2264', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -320,6 +320,22 @@ try {
   if(categoryOrder.russian!=='Русские'||!categoryOrder.caucasus||
       !categoryOrder.foreign||!categoryOrder.sorter||!categoryOrder.mixSaving)
     throw new Error('Mix category labels/ranking/save controls regressed');
+
+  const caucasusChecks=await page.evaluate(()=>{
+    const conf=QUICK_MIXES.caucasus;
+    const regions=conf.regions.map(r=>r.id);
+    return {supported:regions.length,dagRu:regions.includes('dag_ru'),
+      nativeDag:regions.includes('dag_avar')&&regions.includes('dag_dargin')&&regions.includes('dag_lezgin'),
+      chechnya:regions.includes('chechnya'),ingushetia:regions.includes('ingushetia'),
+      ossetia:regions.includes('ossetia'),kabardino:regions.includes('kabardino'),
+      karachay:regions.includes('karachay'),adygea:regions.includes('adygea'),
+      allProviders:typeof quickMixSpreadSources==='function',
+      languageDisclaimer:document.querySelector('.quick-mixes-footer')?.textContent.includes('язык исполнения')
+    };
+  });
+  console.log('CAUCASUS_COVERAGE',JSON.stringify(caucasusChecks));
+  if(caucasusChecks.supported<15||Object.entries(caucasusChecks).some(([k,v])=>k!=='supported'&&!v))
+    throw new Error('Caucasus categories / provider support missing');
 
   const smartRadioStatus=await page.evaluate(()=>{
     return {available:typeof toggleSmartRadio==='function',
@@ -625,7 +641,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2263', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2264', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));

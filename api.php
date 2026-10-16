@@ -349,6 +349,8 @@ elseif ($action === 'search_global') {
     $audius_offset = max(0, ($page - 1) * ($weak_client ? 12 : 20));
     $audius_limit = $weak_client ? 12 : 20;
 
+    // Each search request fans out to ALL seven providers even on weak
+    // automotive internet. Timeouts and result limits adapt, not the list.
     $urls = [
         'audius'  => "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
         'vk_mail' => "https://slider.kz/vk_auth.php?q=" . $query_encode . "&page=" . $page,

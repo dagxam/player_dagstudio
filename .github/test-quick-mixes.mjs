@@ -37,3 +37,44 @@ assert.ok(source.includes('QUICK_MIXES={'));
 assert.ok(source.includes('caucasus:')&&source.includes('foreign:'));
 assert.ok(source.includes("String(currentTab).startsWith('mix:')"));
 console.log('POPULARITY_AND_RELEASE_RANKING_OK');
+
+// Caucasus: cover every North Caucasus republic plus South Caucasus;
+// Dagestan includes Russian-language-oriented searches and native-language
+// directions. All actual streams are supplied by live providers, not fixtures.
+const configBegin=source.indexOf('const QUICK_MIXES={');
+const configEnd=source.indexOf('let quickMixRequestId=',configBegin);
+assert.ok(configBegin>=0&&configEnd>configBegin);
+const configContext={};
+runInNewContext(source.slice(configBegin,configEnd).replace('const QUICK_MIXES=','globalThis.QUICK_MIXES='),configContext);
+const caucasus=configContext.QUICK_MIXES.caucasus;
+assert.ok(caucasus.regions.length>=15);
+const codes=caucasus.regions.map(x=>x.id);
+for(const expected of ['dag_ru','dag_avar','dag_dargin','dag_lezgin',
+ 'dag_kumyk','dag_lak','dag_tabasaran','chechnya','ingushetia',
+ 'ossetia','kabardino','karachay','adygea',
+ 'south_georgia','south_armenia','south_azerbaijan']) {
+ assert.ok(codes.includes(expected),'missing Caucasus search direction: '+expected);
+}
+assert.ok(caucasus.regions.every(x=>x.queries.length>=2&&x.label.length>2));
+const sourceBegin=source.indexOf('function quickMixSearchPlan(');
+const sourceEnd=source.indexOf('function setQuickMixStatus(',sourceBegin);
+assert.ok(sourceBegin>0&&sourceEnd>sourceBegin);
+runInNewContext(source.slice(sourceBegin,sourceEnd),ctx);
+const plan=ctx.quickMixSearchPlan(caucasus);
+assert.equal(plan.length,caucasus.regions.length);
+const mixed=ctx.quickMixSpreadSources([
+ {id:1,source:'[AUDIUS]'},{id:2,source:'[AUDIUS]'},
+ {id:3,source:'[HITMOZ]'},{id:4,source:'[MUZOFOND]'}],3);
+assert.equal(mixed.length,3);
+assert.equal(mixed[0].id,1);
+assert.equal(mixed[1].id,3);
+assert.equal(mixed[2].id,4);
+const apiSource=readFileSync(new URL('../api.php',import.meta.url),'utf8');
+for(const provider of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca']){
+ assert.ok(apiSource.includes("'"+provider+"'  =>")||new RegExp("'"+provider+"'\\s*=>").test(apiSource),
+    'not all servers queried: '+provider);
+}
+assert.ok(apiSource.includes('foreach ($urls as $key => $url)'));
+assert.ok(source.includes("response?.sources"));
+assert.ok(source.includes("_mixRegion:item.region"));
+console.log('CAUCASUS_REPUBLICS_AND_ALL_SEVEN_SOURCES_OK');
