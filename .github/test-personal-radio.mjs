@@ -22,3 +22,7 @@ assert.ok(ctx.tasteCandidateScore(a,['Баста'])>10);
 assert.ok(ctx.tasteCandidateScore(b,['Miyagi'])<0);
 assert.ok(memory.size===1);
 console.log('PERSONAL_RADIO_BEHAVIOR_OK');
+
+assert.ok(src.includes('function tastePreferredGenres()'));
+assert.ok(src.includes('positiveGenre*2'));
+console.log('PERSONAL_GENRE_SIGNAL_OK');

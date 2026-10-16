@@ -454,6 +454,8 @@ elseif ($action === 'search_global') {
                     'type' => 'audio',
                     'thumb' => $thumb,
                     'source' => '[AUDIUS]',
+                    // Genres are official Audius metadata, not guessed from titles.
+                    'genre' => mb_substr(trim(strip_tags((string)($track['genre'] ?? ''))), 0, 55),
                     'play_count' => max(0, (int)($track['play_count'] ?? 0)),
                     'favorite_count' => max(0, (int)($track['favorite_count'] ?? 0)),
                     'release_date' => is_string($track['release_date'] ?? null)

@@ -77,7 +77,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2272';
+const WEB_BUILD_LABEL = '2273';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -417,7 +417,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2272', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2273', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +429,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2272') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2272', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2273') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2273', '1');
         window.location.reload();
     });
 }
@@ -3656,14 +3656,16 @@ function tasteTrackId(track) {
 }
 function tasteLoad() {
     try { const t=JSON.parse(localStorage.getItem(TASTE_STORAGE_PREFIX+tasteOwnerKey())||'null');
-        return t&&typeof t==='object'&&t.tracks&&t.artists?t:{tracks:{},artists:{},regions:{}}; }
-    catch(e){return {tracks:{},artists:{},regions:{}};}
+        return t&&typeof t==='object'&&t.tracks&&t.artists?
+            {...t,genres:t.genres||{}}:{tracks:{},artists:{},regions:{},genres:{}}; }
+    catch(e){return {tracks:{},artists:{},regions:{},genres:{}};}
 }
 function tasteSave(state) {
     const trim=(dict,limit)=>Object.fromEntries(Object.entries(dict||{})
         .sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,limit));
     try {localStorage.setItem(TASTE_STORAGE_PREFIX+tasteOwnerKey(),JSON.stringify({
-        tracks:trim(state.tracks,350),artists:trim(state.artists,100),regions:trim(state.regions,30)
+        tracks:trim(state.tracks,350),artists:trim(state.artists,100),
+        regions:trim(state.regions,30),genres:trim(state.genres,25)
     }));}catch(e){}
 }
 function tasteRecord(kind,track) {
@@ -3680,6 +3682,9 @@ function tasteRecord(kind,track) {
         dict[key]=obj;
     };
     update(state.tracks,id);update(state.artists,artist);
+    state.artists[artist].label=String(track.artist).slice(0,100);
+    const genre=normalizeTrackIdentity(track.genre);
+    if(genre&&genre.length>=3&&genre.length<45)update(state.genres,genre);
     if(track._mixRegion)update(state.regions,String(track._mixRegion));
     tasteSave(state);
     const hint=document.getElementById('personal-radio-hint');
@@ -3687,7 +3692,9 @@ function tasteRecord(kind,track) {
 }
 function tastePreferredArtists(seeds=[]) {
     const state=tasteLoad(),names=new Map();
-    for(const track of seeds)if(track?.artist&&!track?._smartRadio)
+    for(const [name,data] of Object.entries(state.artists||{}))
+        if(data?.label)names.set(name,data.label);
+    for(const track of seedsif(track?.artist&&!track?._smartRadio)
         names.set(normalizeTrackIdentity(track.artist),String(track.artist));
     for(const p of playlists)for(const track of (p.tracks||[]))if(track?.artist)
         names.set(normalizeTrackIdentity(track.artist),String(track.artist));
@@ -3696,14 +3703,21 @@ function tastePreferredArtists(seeds=[]) {
     const current=smartRadioQueryArtists(seeds);
     return [...new Set([...ranked,...current])].filter(Boolean).slice(0,24);
 }
+function tastePreferredGenres() {
+    const state=tasteLoad();
+    return Object.entries(state.genres||{}).filter(([,record])=>record.score>=2)
+        .sort((a,b)=>b[1].score-a[1].score).slice(0,4).map(([genre])=>genre);
+}
 function tasteCandidateScore(track,seedArtists=[]) {
     const state=tasteLoad();
     const artist=normalizeTrackIdentity(track?.artist),id=tasteTrackId(track);
     const record=Number(state.tracks?.[id]?.score||0);
     if(record<=-5)return -1000;
     const positiveArtist=Number(state.artists?.[artist]?.score||0);
+    const genre=normalizeTrackIdentity(track?.genre);
+    const positiveGenre=genre?Number(state.genres?.[genre]?.score||0):0;
     const belongs=seedArtists.some(v=>normalizeTrackIdentity(v)===artist);
-    return record*2+positiveArtist*3+(belongs?8:0);
+    return record*2+positiveArtist*3+positiveGenre*2+(belongs?8:0);
 }
 function tasteReset() {
     showConfirm('Очистить локальную историю предпочтений на этом устройстве?',()=>{
@@ -3813,14 +3827,16 @@ async function findSmartRadioTrack() {
     if (navigator.onLine === false) return null;
     const seeds = playbackPlaylist.filter(t => !t._smartRadio);
     const artists = tastePreferredArtists(seeds);
-    if (!artists.length) return null;
+    const genres=tastePreferredGenres();
+    if (!artists.length&&!genres.length) return null;
     const seen = [...playbackPlaylist,...playbackQueue];
-    const start = smartRadioSearchCursor++ % artists.length;
-    const page = 1 + Math.floor(smartRadioSearchCursor / Math.max(1,artists.length)) % 3;
+    const searches=[...artists,...genres.filter(g=>!artists.some(a=>normalizeTrackIdentity(a)===g))];
+    const start = smartRadioSearchCursor++ % searches.length;
+    const page = 1 + Math.floor(smartRadioSearchCursor / Math.max(1,searches.length)) % 3;
     const net = getNetworkProfile();
     // No more than three searches on an automatic transition.
-    for (let i=0; i<Math.min(3,artists.length); i++) {
-        const artist = artists[(start+i)%artists.length];
+    for (let i=0; i<Math.min(3,searches.length); i++) {
+        const artist = searches[(start+i)%searches.length];
         const response = await api('search_global',{
             query:artist,page:i===0?page:1,
             network:net.weak?'weak':'normal',save_data:net.saveData?1:0
@@ -4436,11 +4452,13 @@ async function startQuickMix(key) {
     if(key==='wave'){
         const seeds=[...playbackPlaylist,...playlists.flatMap(pl=>pl.tracks||[])];
         const preferred=tastePreferredArtists(seeds);
-        if(!preferred.length){
+        if(!preferred.length&&!tastePreferredGenres().length){
             setQuickMixStatus('Для «Моей волны» послушайте несколько песен или добавьте их в плейлисты.');
             closeModal('quick-mixes-modal');return;
         }
-        QUICK_MIXES.wave={title:'Моя волна',mode:'popular',artists:preferred};
+        const genres=tastePreferredGenres();
+        QUICK_MIXES.wave={title:'Моя волна',mode:'popular',
+            artists:[...new Set([...preferred,...genres])].slice(0,24)};
     }
     const config=QUICK_MIXES[key];
     if(!config)return;
