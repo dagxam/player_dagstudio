@@ -21,7 +21,7 @@ assert.equal(played,0,'shuffle must not restart current audio');
 assert.equal(context.playlist[0],list[2]);
 assert.equal(new Set(context.playlist).size,list.length);
 assert.deepEqual(context.playlist.map(t=>t.url),context.playbackPlaylist.map(t=>t.url));
-assert.ok(notified.includes('перемешан'));
+assert.equal(notified,'','rearranging the playlist must not open a modal');
 const before=context.playlist.map(t=>t.url).join(',');
 context.toggleShuffle();
 assert.notEqual(context.playlist.map(t=>t.url).join(','),before,

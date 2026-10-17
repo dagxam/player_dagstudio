@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2279';
+const WEB_BUILD_LABEL = '2280';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2279', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2280', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2279') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2279', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2280') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2280', '1');
         window.location.reload();
     });
 }
@@ -4082,7 +4082,7 @@ function toggleShuffle() {
     const button=document.getElementById('btn-shuffle');
     if(button){button.classList.remove('active');button.setAttribute('aria-pressed','false');}
     if(visible)renderPlaylist();
-    showNotification('Треки перемешаны.');
+    // Reordering is immediate feedback. Do not open a blocking modal.
 }
 function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('btn-repeat').classList.toggle('active'); }
 function savePlaybackQueue() {
