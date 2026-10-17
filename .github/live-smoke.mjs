@@ -119,101 +119,81 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
-  // Studio 2026: real navigation, one playback engine, usable car display widths.
-  for (const viewport of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]) {
+  // DAGSTUDIO two-zone: no sidebar, no duplicate bottom controls.
+  for (const viewport of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720},
+      {width:390,height:844},{width:320,height:640}]) {
     await page.setViewport(viewport);
-    const v=await page.evaluate(()=>{
+    const state=await page.evaluate(()=>{
       const rect=s=>document.querySelector(s).getBoundingClientRect();
-      const side=rect('#studio-sidebar'),left=rect('.left-col'),right=rect('.right-col'),
-            dock=rect('.studio-dock');
-      return {sideVisible:side.width>70&&getComputedStyle(document.querySelector('#studio-sidebar')).display!=='none',
-        leftVisible:left.width>175,contentVisible:right.width>255,
-        nonOverlapping:left.right<=right.left+4,
-        sidebarOrder:side.right<=left.left+4,
-        dockVisible:dock.height>35&&getComputedStyle(document.querySelector('.studio-dock')).display!=='none',
-        searchInHeader:document.getElementById('search-container-box').parentElement.classList.contains('right-col-header'),
-        oneAudio:document.querySelectorAll('audio').length===1,
-        noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
-    });
-    console.log('STUDIO_CAR_LAYOUT',JSON.stringify({viewport,v}));
-    if(!v.leftVisible||!v.contentVisible||(viewport.width>768&&!v.nonOverlapping)||!v.searchInHeader||!v.oneAudio||!v.noOverflow||
-       (viewport.width>930&&(!v.sideVisible||!v.sidebarOrder||!v.dockVisible))||
-       (viewport.width<=768&&(v.sideVisible||v.dockVisible)))
-      throw new Error('Studio responsive regression '+JSON.stringify({viewport,v}));
-  }
-  await page.setViewport({width:1200,height:800});
-  const studioLibrary=await page.evaluate(()=>{
-    const previousPlaylists=playlists,previousTab=currentTab,previousPlaylist=playlist,previousIndex=currentIndex;
-    const spy=document.getElementById('main-audio').play;
-    let starts=0;
-    document.getElementById('main-audio').play=()=>{starts++;return Promise.resolve();};
-    try{
-      playlists=[{id:'studio-test-1',name:'Тестовый плейлист',tracks:[{title:'Тест',artist:'DAGSTUDIO',url:'https://example.invalid/track.mp3'}]}];
-      document.querySelector('[data-studio-view="library"]').click();
-      const shown=document.getElementById('studio-library').classList.contains('active');
-      const count=document.querySelectorAll('.studio-playlist-card').length;
-      const active=document.querySelector('[data-studio-view="library"]').getAttribute('aria-current');
-      document.querySelector('[data-studio-view="wave"]').click();
-      return {shown,count,active,starts,restored:!document.getElementById('studio-library').classList.contains('active')};
-    }finally{
-      playlists=previousPlaylists;currentTab=previousTab;playlist=previousPlaylist;currentIndex=previousIndex;
-      document.getElementById('main-audio').play=spy;
-    }
-  });
-  console.log('STUDIO_PLAYLISTS',JSON.stringify(studioLibrary));
-  if(!studioLibrary.shown||studioLibrary.count!==1||studioLibrary.active!=='page'||
-    studioLibrary.starts!==0||!studioLibrary.restored)
-    throw new Error('Studio playlists UI regression '+JSON.stringify(studioLibrary));
-  await page.setViewport({width:1200,height:800});
-
-  // Playlists remains the original button, relocated beside the equalizer.
-  for (const vp of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844},{width:320,height:640}]) {
-    await page.setViewport(vp);
-    const check=await page.evaluate(()=>{
-      const pl=document.getElementById('btn-pl-select');
-      const eq=document.querySelector('.header-eq-btn');
-      const area=document.querySelector('.header-right');
-      const pos=pl.getBoundingClientRect(),equalizer=eq.getBoundingClientRect();
+      const left=rect('.left-col'),right=rect('.right-col');
+      const header=rect('.header-overlay'),eq=rect('.header-eq-btn'),wave=rect('#studio-header-wave'),
+        likes=rect('#studio-header-likes'),pl=rect('#btn-pl-select'),mixes=rect('#header-mixes-btn');
+      const car=innerWidth>768;
       return {
-        one:document.querySelectorAll('#btn-pl-select').length===1,
-        header:pl.parentElement===area,
-        removedFromSearch:!document.querySelector('.right-col-header #btn-pl-select'),
-        adjacent:eq.nextElementSibling===pl,
-        visible:pos.width>=38&&pos.height>=38&&pos.left>=0&&pos.right<=innerWidth+1,
-        functional:pl.getAttribute('onclick')==='openPlaylistSelect()',
-        label:pl.getAttribute('aria-label')==='Плейлисты',
-        compact:innerWidth>768||getComputedStyle(pl.querySelector('.header-playlists-label')).display==='none',
-        eqVisible:equalizer.width>=38&&equalizer.right<=innerWidth+1,
-        noOverflow:document.documentElement.scrollWidth<=innerWidth+2
+        noSidebar:!document.querySelector('#studio-sidebar'),
+        noDock:!document.querySelector('.studio-dock'),
+        noHero:!document.querySelector('#studio-hero'),
+        playerWide:car?left.width>=285:left.width>=310,
+        trackSpace:car?right.width>=380:right.width>=310,
+        contiguous:car?Math.abs(left.right-right.left)<=4:true,
+        fullHeader:car?header.left<=1&&header.width>=innerWidth-2:true,
+        controls: [eq,wave,likes,pl,mixes].every(r=>r.width>=34&&r.left>=0&&r.right<=innerWidth+1),
+        ordered:eq.right<=wave.left+4&&wave.right<=likes.left+4&&likes.right<=pl.left+4&&pl.right<=mixes.left+4,
+        mainAudioCount:document.querySelectorAll('audio').length===1,
+        searchInHeader:document.getElementById('search-container-box').parentElement.classList.contains('right-col-header'),
+        pageOverflow:document.documentElement.scrollWidth>innerWidth+2
       };
     });
-    console.log('PLAYLISTS_BESIDE_EQ',JSON.stringify({viewport:vp,check}));
-    if(Object.values(check).some(x=>!x))
-      throw new Error('Playlists header regression '+JSON.stringify({viewport:vp,check}));
+    console.log('STUDIO_TWO_ZONE',JSON.stringify({viewport,state}));
+    if(Object.entries(state).some(([key,value])=>key==='pageOverflow'?value:!value))
+      throw new Error('Studio two-zone regression '+JSON.stringify({viewport,state}));
   }
   await page.setViewport({width:1200,height:800});
+  const likes=await page.evaluate(()=>{
+    const existing=playlists.slice(),audio=document.getElementById('main-audio');
+    const play=audio.play;let started=0;
+    try{
+      playlists=[{id:'ui-test',name:'Favourite',tracks:[
+        {title:'Моя песня',artist:'DAGSTUDIO',url:'https://example.invalid/fav.mp3'}]}];
+      audio.play=()=>{started++;return Promise.resolve();};
+      document.getElementById('studio-header-likes').click();
+      const active=document.getElementById('studio-library').classList.contains('active');
+      const rowCount=document.querySelectorAll('.studio-like-row').length;
+      const pressed=document.getElementById('studio-header-likes').getAttribute('aria-pressed');
+      const queueDialog=document.getElementById('queue-modal');
+      const smart=!!queueDialog.querySelector('.smart-playback-dialog') &&
+        !!queueDialog.querySelector('#smart-radio-queue-btn') &&
+        !!queueDialog.querySelector('#personal-radio-hint') &&
+        !!queueDialog.querySelector('#queue-list') &&
+        queueDialog.querySelectorAll('.smart-theme-dots button').length===5;
+      document.querySelector('.studio-library-close').click();
+      return {active,rowCount,pressed,started,smart,
+        closed:!document.getElementById('studio-library').classList.contains('active'),
+        waveAction:typeof window.openStudioWave==='function'};
+    }finally{playlists=existing;audio.play=play;}
+  });
+  console.log('STUDIO_LIKES_SMART_PANEL',JSON.stringify(likes));
+  if(!likes.active||likes.rowCount!==1||likes.pressed!=='true'||likes.started!==0||
+      !likes.smart||!likes.closed||!likes.waveAction)
+    throw new Error('Studio header and smart playback regression '+JSON.stringify(likes));
 
-  // UI refinements: one full-width topbar, actual mixes, themed round swatches.
-  for (const viewport of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]) {
-    await page.setViewport(viewport);
-    const value=await page.evaluate(()=>{
-      const header=document.querySelector('.header-overlay').getBoundingClientRect();
-      const mixes=[...document.querySelectorAll('#quick-mixes .quick-mix-btn[data-mix]')].map(b=>b.dataset.mix);
-      const side=[...document.querySelectorAll('.studio-sidebar .studio-region[data-mix]')].map(b=>b.dataset.mix);
-      const swatch=document.querySelector('.studio-theme');
-      const isCar=innerWidth>768;
-      return {headerFull:isCar?(header.left<=1&&header.width>=innerWidth-2):true,
-        brandInTopBar:!!document.querySelector('.header-overlay .studio-header-logo'),
-        noSidebarLogo:!document.querySelector('.studio-sidebar .studio-logo'),
-        noCharts:!document.querySelector('[data-studio-view="charts"]'),
-        sameMixes:JSON.stringify(side)===JSON.stringify(mixes)&&side.length>=7,
-        swatchRound:isCar?getComputedStyle(swatch).borderRadius.includes('50%'):true,
-        dockIconsOnly:isCar?[...document.querySelectorAll('.studio-dock-actions button span')].every(s=>getComputedStyle(s).display==='none'):true,
+  // Existing playlists button is still in the topbar; the new controls
+  // between equalizer and playlists must not create duplicate handlers.
+  for(const vp of [{width:1024,height:600},{width:1280,height:720},
+      {width:390,height:844},{width:320,height:640}]){
+    await page.setViewport(vp);
+    const check=await page.evaluate(()=>{
+      const eq=document.querySelector('.header-eq-btn'),wave=document.getElementById('studio-header-wave'),
+        likes=document.getElementById('studio-header-likes'),pl=document.getElementById('btn-pl-select');
+      const r=pl.getBoundingClientRect();
+      return {one:document.querySelectorAll('#btn-pl-select').length===1,
+        ordered:eq.nextElementSibling===wave&&wave.nextElementSibling===likes&&likes.nextElementSibling===pl,
+        visible:r.width>=34&&r.right<=innerWidth+1,
+        functional:pl.getAttribute('onclick')==='openPlaylistSelect()',
         noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
     });
-    console.log('ETHNO_REFINEMENTS',JSON.stringify({viewport,value}));
-    if(Object.values(value).some(x=>!x))
-      throw new Error('Ethno refinements regression '+JSON.stringify({viewport,value}));
+    console.log('STUDIO_TOP_ACTIONS',JSON.stringify({vp,check}));
+    if(Object.values(check).some(x=>!x))throw new Error('Top actions regression '+JSON.stringify({vp,check}));
   }
   await page.setViewport({width:1200,height:800});
 

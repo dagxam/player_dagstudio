@@ -25,7 +25,7 @@
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
-    <link rel="stylesheet" href="studio.css?v=3">
+    <link rel="stylesheet" href="studio.css?v=4">
 </head>
 <body>
 
@@ -42,6 +42,8 @@
 
         <div class="header-right">
             <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
+            <button id="studio-header-wave" class="studio-top-btn studio-wave-btn" type="button" onclick="openStudioWave()" title="Слушать Мою волну" aria-label="Моя волна"><i class="fas fa-wave-square" aria-hidden="true"></i><span>МОЯ ВОЛНА</span></button>
+            <button id="studio-header-likes" class="studio-top-btn" type="button" onclick="openStudioLikes()" title="Мне нравится" aria-label="Мне нравится" aria-pressed="false"><i class="fas fa-heart" aria-hidden="true"></i><span>МНЕ НРАВИТСЯ</span></button>
             <button class="pl-select-btn header-playlists-btn" id="btn-pl-select" onclick="openPlaylistSelect()" type="button" aria-label="Плейлисты" title="Плейлисты">
                 <i class="fas fa-folder-open" aria-hidden="true"></i><span class="header-playlists-label">ПЛЕЙЛИСТЫ</span>
             </button>
@@ -85,7 +87,7 @@
             <button class="tab-btn active" id="tab-search-btn" onclick="switchTab('search')">
                 <i class="fas fa-search"></i> ПОИСК
             </button>
-            <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Очередь воспроизведения" aria-label="Очередь воспроизведения"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
+            <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Умное воспроизведение и очередь" aria-label="Умное воспроизведение и очередь"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
         </div>
 
         <div id="ios-install-banner" class="ios-install-banner" hidden role="region" aria-label="Установка на iPhone">
@@ -277,24 +279,42 @@
     </div>
 </div>
 
-<div id="queue-modal" class="modal-overlay">
-    <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть">&times;</button>
-        <h3 class="modal-title">Очередь воспроизведения</h3>
+
+<div id="queue-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="smart-panel-title">
+    <div class="modal-box utility-modal smart-playback-dialog">
+        <button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть умное воспроизведение">&times;</button>
+        <div class="smart-panel-heading">
+            <div class="smart-panel-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
+            <div><span class="smart-panel-eyebrow">DAGSTUDIO · ПЕРСОНАЛЬНОЕ РАДИО</span>
+                <h3 class="smart-panel-title" id="smart-panel-title">Умное воспроизведение</h3>
+                <p class="smart-panel-subtitle">Музыка продолжается, даже когда ваш плейлист закончился.</p>
+            </div>
+        </div>
         <div class="smart-radio-setting">
             <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-queue-btn"
                     onclick="toggleSmartRadio()" aria-pressed="true">
                 <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-queue-label">Умное продолжение: включено</span>
             </button>
-            <div class="smart-radio-hint">После последнего трека плейлиста — случайные новые песни знакомых исполнителей из сети. Ручная очередь имеет приоритет.</div>
-            <div class="smart-radio-hint" id="personal-radio-hint">Лайки и прослушивания улучшают рекомендации на этом устройстве.</div>
+            <div class="smart-radio-hint">После последней композиции автоматически подбираются похожие песни. Ручная очередь всегда имеет приоритет.</div>
+            <div class="smart-radio-hint" id="personal-radio-hint">Лайки и полные прослушивания улучшают рекомендации на этом устройстве.</div>
             <div class="personal-radio-actions">
                 <button type="button" onclick="dislikeCurrentTrack()"><i class="fas fa-thumbs-down"></i> Не нравится</button>
                 <button type="button" onclick="tasteReset()"><i class="fas fa-eraser"></i> Сбросить предпочтения</button>
             </div>
             <div class="smart-radio-hint" id="smart-radio-next-info" aria-live="polite">Подбор начнётся ближе к концу плейлиста.</div>
+            <div class="smart-theme-row"><span>Цвет оформления</span>
+                <div class="smart-theme-dots" aria-label="Выбор цветовой темы">
+                    <button type="button" style="background:#C06C42" onclick="setTheme('brown')" title="Медь" aria-label="Медная тема"></button>
+                    <button type="button" style="background:#D32F2F" onclick="setTheme('red')" title="Красная" aria-label="Красная тема"></button>
+                    <button type="button" style="background:#2E7D32" onclick="setTheme('green')" title="Зелёная" aria-label="Зелёная тема"></button>
+                    <button type="button" style="background:#1976D2" onclick="setTheme('blue')" title="Синяя" aria-label="Синяя тема"></button>
+                    <button type="button" style="background:#8b00ff" onclick="setTheme('purple')" title="Фиолетовая" aria-label="Фиолетовая тема"></button>
+                </div>
+            </div>
         </div>
+        <div class="smart-queue-title"><i class="fas fa-list-ol"></i> Очередь воспроизведения</div>
         <div id="queue-list" class="queue-list"></div>
-        <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
+        <div class="smart-queue-footer"><button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button></div>
     </div>
 </div>
 <div id="sleep-modal" class="modal-overlay">
@@ -345,7 +365,7 @@
 </div>
 
 <script src="script.js?v=2280" defer></script>
-<script src="studio.js?v=2" defer></script>
+<script src="studio.js?v=3" defer></script>
 
 </body>
 </html>
