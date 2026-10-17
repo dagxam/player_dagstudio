@@ -9,6 +9,8 @@ on:
       - "native/**"
       - "scripts/**"
       - "script.js"
+      - "studio.css"
+      - "studio.js"
       - "index.php"
       - "package.json"
       - "package-lock.json"

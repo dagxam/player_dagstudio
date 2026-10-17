@@ -9,6 +9,8 @@ on:
       - "script.js"
       - "style.css"
       - "modern.css"
+      - "studio.css"
+      - "studio.js"
       - "images/**"
       - "package.json"
       - "capacitor.config.json"

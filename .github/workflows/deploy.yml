@@ -33,11 +33,13 @@ jobs:
           set -e
           for file in ./*.php; do php -l "$file"; done
           node --check script.js
+          node --check studio.js
           node --check sw.js
           node .github/test-offline-batch.mjs
           node .github/test-ios-preparation.mjs
           node .github/test-native-media.mjs
           test -s modern.css
+          test -s studio.css
           python -m json.tool manifest.json > /dev/null
 
       - name: Local auth and playlist integration test

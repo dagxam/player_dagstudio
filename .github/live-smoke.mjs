@@ -119,6 +119,53 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
+  // Studio 2026: real navigation, one playback engine, usable car display widths.
+  for (const viewport of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]) {
+    await page.setViewport(viewport);
+    const v=await page.evaluate(()=>{
+      const rect=s=>document.querySelector(s).getBoundingClientRect();
+      const side=rect('#studio-sidebar'),left=rect('.left-col'),right=rect('.right-col'),
+            dock=rect('.studio-dock');
+      return {sideVisible:side.width>70&&getComputedStyle(document.querySelector('#studio-sidebar')).display!=='none',
+        leftVisible:left.width>175,contentVisible:right.width>255,
+        nonOverlapping:left.right<=right.left+4,
+        sidebarOrder:side.right<=left.left+4,
+        dockVisible:dock.height>35&&getComputedStyle(document.querySelector('.studio-dock')).display!=='none',
+        searchInHeader:document.getElementById('search-container-box').parentElement.classList.contains('right-col-header'),
+        oneAudio:document.querySelectorAll('audio').length===1,
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+    });
+    console.log('STUDIO_CAR_LAYOUT',JSON.stringify({viewport,v}));
+    if(!v.leftVisible||!v.contentVisible||!v.nonOverlapping||!v.searchInHeader||!v.oneAudio||!v.noOverflow||
+       (viewport.width>930&&(!v.sideVisible||!v.sidebarOrder||!v.dockVisible))||
+       (viewport.width<=768&&(v.sideVisible||v.dockVisible)))
+      throw new Error('Studio responsive regression '+JSON.stringify({viewport,v}));
+  }
+  await page.setViewport({width:1200,height:800});
+  const studioLibrary=await page.evaluate(()=>{
+    const previousPlaylists=playlists,previousTab=currentTab,previousPlaylist=playlist,previousIndex=currentIndex;
+    const spy=document.getElementById('main-audio').play;
+    let starts=0;
+    document.getElementById('main-audio').play=()=>{starts++;return Promise.resolve();};
+    try{
+      playlists=[{id:'studio-test-1',name:'Тестовый плейлист',tracks:[{title:'Тест',artist:'DAGSTUDIO',url:'https://example.invalid/track.mp3'}]}];
+      document.querySelector('[data-studio-view="library"]').click();
+      const shown=document.getElementById('studio-library').classList.contains('active');
+      const count=document.querySelectorAll('.studio-playlist-card').length;
+      const active=document.querySelector('[data-studio-view="library"]').getAttribute('aria-current');
+      document.querySelector('[data-studio-view="wave"]').click();
+      return {shown,count,active,starts,restored:!document.getElementById('studio-library').classList.contains('active')};
+    }finally{
+      playlists=previousPlaylists;currentTab=previousTab;playlist=previousPlaylist;currentIndex=previousIndex;
+      document.getElementById('main-audio').play=spy;
+    }
+  });
+  console.log('STUDIO_PLAYLISTS',JSON.stringify(studioLibrary));
+  if(!studioLibrary.shown||studioLibrary.count!==1||studioLibrary.active!=='page'||
+    studioLibrary.starts!==0||!studioLibrary.restored)
+    throw new Error('Studio playlists UI regression '+JSON.stringify(studioLibrary));
+  await page.setViewport({width:1200,height:800});
+
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
     const response = await fetch('/script.js?v=2276', { cache: 'no-store' });

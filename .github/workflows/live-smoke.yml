@@ -11,6 +11,8 @@ on:
       - "script.js"
       - "style.css"
       - "modern.css"
+      - "studio.css"
+      - "studio.js"
       - "api.php"
       - "proxy.php"
       - "manifest.json"

@@ -55,6 +55,8 @@ await copyFile(join(root, 'script.js'), join(out, 'script.js'));
 await copyFile(join(root, 'native', 'native-audio-adapter.js'), join(out, 'native-audio-adapter.js'));
 await copyFile(join(root, 'style.css'), join(out, 'style.css'));
 await copyFile(join(root, 'modern.css'), join(out, 'modern.css'));
+await copyFile(join(root, 'studio.css'), join(out, 'studio.css'));
+await copyFile(join(root, 'studio.js'), join(out, 'studio.js'));
 
 await esbuild({
   entryPoints: [join(root, 'native', 'native-bridge.js')],

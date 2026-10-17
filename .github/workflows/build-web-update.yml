@@ -9,6 +9,8 @@ on:
       - "script.js"
       - "style.css"
       - "modern.css"
+      - "studio.css"
+      - "studio.js"
       - "images/**"
       - "scripts/build-native-web.mjs"
       - "native/**"
@@ -51,6 +53,9 @@ jobs:
           test -f www/script.js
           test -f www/style.css
           test -f www/modern.css
+          test -f www/studio.css
+          test -f www/studio.js
+          node --check www/studio.js
           test -f www/native-bridge.js
           node --check www/script.js
           node --check www/native-bridge.js
