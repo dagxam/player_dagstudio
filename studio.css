@@ -230,3 +230,79 @@
 @media (prefers-reduced-motion:reduce){
   .studio-nav-item,.studio-region,.studio-playlist-card{transition:none!important}
 }
+
+/* Header playlists: move the EXISTING action beside the equalizer.
+   Keep one button, accessible on both car landscape and narrow phones. */
+.header-right .header-playlists-btn {
+  display:flex!important;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:119px;
+  min-height:44px;
+  height:44px;
+  padding:0 12px!important;
+  gap:8px;
+  border:1px solid rgba(var(--theme-rgb,192,108,66),.38)!important;
+  border-radius:12px;
+  background:var(--theme-control,#191b20)!important;
+  color:var(--theme-bright-text,#f5f5f5)!important;
+  font-size:.78rem;
+  font-weight:800;
+  letter-spacing:.015em;
+  box-shadow:none;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.header-right .header-playlists-btn i {
+  color:var(--theme-bright,var(--accent-color));
+  font-size:.94rem;
+}
+.header-right .header-playlists-btn:hover,
+.header-right .header-playlists-btn:focus-visible {
+  background:rgba(var(--theme-rgb,192,108,66),.17)!important;
+  border-color:var(--theme-bright,var(--accent-color))!important;
+}
+.header-right .header-playlists-btn.active {
+  background:rgba(var(--theme-rgb,192,108,66),.17)!important;
+  border-color:var(--theme-bright,var(--accent-color))!important;
+}
+@media (min-width:769px) and (max-width:1100px) {
+  .header-right .header-playlists-btn {
+    min-width:105px;
+    padding:0 9px!important;
+    font-size:.72rem;
+  }
+}
+@media (max-width:768px) {
+  .header-right {
+    right:8px!important;
+    width:172px!important;
+    min-width:172px!important;
+    max-width:172px!important;
+    flex:0 0 172px!important;
+    gap:4px!important;
+    justify-content:flex-end!important;
+  }
+  .header-left {
+    width:calc(100% - 190px)!important;
+    max-width:calc(100% - 190px)!important;
+  }
+  .header-right .header-playlists-btn {
+    width:40px!important;
+    min-width:40px!important;
+    max-width:40px!important;
+    height:40px!important;
+    min-height:40px!important;
+    flex:0 0 40px!important;
+    padding:0!important;
+    gap:0!important;
+    border-radius:11px;
+    font-size:1rem;
+  }
+  .header-playlists-label {display:none!important}
+}
+@media (max-width:360px) {
+  .header-overlay .brand-display span {display:none!important}
+}

@@ -25,7 +25,7 @@
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
-    <link rel="stylesheet" href="studio.css?v=1">
+    <link rel="stylesheet" href="studio.css?v=2">
 </head>
 <body>
 
@@ -42,6 +42,9 @@
 
         <div class="header-right">
             <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
+            <button class="pl-select-btn header-playlists-btn" id="btn-pl-select" onclick="openPlaylistSelect()" type="button" aria-label="Плейлисты" title="Плейлисты">
+                <i class="fas fa-folder-open" aria-hidden="true"></i><span class="header-playlists-label">ПЛЕЙЛИСТЫ</span>
+            </button>
             <button class="icon-btn header-mixes-btn" id="header-mixes-btn" onclick="openQuickMixes()" type="button" aria-label="Музыкальные подборки" aria-haspopup="dialog" aria-controls="quick-mixes-modal" aria-expanded="false" title="Подборки"><i class="fas fa-layer-group"></i></button>
             <button class="mobile-menu-btn" onclick="openMenu()" aria-label="Меню"><i class="fas fa-bars"></i></button>
             <button class="menu-btn" onclick="openMenu()" aria-label="Профиль"><i class="fas fa-user"></i></button>
@@ -81,9 +84,6 @@
         <div class="right-col-header">
             <button class="tab-btn active" id="tab-search-btn" onclick="switchTab('search')">
                 <i class="fas fa-search"></i> ПОИСК
-            </button>
-            <button class="pl-select-btn" id="btn-pl-select" onclick="openPlaylistSelect()">
-                <i class="fas fa-folder-open"></i> ПЛЕЙЛИСТЫ
             </button>
             <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Очередь воспроизведения" aria-label="Очередь воспроизведения"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
         </div>

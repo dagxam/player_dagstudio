@@ -166,6 +166,33 @@ try {
     throw new Error('Studio playlists UI regression '+JSON.stringify(studioLibrary));
   await page.setViewport({width:1200,height:800});
 
+  // Playlists remains the original button, relocated beside the equalizer.
+  for (const vp of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844},{width:320,height:640}]) {
+    await page.setViewport(vp);
+    const check=await page.evaluate(()=>{
+      const pl=document.getElementById('btn-pl-select');
+      const eq=document.querySelector('.header-eq-btn');
+      const area=document.querySelector('.header-right');
+      const pos=pl.getBoundingClientRect(),equalizer=eq.getBoundingClientRect();
+      return {
+        one:document.querySelectorAll('#btn-pl-select').length===1,
+        header:pl.parentElement===area,
+        removedFromSearch:!document.querySelector('.right-col-header #btn-pl-select'),
+        adjacent:eq.nextElementSibling===pl,
+        visible:pos.width>=38&&pos.height>=38&&pos.left>=0&&pos.right<=innerWidth+1,
+        functional:pl.getAttribute('onclick')==='openPlaylistSelect()',
+        label:pl.getAttribute('aria-label')==='Плейлисты',
+        compact:innerWidth>768||getComputedStyle(pl.querySelector('.header-playlists-label')).display==='none',
+        eqVisible:equalizer.width>=38&&equalizer.right<=innerWidth+1,
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+2
+      };
+    });
+    console.log('PLAYLISTS_BESIDE_EQ',JSON.stringify({viewport:vp,check}));
+    if(Object.values(check).some(x=>!x))
+      throw new Error('Playlists header regression '+JSON.stringify({viewport:vp,check}));
+  }
+  await page.setViewport({width:1200,height:800});
+
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
     const response = await fetch('/script.js?v=2276', { cache: 'no-store' });
