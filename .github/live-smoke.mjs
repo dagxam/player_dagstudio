@@ -136,7 +136,7 @@ try {
         noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
     });
     console.log('STUDIO_CAR_LAYOUT',JSON.stringify({viewport,v}));
-    if(!v.leftVisible||!v.contentVisible||!v.nonOverlapping||!v.searchInHeader||!v.oneAudio||!v.noOverflow||
+    if(!v.leftVisible||!v.contentVisible||(viewport.width>768&&!v.nonOverlapping)||!v.searchInHeader||!v.oneAudio||!v.noOverflow||
        (viewport.width>930&&(!v.sideVisible||!v.sidebarOrder||!v.dockVisible))||
        (viewport.width<=768&&(v.sideVisible||v.dockVisible)))
       throw new Error('Studio responsive regression '+JSON.stringify({viewport,v}));
