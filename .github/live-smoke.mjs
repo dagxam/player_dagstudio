@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2280', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2282', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -161,21 +161,21 @@ try {
       const rowCount=document.querySelectorAll('.studio-like-row').length;
       const pressed=document.getElementById('studio-header-likes').getAttribute('aria-pressed');
       const queueDialog=document.getElementById('queue-modal');
-      const smart=!!queueDialog.querySelector('.smart-playback-dialog') &&
-        !!queueDialog.querySelector('#smart-radio-queue-btn') &&
-        !!queueDialog.querySelector('#personal-radio-hint') &&
+      const smart=!queueDialog.querySelector('.smart-playback-dialog') &&
+        !queueDialog.querySelector('#smart-radio-queue-btn') &&
         !!queueDialog.querySelector('#queue-list') &&
-        queueDialog.querySelectorAll('.smart-theme-dots button').length===5;
+        !!document.getElementById('queue-menu-btn') &&
+        document.getElementById('smart-shuffle-btn')?.getAttribute('onclick')==='toggleShuffle()';
       document.querySelector('.studio-library-close').click();
       return {active,rowCount,pressed,started,smart,
         closed:!document.getElementById('studio-library').classList.contains('active'),
         waveAction:typeof window.openStudioWave==='function'};
     }finally{playlists=existing;audio.play=play;}
   });
-  console.log('STUDIO_LIKES_SMART_PANEL',JSON.stringify(likes));
+  console.log('STUDIO_LIKES_SIMPLE_QUEUE',JSON.stringify(likes));
   if(!likes.active||likes.rowCount!==1||likes.pressed!=='true'||likes.started!==0||
       !likes.smart||!likes.closed||!likes.waveAction)
-    throw new Error('Studio header and smart playback regression '+JSON.stringify(likes));
+    throw new Error('Studio likes or simple queue regression '+JSON.stringify(likes));
 
   // Existing playlists button is still in the topbar; the new controls
   // between equalizer and playlists must not create duplicate handlers.
@@ -196,6 +196,47 @@ try {
     if(Object.values(check).some(x=>!x))throw new Error('Top actions regression '+JSON.stringify({vp,check}));
   }
   await page.setViewport({width:1200,height:800});
+
+  // The top-right shuffle button is one-tap only. It must move visible rows
+  // and the playback order, never open any popup or call audio.play().
+  const topShuffle=await page.evaluate(()=>{
+    const list=[0,1,2,3,4,5].map(i=>({title:'Песня '+i,artist:'Тест',url:'https://example.invalid/'+i+'.mp3'}));
+    const old={playlist,playbackPlaylist,currentIndex,currentTab,isShuffle};
+    const playing=playbackPlaylist[currentIndex];
+    const audio=document.getElementById('main-audio');
+    const savedPlay=audio.play;let played=0;
+    try{
+      playlist=list.slice();playbackPlaylist=list.slice();
+      currentIndex=3;currentTab='search';
+      audio.play=()=>{played++;return Promise.resolve();};
+      renderPlaylist();
+      const before=playlist.map(t=>t.url).join(',');
+      const modal=document.getElementById('queue-modal');
+      document.getElementById('smart-shuffle-btn').click();
+      const after=playlist.map(t=>t.url).join(',');
+      const visible=[...document.querySelectorAll('#playlist-container .track-row .t-title')]
+         .map(x=>x.textContent.trim());
+      const expected=playlist.map(t=>t.title);
+      const first={changed:before!==after,visualOrder:JSON.stringify(visible)===JSON.stringify(expected),
+        playingPreserved:playbackPlaylist[currentIndex]===list[3],
+        playbackOrderMatches:playlist.every((t,i)=>t===playbackPlaylist[i]),
+        noPopup:!modal.classList.contains('show'),
+        buttonText:document.getElementById('smart-shuffle-btn').getAttribute('aria-label').includes('Перемешать'),
+        opened:played};
+      document.getElementById('smart-shuffle-btn').click();
+      return {...first,again:playlist.map(t=>t.url).join(',')!==after,
+        stillNoPopup:!modal.classList.contains('show')};
+    }finally{
+      playlist=old.playlist;playbackPlaylist=old.playbackPlaylist;
+      currentIndex=old.currentIndex;currentTab=old.currentTab;isShuffle=old.isShuffle;
+      audio.play=savedPlay;renderPlaylist();
+    }
+  });
+  console.log('SMART_BUTTON_DIRECT_SHUFFLE',JSON.stringify(topShuffle));
+  if(!topShuffle.changed||!topShuffle.visualOrder||!topShuffle.playingPreserved||
+     !topShuffle.playbackOrderMatches||!topShuffle.noPopup||!topShuffle.buttonText||
+     topShuffle.opened!==0||!topShuffle.again||!topShuffle.stillNoPopup)
+    throw new Error('Smart button should shuffle without popup '+JSON.stringify(topShuffle));
 
   // One tap rearranges the visible playlist without calling play().
   const shuffleResult=await page.evaluate(()=>{
@@ -229,10 +270,10 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2280', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2282', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2280'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2282'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -316,7 +357,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2280', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2282', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -795,7 +836,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2280', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2282', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -839,7 +880,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2280','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2282','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});

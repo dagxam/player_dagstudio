@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2280';
+const WEB_BUILD_LABEL = '2282';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2280', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2282', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2280') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2280', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2282') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2282', '1');
         window.location.reload();
     });
 }
@@ -4046,7 +4046,9 @@ function toggleShuffle() {
     const visible=Array.isArray(playlist)&&playlist.length>1;
     const source=visible?playlist:playbackPlaylist;
     if(!source||source.length<2){
-        showNotification('Для перемешивания нужно минимум две песни.');
+        // No popups from the shuffle button, even for an empty playlist.
+        const status=document.getElementById('quick-mix-status');
+        if(status){status.textContent='Для перемешивания нужно минимум две песни.';status.hidden=false;}
         return;
     }
     const playing=playbackPlaylist[currentIndex];

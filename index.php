@@ -25,7 +25,7 @@
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
-    <link rel="stylesheet" href="studio.css?v=4">
+    <link rel="stylesheet" href="studio.css?v=5">
 </head>
 <body>
 
@@ -87,7 +87,7 @@
             <button class="tab-btn active" id="tab-search-btn" onclick="switchTab('search')">
                 <i class="fas fa-search"></i> ПОИСК
             </button>
-            <button type="button" class="queue-toggle-btn" onclick="openPlaybackQueue()" title="Умное воспроизведение и очередь" aria-label="Умное воспроизведение и очередь"><i class="fas fa-list-ol"></i><span id="queue-count"></span></button>
+            <button type="button" class="queue-toggle-btn" id="smart-shuffle-btn" onclick="toggleShuffle()" title="Перемешать треки плейлиста" aria-label="Перемешать треки плейлиста"><i class="fas fa-shuffle" aria-hidden="true"></i></button>
         </div>
 
         <div id="ios-install-banner" class="ios-install-banner" hidden role="region" aria-label="Установка на iPhone">
@@ -227,6 +227,9 @@
         <a id="android-apk-download-btn" class="menu-list-btn" href="https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать приложение для Android</a>
         <button type="button" class="menu-list-btn" onclick="openCacheDashboard()"><i class="fas fa-hard-drive"></i> Кэш и офлайн-хранилище</button>
         <button type="button" class="menu-list-btn" onclick="openPlayerDiagnostics()"><i class="fas fa-chart-line"></i> Проверка звука и сети</button>
+        <button type="button" class="menu-list-btn" id="queue-menu-btn" onclick="openPlaybackQueue()"><i class="fas fa-list-ol"></i> Очередь воспроизведения <span id="queue-count"></span></button>
+        <button type="button" class="menu-list-btn" onclick="dislikeCurrentTrack()"><i class="fas fa-thumbs-down"></i> Не нравится текущая песня</button>
+        <button type="button" class="menu-list-btn" onclick="tasteReset()"><i class="fas fa-eraser"></i> Сбросить музыкальные предпочтения</button>
         <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-menu-btn"
                 onclick="toggleSmartRadio()" aria-pressed="true" title="Автоматически подбирать похожие песни после плейлиста">
             <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-menu-label">Умное продолжение: включено</span>
@@ -280,41 +283,13 @@
 </div>
 
 
-<div id="queue-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="smart-panel-title">
-    <div class="modal-box utility-modal smart-playback-dialog">
-        <button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть умное воспроизведение">&times;</button>
-        <div class="smart-panel-heading">
-            <div class="smart-panel-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
-            <div><span class="smart-panel-eyebrow">DAGSTUDIO · ПЕРСОНАЛЬНОЕ РАДИО</span>
-                <h3 class="smart-panel-title" id="smart-panel-title">Умное воспроизведение</h3>
-                <p class="smart-panel-subtitle">Музыка продолжается, даже когда ваш плейлист закончился.</p>
-            </div>
-        </div>
-        <div class="smart-radio-setting">
-            <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-queue-btn"
-                    onclick="toggleSmartRadio()" aria-pressed="true">
-                <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-queue-label">Умное продолжение: включено</span>
-            </button>
-            <div class="smart-radio-hint">После последней композиции автоматически подбираются похожие песни. Ручная очередь всегда имеет приоритет.</div>
-            <div class="smart-radio-hint" id="personal-radio-hint">Лайки и полные прослушивания улучшают рекомендации на этом устройстве.</div>
-            <div class="personal-radio-actions">
-                <button type="button" onclick="dislikeCurrentTrack()"><i class="fas fa-thumbs-down"></i> Не нравится</button>
-                <button type="button" onclick="tasteReset()"><i class="fas fa-eraser"></i> Сбросить предпочтения</button>
-            </div>
-            <div class="smart-radio-hint" id="smart-radio-next-info" aria-live="polite">Подбор начнётся ближе к концу плейлиста.</div>
-            <div class="smart-theme-row"><span>Цвет оформления</span>
-                <div class="smart-theme-dots" aria-label="Выбор цветовой темы">
-                    <button type="button" style="background:#C06C42" onclick="setTheme('brown')" title="Медь" aria-label="Медная тема"></button>
-                    <button type="button" style="background:#D32F2F" onclick="setTheme('red')" title="Красная" aria-label="Красная тема"></button>
-                    <button type="button" style="background:#2E7D32" onclick="setTheme('green')" title="Зелёная" aria-label="Зелёная тема"></button>
-                    <button type="button" style="background:#1976D2" onclick="setTheme('blue')" title="Синяя" aria-label="Синяя тема"></button>
-                    <button type="button" style="background:#8b00ff" onclick="setTheme('purple')" title="Фиолетовая" aria-label="Фиолетовая тема"></button>
-                </div>
-            </div>
-        </div>
-        <div class="smart-queue-title"><i class="fas fa-list-ol"></i> Очередь воспроизведения</div>
+<div id="queue-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="queue-modal-title">
+    <div class="modal-box utility-modal studio-queue-dialog">
+        <button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть очередь">&times;</button>
+        <h3 class="modal-title" id="queue-modal-title"><i class="fas fa-list-ol"></i> Очередь воспроизведения</h3>
+        <p class="studio-queue-hint">Здесь можно изменить порядок добавленных в очередь песен. Перемешивание треков выполняется отдельной кнопкой над списком.</p>
         <div id="queue-list" class="queue-list"></div>
-        <div class="smart-queue-footer"><button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button></div>
+        <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
     </div>
 </div>
 <div id="sleep-modal" class="modal-overlay">
@@ -364,7 +339,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2280" defer></script>
+<script src="script.js?v=2282" defer></script>
 <script src="studio.js?v=3" defer></script>
 
 </body>

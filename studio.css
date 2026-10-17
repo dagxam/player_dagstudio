@@ -451,56 +451,25 @@
 .studio-like-text strong{font-size:.89rem;line-height:1.4}
 .studio-like-text small{font-size:.75rem;color:var(--theme-muted,#aaa);margin-top:2px}
 .studio-like-play{color:var(--theme-bright,var(--accent-color));padding:10px}
-/* The smart playback panel remains the original queue dialog with new styling. */
-#queue-modal .smart-playback-dialog{
-  width:min(740px,calc(100vw - 28px))!important;max-width:740px;
-  max-height:min(88dvh,760px);overflow-y:auto;text-align:left;
-  padding:24px!important;border-radius:22px;
-  background:linear-gradient(145deg,var(--theme-shell-b,#19161a),var(--theme-right-b,#0a0d11))!important;
-  border:1px solid rgba(var(--theme-rgb,192,108,66),.44)!important;
-  box-shadow:0 30px 100px #000a,0 0 35px rgba(var(--theme-rgb,192,108,66),.11);
+/* Simple queue management is available from Settings, never from shuffle. */
+#queue-modal .studio-queue-dialog {
+    width:min(570px,calc(100vw - 26px));max-height:85dvh;overflow-y:auto;
+    background:linear-gradient(155deg,var(--theme-right-a,#19171a),var(--theme-right-b,#0b0e12));
+    border:1px solid rgba(var(--theme-rgb,192,108,66),.36);
+    border-radius:19px;padding:22px;
 }
-.smart-panel-heading{display:flex;align-items:center;gap:14px;padding:0 40px 14px 0}
-.smart-panel-icon{width:53px;height:53px;flex:0 0 53px;border-radius:16px;display:grid;place-items:center;
-  background:linear-gradient(145deg,rgba(var(--theme-rgb,192,108,66),.3),rgba(var(--theme-rgb,192,108,66),.06));
-  border:1px solid rgba(var(--theme-rgb,192,108,66),.56);color:var(--theme-bright,var(--accent-color));font-size:1.45rem}
-.smart-panel-eyebrow{display:block;color:var(--theme-bright,var(--accent-color));font-size:.69rem;
-  font-weight:800;letter-spacing:.15em;margin-bottom:4px}
-.smart-panel-title{color:var(--theme-bright-text,#fff);font-size:clamp(1.18rem,2.4vw,1.67rem);margin:0;line-height:1.2}
-.smart-panel-subtitle{font-size:.81rem;color:var(--theme-muted,#aaa);margin:5px 0 0;line-height:1.45}
-#queue-modal .smart-radio-setting{border:1px solid rgba(var(--theme-rgb,192,108,66),.33);
-  background:linear-gradient(135deg,rgba(var(--theme-rgb,192,108,66),.13),rgba(255,255,255,.025));
-  border-radius:17px;padding:14px;margin:0 0 18px}
-#queue-modal .smart-radio-toggle{display:flex;align-items:center;justify-content:space-between;
-  min-height:49px;gap:12px;padding:10px 13px;border-radius:12px;
-  background:var(--theme-control,#1b1d21);border:1px solid rgba(var(--theme-rgb,192,108,66),.43);
-  color:var(--theme-bright-text,#fff);font-size:.86rem;font-weight:800}
-#queue-modal .smart-radio-toggle i{font-size:1.12rem;color:var(--theme-bright,var(--accent-color))}
-#queue-modal .smart-radio-toggle[aria-pressed="true"]{box-shadow:inset 0 0 0 1px rgba(var(--theme-rgb,192,108,66),.12)}
-#queue-modal .smart-radio-toggle:after{content:'';width:31px;height:18px;border-radius:20px;flex:0 0 31px;
-  background:var(--theme-muted,#777);box-shadow:inset 0 0 0 3px #0003}
-#queue-modal .smart-radio-toggle[aria-pressed="true"]:after{background:var(--theme-bright,var(--accent-color))}
-#queue-modal .smart-radio-hint{font-size:.78rem;line-height:1.5;color:var(--theme-muted,#aeb4bd);
-  padding:8px 3px;margin:0}
-#queue-modal .personal-radio-actions{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 7px}
-#queue-modal .personal-radio-actions button{flex:1 1 170px;min-height:43px;border-radius:12px;padding:8px 12px;
-  background:var(--theme-control,#1b1e23);color:var(--theme-bright-text,#fff);
-  border:1px solid rgba(var(--theme-rgb,192,108,66),.28);font-size:.8rem;font-weight:700;cursor:pointer}
-#queue-modal .personal-radio-actions button:hover{border-color:var(--theme-bright,var(--accent-color))}
-.smart-queue-title{display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:800;
-  color:var(--theme-bright-text,#fff);margin:0 0 10px}
-.smart-queue-title i{color:var(--theme-bright,var(--accent-color))}
-#queue-modal .queue-list{border:1px solid rgba(var(--theme-rgb,192,108,66),.2);border-radius:13px;
-  padding:10px;background:rgba(0,0,0,.13);max-height:190px;overflow-y:auto}
-#queue-modal .smart-queue-footer{display:flex;justify-content:flex-end;margin-top:13px}
-#queue-modal .smart-queue-footer button{width:auto;min-height:41px;margin:0;padding:10px 17px;border-radius:11px}
-.smart-theme-row{display:flex;gap:13px;align-items:center;justify-content:space-between;
-  border-top:1px solid rgba(var(--theme-rgb,192,108,66),.16);padding:13px 4px 0;margin-top:9px}
-.smart-theme-row>span{font-size:.78rem;color:var(--theme-muted,#aaa);font-weight:700}
-.smart-theme-dots{display:flex;gap:9px;align-items:center}
-.smart-theme-dots button{width:25px;height:25px;padding:0;border-radius:50%;border:2px solid #fff7;
-  cursor:pointer;box-shadow:0 0 0 2px #0004}
-.smart-theme-dots button:focus-visible{outline:2px solid var(--theme-bright,var(--accent-color));outline-offset:2px}
+#queue-modal .studio-queue-dialog .modal-title {font-size:1.16rem;text-align:left;line-height:1.35;margin:0 35px 9px 0}
+#queue-modal .studio-queue-dialog .modal-title i {color:var(--theme-bright,var(--accent-color));margin-right:8px}
+#queue-modal .studio-queue-hint {color:var(--theme-muted,#b4b4b7);font-size:.82rem;line-height:1.5;margin:0 0 15px}
+#queue-modal .queue-list {max-height:36dvh;overflow-y:auto;border-radius:12px;border:1px solid rgba(var(--theme-rgb,192,108,66),.24);padding:9px;background:rgba(0,0,0,.1);margin-bottom:13px}
+#queue-modal .studio-queue-dialog>.modal-btn {min-height:43px;border-radius:11px;font-size:.82rem}
+#queue-menu-btn #queue-count:not(:empty) {margin-left:auto;min-width:20px;padding:3px 7px;border-radius:15px;
+  color:var(--theme-on-accent,#080a0c);background:var(--theme-bright,var(--accent-color));font-size:.72rem;font-weight:800}
+#smart-shuffle-btn i {color:var(--theme-bright,var(--accent-color));font-size:1.08rem}
+#smart-shuffle-btn:active {transform:scale(.96)}
+@media(max-width:768px) {
+  #queue-modal .studio-queue-dialog{padding:18px 13px}
+}
 @media (min-width:769px) {
   .main-container{display:grid!important;
     grid-template-columns:clamp(318px,35vw,470px) minmax(0,1fr)!important;
@@ -591,7 +560,6 @@
   .studio-library-heading{font-size:1.42rem}
   .studio-like-row{min-height:53px;padding:6px 9px}
   .studio-like-row img{width:36px;height:36px;flex-basis:36px}
-  #queue-modal .smart-playback-dialog{max-height:87dvh;padding:19px 13px!important}
   .smart-panel-heading{gap:9px}
   .smart-panel-icon{width:43px;height:43px;flex-basis:43px}
 }
