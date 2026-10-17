@@ -278,7 +278,7 @@ try {
     const names = ['brown', 'red', 'green', 'blue', 'purple'];
     const selectors = [
       '.main-container', '.header-overlay', '.left-col', '.right-col',
-      '.search-input', '.play-btn', '.tab-btn',
+      '.search-input', '.play-btn', '.header-playlists-btn',
       '.modal-box', '.equalizer-modal-box', '.menu-list-btn'
     ];
     const previous = localStorage.getItem('dag_theme') || 'brown';
