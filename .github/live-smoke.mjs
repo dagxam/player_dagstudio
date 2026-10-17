@@ -535,7 +535,7 @@ try {
   const smartRadioStatus=await page.evaluate(()=>{
     return {available:typeof toggleSmartRadio==='function',
        menu:!!document.getElementById('smart-radio-menu-btn'),
-       queue:!!document.getElementById('smart-radio-queue-btn'),
+       queue:!!document.getElementById('queue-menu-btn')&&!document.getElementById('smart-radio-queue-btn'),
        picker:typeof smartRadioPickCandidate==='function',
        key:localStorage.getItem('dag_smart_radio_v1')};
   });
