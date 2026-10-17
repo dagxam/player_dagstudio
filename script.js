@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2276';
+const WEB_BUILD_LABEL = '2279';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2276', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2279', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2276') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2276', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2279') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2279', '1');
         window.location.reload();
     });
 }
@@ -3750,6 +3750,21 @@ function tasteRecord(kind,track) {
         dict[key]=obj;
     };
     update(state.tracks,id);update(state.artists,artist);
+    // Keep only playable, user-approved or fully completed tracks in the wave.
+    // Do not store a listening event as a like; skipped/disliked tracks are excluded.
+    const saved=state.tracks[id];
+    if(kind==='like'||kind==='finish') {
+        if(track.url&&/^https?:\/\//i.test(String(track.url))) {
+            saved.track={title:String(track.title).slice(0,180),
+                artist:String(track.artist).slice(0,120),url:String(track.url),
+                thumb:String(track.thumb||'').slice(0,600),
+                source:String(track.source||'').slice(0,80),genre:String(track.genre||'').slice(0,65)};
+            saved.positive=true;
+            saved[kind]=true;
+        }
+    } else if(kind==='dislike') {
+        saved.positive=false;
+    }
     state.artists[artist].label=String(track.artist).slice(0,100);
     const genre=normalizeTrackIdentity(track.genre);
     if(genre&&genre.length>=3&&genre.length<45)update(state.genres,genre);
@@ -3757,6 +3772,22 @@ function tasteRecord(kind,track) {
     tasteSave(state);
     const hint=document.getElementById('personal-radio-hint');
     if(hint)hint.textContent='Предпочтения обновлены на этом устройстве';
+}
+function tastePositiveTracks() {
+    const state=tasteLoad(),result=[],seen=new Set();
+    function add(track) {
+        if(!track?.url||!track.title||!track.artist)return;
+        const identity=tasteTrackId(track);
+        if(state.tracks?.[identity]?.positive===false)return;
+        if(seen.has(identity))return;
+        seen.add(identity);result.push(track);
+    }
+    // User-saved playlist entries already represent explicit positive choices.
+    for(const pl of playlists)for(const track of (pl.tracks||[]))add(track);
+    // Complete plays are persisted locally for the current account/device.
+    for(const record of Object.values(state.tracks||{}).sort((a,b)=>(b.at||0)-(a.at||0)))
+        if(record?.positive&&record.track)add(record.track);
+    return result;
 }
 function tastePreferredArtists(seeds=[]) {
     const state=tasteLoad(),names=new Map();
@@ -4010,10 +4041,48 @@ async function playSmartRadioNext() {
     return true;
 }
 function toggleShuffle() {
-    isShuffle = !isShuffle;
+    // One tap = actually rearrange the visible playlist (not merely flag the
+    // next track as random). The playing audio continues without restarting.
+    const visible=Array.isArray(playlist)&&playlist.length>1;
+    const source=visible?playlist:playbackPlaylist;
+    if(!source||source.length<2){
+        showNotification('Для перемешивания нужно минимум две песни.');
+        return;
+    }
+    const playing=playbackPlaylist[currentIndex];
+    const matching=visible&&playbackPlaylist.length===playlist.length&&
+        playlist.every((t,i)=>canonicalTrackUrl(t)===canonicalTrackUrl(playbackPlaylist[i]));
+    const selected=(matching||!visible)?playing:null;
+    const rest=source.slice();
+    if(selected)rest.splice(rest.indexOf(selected),1);
+    for(let i=rest.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [rest[i],rest[j]]=[rest[j],rest[i]];
+    }
+    // Avoid a no-op even when a random permutation happens to match.
+    const previous=source.slice();
+    if(selected)previous.splice(previous.indexOf(selected),1);
+    if(rest.length>1&&rest.every((t,i)=>t===previous[i]))
+        rest.push(rest.shift());
+    const mixed=selected?[selected,...rest]:rest;
+    if(visible){
+        playlist=mixed;
+        if(String(currentTab).startsWith('mix:')&&quickMixCurrent?.key===String(currentTab).slice(4))
+            quickMixCurrent.tracks=mixed;
+    }
+    if(matching||!visible){
+        playbackPlaylist=mixed.slice();
+        if(selected)currentIndex=0;
+        else if(playing)currentIndex=playbackPlaylist.indexOf(playing);
+    }
+    // This control is a one-shot rearrangement; subsequent Next follows that
+    // new visible order. Playback queue and saved server playlists are intact.
+    isShuffle=false;
     smartShufflePlayed.clear();
-    if (isShuffle && currentIndex >= 0) smartShufflePlayed.add(currentIndex);
-    document.getElementById('btn-shuffle').classList.toggle('active');
+    const button=document.getElementById('btn-shuffle');
+    if(button){button.classList.remove('active');button.setAttribute('aria-pressed','false');}
+    if(visible)renderPlaylist();
+    showNotification('Треки перемешаны.');
 }
 function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('btn-repeat').classList.toggle('active'); }
 function savePlaybackQueue() {
@@ -4509,7 +4578,7 @@ function renderQuickMixView() {
     if(!quickMixCurrent)return;
     const search=document.getElementById('search-container-box');
     const label=document.getElementById('active-tab-name');
-    if(search)search.style.display='none';
+    if(search)search.style.display=search.parentElement?.classList.contains('right-col-header')?'block':'none';
     if(label){label.textContent=quickMixCurrent.title.toUpperCase();label.style.display='block';}
     document.getElementById('tab-search-btn')?.classList.remove('active');
     document.getElementById('btn-pl-select')?.classList.remove('active');
@@ -4517,32 +4586,44 @@ function renderQuickMixView() {
     renderPlaylist();
 }
 async function startQuickMix(key) {
+    const waveTracks=key==='wave'?tastePositiveTracks():[];
     if(key==='wave'){
-        const seeds=[...playbackPlaylist,...playlists.flatMap(pl=>pl.tracks||[])];
-        const preferred=tastePreferredArtists(seeds);
-        if(!preferred.length&&!tastePreferredGenres().length){
-            setQuickMixStatus('Для «Моей волны» послушайте несколько песен или добавьте их в плейлисты.');
+        const preferred=tastePreferredArtists(waveTracks);
+        const genres=tastePreferredGenres();
+        if(!waveTracks.length&&!preferred.length&&!genres.length){
+            setQuickMixStatus('Послушайте песню до конца или сохраните понравившуюся — она войдёт в «Мою волну».');
             closeModal('quick-mixes-modal');return;
         }
-        const genres=tastePreferredGenres();
         QUICK_MIXES.wave={title:'Моя волна',mode:'popular',
             artists:[...new Set([...preferred,...genres])].slice(0,24)};
     }
     const config=QUICK_MIXES[key];
     if(!config)return;
-    if(navigator.onLine===false) {
+    if(navigator.onLine===false&&!(key==='wave'&&waveTracks.length)) {
         setQuickMixStatus('Для подборок нужен интернет.');return;
     }
     closeModal('quick-mixes-modal');
     const requestId=++quickMixRequestId;
-    quickMixCurrent={key,title:config.title,tracks:[],loading:true,
+    quickMixCurrent={key,title:config.title,tracks:waveTracks.slice(),loading:true,
         checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
     renderQuickMixButtons();
     setQuickMixStatus(config.regions?'Ищем песни народов Кавказа…':
         config.mode==='classic'?'Ищем любимую классику…':'Ищем популярные песни и новинки…');
+    let started=waveTracks.length>0;
+    if(started){
+        currentTab='mix:'+key;
+        playlist=quickMixCurrent.tracks;
+        renderQuickMixView();
+        playTrack(0);
+        renderQuickMixButtons();
+    }
+    if(navigator.onLine===false){
+        quickMixCurrent.loading=false;
+        setQuickMixStatus('Локальная «Моя волна» · '+waveTracks.length+' сохранённых песен');
+        return;
+    }
     const batchSize=getNetworkProfile().weak?1:2;
     const plan=quickMixSearchPlan(config);
-    let started=false;
     for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;
         const batch=plan.slice(offset,offset+batchSize);
@@ -4653,7 +4734,8 @@ function switchTab(id) {
         const pl = playlists.find(p => p.id == id); 
         if(pl) { 
             if(label) { label.innerText = pl.name.toUpperCase(); label.style.display = 'block'; } 
-            if(searchContainer) searchContainer.style.display = 'none'; 
+            if(searchContainer) searchContainer.style.display =
+                searchContainer.parentElement?.classList.contains('right-col-header')?'block':'none'; 
             if(plSelectBtn) plSelectBtn.classList.add('active'); 
             playlist = [...pl.tracks]; 
             renderPlaylist(); 
@@ -4681,13 +4763,10 @@ function renderPlaylist() {
     playlist.forEach((t, i) => { 
         const div = document.createElement('div'); div.className = 'track-row ' + (playbackPlaylist[currentIndex] && canonicalTrackUrl(t) === canonicalTrackUrl(playbackPlaylist[currentIndex]) ? 'active' : ''); 
         let iconHtml = '';
-        let trackThumb = t.thumb;
-        let isDefaultLogo = false;
-
-        if (!trackThumb || trackThumb.includes('images/cover.png') || trackThumb.includes('images/r.png') || trackThumb.includes('images/z.png') || trackThumb.includes('images/s.png') || trackThumb.includes('images/f.png')) {
-            trackThumb = activeThemeImg;
-            isDefaultLogo = true;
-        }
+        // Every track uses the active DAGSTUDIO ornament, so the entire list
+        // follows palette changes (including externally sourced tracks).
+        let trackThumb = activeThemeImg;
+        let isDefaultLogo = true;
 
         if(trackThumb) {
             let imgClass = isDefaultLogo ? "theme-aware-thumb" : "";

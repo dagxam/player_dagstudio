@@ -47,6 +47,20 @@ Promise.race([
 </script>`
   );
 
+// Defer the studio UI until the main audio/controller script is loaded.
+// Native Media3 capability detection injects script.js asynchronously, whereas
+// studio.js normally has "defer". Loading the UI too early can lose playlist state.
+html = html.replace(/\s*<script src="studio\.js\?v=[^"]+" defer><\/script>/i, '');
+html = html.replace(
+  'document.body.appendChild(script);',
+  `script.addEventListener('load', () => {
+  const ui = document.createElement('script');
+  ui.src = 'studio.js';
+  document.body.appendChild(ui);
+});
+document.body.appendChild(script);`
+);
+
 // Root-relative images should stay inside the APK web root.
 html = html.replace(/(href|src)="\/images\//g, '$1="images/');
 

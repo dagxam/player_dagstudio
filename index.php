@@ -25,7 +25,7 @@
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
-    <link rel="stylesheet" href="studio.css?v=2">
+    <link rel="stylesheet" href="studio.css?v=3">
 </head>
 <body>
 
@@ -344,8 +344,8 @@
     </div>
 </div>
 
-<script src="script.js?v=2276" defer></script>
-<script src="studio.js?v=1" defer></script>
+<script src="script.js?v=2279" defer></script>
+<script src="studio.js?v=2" defer></script>
 
 </body>
 </html>

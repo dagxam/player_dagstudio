@@ -29,22 +29,19 @@
   const sidebar = el('aside','studio-sidebar');
   sidebar.id = 'studio-sidebar';
   sidebar.setAttribute('aria-label','Навигация DAGSTUDIO');
-  const logo = el('div','studio-logo');
-  const logoImg = el('img');
-  logoImg.src = '/images/cover.png';
-  logoImg.alt = '';
-  logo.appendChild(logoImg);
-  const logoCopy = el('div');
-  logoCopy.appendChild(el('strong','', 'DAGSTUDIO'));
-  logoCopy.appendChild(el('span','', 'PLAYER · Я.ВОЛНА'));
-  logo.appendChild(logoCopy);
-  sidebar.appendChild(logo);
+  // Keep the branding in the full-width top bar, not in the left column.
+  const headerBrand=document.querySelector('.header-overlay .header-left');
+  if(headerBrand&&!headerBrand.querySelector('.studio-header-logo')){
+    const brandIcon=el('img','studio-header-logo');
+    brandIcon.src='images/cover.png';
+    brandIcon.alt='';
+    headerBrand.insertBefore(brandIcon,headerBrand.firstChild);
+  }
   sidebar.appendChild(el('div','studio-small','НАВИГАЦИЯ'));
   const nav = el('nav','studio-nav');
   const views = [
     ['wave','Моя волна','wave-square'],
     ['library','Плейлисты','folder-open'],
-    ['charts','Обзор и чарты','chart-simple'],
     ['likes','Мне нравится','heart']
   ];
   for (const [view,label,icon] of views) {
@@ -55,11 +52,15 @@
   }
   sidebar.appendChild(nav);
   sidebar.appendChild(el('div','studio-divider'));
-  sidebar.appendChild(el('div','studio-small','НАЦИОНАЛЬНЫЕ ПОДБОРКИ'));
-  for (const name of ['Аварские песни','Лезгинские ритмы','Кумыкские хиты','Даргинские напевы']) {
-    const b = btn('studio-region',name,null,() => {
-      if (typeof openCaucasusRadio === 'function') openCaucasusRadio();
-    });
+  sidebar.appendChild(el('div','studio-small','МУЗЫКАЛЬНЫЕ ПОДБОРКИ'));
+  // Use the actual mix definitions/buttons. New mixes appear here without
+  // maintaining a second, divergent list of names or click handlers.
+  for(const source of document.querySelectorAll('#quick-mixes .quick-mix-btn[data-mix]')){
+    const title=source.querySelector('.mix-copy strong')?.textContent?.trim();
+    const key=source.dataset.mix;
+    if(!title||!key)continue;
+    const b=btn('studio-region',title,null,()=>source.click());
+    b.dataset.mix=key;
     b.appendChild(el('i','fas fa-chevron-right'));
     sidebar.appendChild(b);
   }
@@ -177,7 +178,7 @@
       const grid=el('div','studio-library-grid');
       for(const pl of data) {
         const card=el('button','studio-playlist-card');card.type='button';
-        const image=el('img');image.alt='';image.src='/images/cover.png';card.appendChild(image);
+        const image=el('img','theme-aware-thumb');image.alt='';image.src=themeCover();card.appendChild(image);
         const info=el('div');info.appendChild(el('strong','',pl.name||'Плейлист'));
         info.appendChild(el('small','',(Array.isArray(pl.tracks)?pl.tracks.length:0)+' треков'));
         card.appendChild(info);
@@ -189,31 +190,48 @@
       }
       library.appendChild(grid);
     } else if(currentView==='likes'){
-      likesCache=uniqueSavedTracks();
-      library.appendChild(el('h2','studio-section-title','СОХРАНЁННЫЕ ПЕСНИ'));
-      library.appendChild(el('p','studio-library-caption','Треки из ваших плейлистов: '+likesCache.length+'. Открытие раздела не прерывает воспроизведение.'));
-      if(!likesCache.length)library.appendChild(el('p','studio-library-caption','Сохраните понравившиеся песни в плейлист — они появятся здесь.'));
-      const grid=el('div','studio-library-grid');
+      likesCache=typeof tastePositiveTracks==='function'?tastePositiveTracks():uniqueSavedTracks();
+      library.appendChild(el('h2','studio-section-title','♥ МНЕ НРАВИТСЯ'));
+      library.appendChild(el('p','studio-library-caption',likesCache.length+
+        ' песен · сохранённые и дослушанные полностью. Выберите трек для воспроизведения.'));
+      if(!likesCache.length)library.appendChild(el('p','studio-library-caption',
+        'Добавьте треки в плейлисты или дослушайте песню до конца — здесь появится ваша музыка.'));
+      const list=el('div','studio-liked-list');
       for(let i=0;i<likesCache.length;i++){
-        const t=likesCache[i];
-        const card=el('button','studio-playlist-card');card.type='button';
-        const img=el('img');img.alt='';img.src=t.thumb||'/images/cover.png';img.onerror=()=>{img.onerror=null;img.src='/images/cover.png';};
-        const info=el('div');info.appendChild(el('strong','',t.title||'Без названия'));
-        info.appendChild(el('small','',t.artist||'Исполнитель неизвестен'));
-        card.appendChild(img);card.appendChild(info);
+        const track=likesCache[i];
+        const card=el('button','studio-like-row');card.type='button';
+        card.setAttribute('aria-label','Слушать '+(track.title||'трек'));
+        const img=el('img','theme-aware-thumb');
+        img.alt='';img.src=themeCover();card.appendChild(img);
+        const info=el('div','studio-like-text');info.appendChild(el('strong','',track.title||'Без названия'));
+        info.appendChild(el('small','',track.artist||'Исполнитель неизвестен'));
+        card.appendChild(info);card.appendChild(el('i','fas fa-play studio-like-play'));
         card.addEventListener('click',()=>{
-          // Preserve original playTrack and its recovery/source selection behaviour.
-          playlist=likesCache.slice();currentTab='studio-likes';playTrack(i);
-          updateDock();
+          playlist=likesCache.slice();currentTab='studio-likes';
+          playTrack(i);updateDock();
         });
-        grid.appendChild(card);
+        list.appendChild(card);
       }
-      library.appendChild(grid);
+      library.appendChild(list);
     }
   }
+  function themeCover(){
+    try{
+      const theme=localStorage.getItem('dag_theme')||'brown';
+      return (typeof colorThemes!=='undefined'&&colorThemes[theme]?.img)||'images/cover.png';
+    }catch(e){return 'images/cover.png';}
+  }
+  let lastTheme='';
   function syncTheme(){
     let selected='brown';
     try{selected=localStorage.getItem('dag_theme')||'brown';}catch(e){}
+    if(lastTheme!==selected){
+      lastTheme=selected;
+      const icon=document.querySelector('.studio-header-logo');
+      if(icon)icon.src=themeCover();
+      dockCover.src=themeCover();
+      library.querySelectorAll('img.theme-aware-thumb').forEach(image=>image.src=themeCover());
+    }
     sidebar.querySelectorAll('[data-studio-theme]').forEach(b=>{
       const active=b.dataset.studioTheme===selected;
       b.classList.toggle('active',active);
@@ -226,7 +244,7 @@
     library.classList.toggle('active',isLibrary);
     hero.hidden=currentView!=='wave';
     title.hidden=isLibrary;
-    title.textContent=currentView==='charts'?'ОБЗОР И ЧАРТЫ':currentView==='wave'?'ВАШИ ТРЕКИ И РЕКОМЕНДАЦИИ':'МУЗЫКА';
+    title.textContent=currentView==='wave'?'ВАШИ ТРЕКИ И РЕКОМЕНДАЦИИ':'МУЗЫКА';
     sidebar.querySelectorAll('[data-studio-view]').forEach(b=>{
       const active=b.dataset.studioView===currentView;
       b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');
@@ -236,9 +254,8 @@
   function showView(view) {
     currentView=view;
     if(view==='wave') {
-      if(typeof switchTab==='function')switchTab('search');
-    } else if(view==='charts'){
-      if(typeof startQuickMix==='function')startQuickMix('hits');
+      // Reopen the actual radio, including liked and fully listened tracks.
+      if(typeof startQuickMix==='function')startQuickMix('wave');
     } else if(view==='library'||view==='likes'){
       // UI only: opening a section must not start playback.
     }

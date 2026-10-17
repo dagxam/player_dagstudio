@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2276', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2279', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -193,12 +193,66 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
+  // UI refinements: one full-width topbar, actual mixes, themed round swatches.
+  for (const viewport of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]) {
+    await page.setViewport(viewport);
+    const value=await page.evaluate(()=>{
+      const header=document.querySelector('.header-overlay').getBoundingClientRect();
+      const mixes=[...document.querySelectorAll('#quick-mixes .quick-mix-btn[data-mix]')].map(b=>b.dataset.mix);
+      const side=[...document.querySelectorAll('.studio-sidebar .studio-region[data-mix]')].map(b=>b.dataset.mix);
+      const swatch=document.querySelector('.studio-theme');
+      const isCar=innerWidth>768;
+      return {headerFull:isCar?(header.left<=1&&header.width>=innerWidth-2):true,
+        brandInTopBar:!!document.querySelector('.header-overlay .studio-header-logo'),
+        noSidebarLogo:!document.querySelector('.studio-sidebar .studio-logo'),
+        noCharts:!document.querySelector('[data-studio-view="charts"]'),
+        sameMixes:JSON.stringify(side)===JSON.stringify(mixes)&&side.length>=7,
+        swatchRound:isCar?getComputedStyle(swatch).borderRadius.includes('50%'):true,
+        dockIconsOnly:isCar?[...document.querySelectorAll('.studio-dock-actions button span')].every(s=>getComputedStyle(s).display==='none'):true,
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+    });
+    console.log('ETHNO_REFINEMENTS',JSON.stringify({viewport,value}));
+    if(Object.values(value).some(x=>!x))
+      throw new Error('Ethno refinements regression '+JSON.stringify({viewport,value}));
+  }
+  await page.setViewport({width:1200,height:800});
+
+  // One tap rearranges the visible playlist without calling play().
+  const shuffleResult=await page.evaluate(()=>{
+    const old={playlist,playbackPlaylist,currentIndex,currentTab,isShuffle};
+    const rows=[0,1,2,3,4].map(n=>({title:'Песня '+n,artist:'Тест',url:'https://example.invalid/'+n+'.mp3'}));
+    try {
+      playlist=rows.slice();playbackPlaylist=rows.slice();currentIndex=2;currentTab='search';
+      const playing=playbackPlaylist[currentIndex],audio=document.getElementById('main-audio');
+      const originalPlay=audio.play;
+      let count=0;
+      audio.play=()=>{count++;return Promise.resolve()};
+      try {
+        document.getElementById('btn-shuffle').click();
+        const first={preserved:playbackPlaylist[currentIndex]===playing,
+          reordered:playlist[0]===playing,all:playlist.length===rows.length&&new Set(playlist).size===rows.length,
+          same:playlist.every((t,i)=>t===playbackPlaylist[i]),count};
+        document.getElementById('btn-shuffle').click();
+        return {...first,reshuffled:playlist[0]===playing&&playlist.length===rows.length};
+      }finally{audio.play=originalPlay;}
+    }finally{
+      playlist=old.playlist;playbackPlaylist=old.playbackPlaylist;
+      currentIndex=old.currentIndex;currentTab=old.currentTab;isShuffle=old.isShuffle;
+      renderPlaylist();
+    }
+  });
+  console.log('ETHNO_SHUFFLE',JSON.stringify(shuffleResult));
+  if(Object.values(shuffleResult).some(x=>!x)&&shuffleResult.count!==0)
+    throw new Error('Shuffle restarted playing audio '+JSON.stringify(shuffleResult));
+  if(!shuffleResult.preserved||!shuffleResult.reordered||!shuffleResult.all||!shuffleResult.same||!shuffleResult.reshuffled)
+    throw new Error('Playlist was not shuffled instantly '+JSON.stringify(shuffleResult));
+
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2276', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2279', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2276'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2279'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -282,7 +336,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2276', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2279', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -761,7 +815,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2276', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2279', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -805,7 +859,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2276','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2279','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});
