@@ -85,7 +85,7 @@ try {
         leftX:left.x, rightX:right.x, leftWidth:left.width,
         eqVisible:eq.width>=28,
         mixesVisible:(()=>{const btn=document.getElementById('header-mixes-btn');const r=btn.getBoundingClientRect();return r.width>=38&&r.left>=0&&r.right<=innerWidth;})(),
-        mixesBesideEq:(()=>{const r=document.getElementById('header-mixes-btn').getBoundingClientRect();return r.left>=eq.right-2&&r.left-eq.right<=24;})(),
+        mixesBesidePlaylists:(()=>{const r=document.getElementById('header-mixes-btn').getBoundingClientRect();const p=document.getElementById('btn-pl-select').getBoundingClientRect();return r.left>=p.right-2&&r.left-p.right<=24;})(),
         oldMixStripeAbsent:!document.querySelector('.right-col > .quick-mixes'),
         eqWidth:eq.width,
         eqStyle:getComputedStyle(document.querySelector('.header-eq-btn')).display,
@@ -96,7 +96,7 @@ try {
       };
     });
     console.log('MODERN_CLASSIC_LAYOUT', JSON.stringify({viewport,layout}));
-    if (!layout.modern || !layout.oldSidebarRemoved || !layout.noOrnamentalStrip || !layout.eqVisible || !layout.mixesVisible || !layout.mixesBesideEq || !layout.oldMixStripeAbsent ||
+    if (!layout.modern || !layout.oldSidebarRemoved || !layout.noOrnamentalStrip || !layout.eqVisible || !layout.mixesVisible || !layout.mixesBesidePlaylists || !layout.oldMixStripeAbsent ||
         layout.pageOverflow || layout.width > viewport.width + 2 ||
         (viewport.width > 768 && layout.rightX < layout.leftX + layout.leftWidth - 5))
       throw new Error('Classic modern layout invalid: ' + JSON.stringify({viewport,layout}));
