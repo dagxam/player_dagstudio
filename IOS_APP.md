@@ -13,7 +13,9 @@
 
 ## Подготовка нативного аудио iOS
 
-После `npx cap sync ios` запустите `node scripts/ios-prepare.mjs`: он добавляет `UIBackgroundModes=audio` и категорию `AVAudioSession.playback`. Эта базовая настройка не гарантирует непрерывное воспроизведение аудио WKWebView при блокировке: нужен тест на физическом iPhone и, возможно, нативный AVPlayer с MPRemoteCommandCenter. В GitHub Actions уже есть ручной workflow `Prepare iOS App`, который проверяет сборку симулятора **без подписи**. Это не устанавливаемый IPA.
+После `npx cap sync ios` запустите `node scripts/ios-prepare.mjs`: он добавляет `UIBackgroundModes=audio` и категорию `AVAudioSession.playback`, не удаляя другие фоновые режимы из `Info.plist`. Эта базовая настройка не гарантирует непрерывное воспроизведение аудио WKWebView при блокировке: нужен тест на физическом iPhone и, возможно, нативный AVPlayer с MPRemoteCommandCenter. В GitHub Actions workflow `Prepare iOS App` запускается при изменении исходников iOS/веб-оболочки или вручную и проверяет сборку симулятора **без подписи**. Это не устанавливаемый IPA.
+
+Поскольку `DAGCarMode` и Media3 реализованы только на Android, на iOS Capacitor использует обычный HTML5-аудиоэлемент, не пытается подключить автомобильный сервис и не принимает OTA-пакеты канала `android-web`. Для нативного iPhone нужно отдельно выпускать подписанные iOS-обновления.
 
 ## Для будущей настоящей IPA
 

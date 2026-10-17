@@ -6,6 +6,7 @@ import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 
 const DAGCarMode = registerPlugin('DAGCarMode');
+const hasAndroidMedia3 = Capacitor.getPlatform() === 'android';
 const updater = {
   notifyAppReady: (options) => CapacitorUpdater.notifyAppReady(options),
   download: (options) => CapacitorUpdater.download(options),
@@ -204,10 +205,12 @@ window.DAG_NATIVE_BRIDGE = {
   updater,
   audioCache,
   screen: {
-    setKeepScreenOn: (options) => DAGCarMode.setKeepScreenOn(options)
+    setKeepScreenOn: (options) => hasAndroidMedia3
+      ? DAGCarMode.setKeepScreenOn(options) : Promise.resolve({ supported: false })
   },
   media: {
-    update: (options) => DAGCarMode.setMediaState(options)
+    update: (options) => hasAndroidMedia3
+      ? DAGCarMode.setMediaState(options) : Promise.resolve({ supported: false })
   },
   audioPlayer: {
     load: options => DAGCarMode.loadAudio(options),
@@ -216,7 +219,10 @@ window.DAG_NATIVE_BRIDGE = {
     stop: () => DAGCarMode.stopAudio(),
     seek: options => DAGCarMode.seekAudio(options),
     equalizer: options => DAGCarMode.equalizerAudio(options),
-    status: () => DAGCarMode.audioStatus()
+    // Reject on iOS: the shell must select its HTML5 audio element, never
+    // initialize the Android-only Media3 adapter.
+    status: () => hasAndroidMedia3 ? DAGCarMode.audioStatus()
+      : Promise.reject(new Error('Media3 is Android-only'))
   },
   appInfo: () => App.getInfo(),
   openExternal: (options) => Browser.open({
@@ -230,16 +236,18 @@ App.addListener('appStateChange', (state) => {
   window.DAG_CAR_APP_ACTIVE = !!state.isActive;
   window.dispatchEvent(new CustomEvent('dag-native-state', { detail: { isActive: !!state.isActive } }));
 }).catch(error => console.warn('Android lifecycle hook unavailable:', error));
-DAGCarMode.addListener('mediaButton', event => {
-  window.dispatchEvent(new CustomEvent('dag-android-media-button',
-    {detail: {action: String(event?.action || '')}}));
-}).catch(error => console.warn('Media button listener unavailable:', error));
-DAGCarMode.addListener('audioStatus', state => {
-  window.dispatchEvent(new CustomEvent('dag-native-audio-status', {detail: state}));
-}).catch(error => console.warn('Media3 status listener unavailable:', error));
-App.addListener('backButton', () => {
-  window.dispatchEvent(new Event('dag-android-back'));
-}).catch(error => console.warn('Android back handler unavailable:', error));
+if (hasAndroidMedia3) {
+  DAGCarMode.addListener('mediaButton', event => {
+    window.dispatchEvent(new CustomEvent('dag-android-media-button',
+      {detail: {action: String(event?.action || '')}}));
+  }).catch(error => console.warn('Media button listener unavailable:', error));
+  DAGCarMode.addListener('audioStatus', state => {
+    window.dispatchEvent(new CustomEvent('dag-native-audio-status', {detail: state}));
+  }).catch(error => console.warn('Media3 status listener unavailable:', error));
+  App.addListener('backButton', () => {
+    window.dispatchEvent(new Event('dag-android-back'));
+  }).catch(error => console.warn('Android back handler unavailable:', error));
+}
 
 CapacitorUpdater.notifyAppReady().catch((error) => {
   console.warn('CapacitorUpdater notifyAppReady failed:', error);

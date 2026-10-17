@@ -4,6 +4,8 @@ const DAG_SERVER_ORIGIN = 'https://pl.dagstudio.ru';
 const NATIVE_SESSION_KEY = 'dag_native_session';
 const IS_NATIVE_APP = window.DAG_NATIVE_APP === true ||
     (!!window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() !== 'web');
+const NATIVE_PLATFORM = IS_NATIVE_APP && typeof window.Capacitor?.getPlatform === 'function'
+    ? window.Capacitor.getPlatform() : 'web';
 
 function appServerUrl(path) {
     const value = String(path || '');
@@ -77,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2275';
+const WEB_BUILD_LABEL = '2276';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -236,6 +238,9 @@ async function refreshAppVersionInfo() {
 
 async function checkNativeLiveUpdate(force = false, manual = false) {
     if (!IS_NATIVE_APP) return { status: 'web' };
+    // This release channel is built for Android only. Never apply its bundle
+    // to a future signed iOS container.
+    if (NATIVE_PLATFORM === 'ios') return { status: 'ios-release-required' };
     // TEYES CC3 / Android WebView: автоматический updater.set() немедленно
     // перезапускает WebView. Обновление допускаем ТОЛЬКО по нажатию пользователя.
     if (!manual) return { status: 'manual-only' };
@@ -341,6 +346,11 @@ window.manualUpdateApplication = async function() {
     setManualUpdateButtonState('is-checking', 'Проверяем обновления…');
 
     try {
+        if (NATIVE_PLATFORM === 'ios') {
+            setManualUpdateButtonState('', 'Обновить приложение');
+            showNotification('Для нативной версии iPhone требуется отдельная подписанная iOS-сборка. Android OTA к ней не применяется.');
+            return;
+        }
         // В веб/PWA ничего не скачиваем как APK: обновляем Service Worker
         // и перезагружаем приложение с актуальными файлами сайта.
         if (!IS_NATIVE_APP) {
@@ -417,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2275', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2276', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -429,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2274') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2274', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2276') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2276', '1');
         window.location.reload();
     });
 }
@@ -606,6 +616,7 @@ let eqMasterGain = null;
 let eqDynamicsCompressor = null;
 let eqGraphReady = false;
 let eqGraphFailed = false;
+let nativeEqualizerRestored = false;
 
 function loadEqualizerState() {
     try {
@@ -655,6 +666,14 @@ function applyEqualizerState() {
             eqMasterGain.gain.value = compensation;
         }
     }
+}
+
+function restoreNativeEqualizerAfterPlaybackStart() {
+    // Android creates the Media3 audio session on first playback. Restoring
+    // the saved preset before that point would start its media service while idle.
+    if (!NATIVE_MEDIA3_ACTIVE || nativeEqualizerRestored) return;
+    nativeEqualizerRestored = true;
+    applyEqualizerState();
 }
 
 async function ensureEqualizerGraph() {
@@ -909,17 +928,57 @@ function offlineStorageAtLimit(){
     return nativeCacheUsedBytes()+32*1048576>=offlineLimitMb()*1048576;
 }
 let offlineBatch=null;
+const OFFLINE_BATCH_QUEUE_LIMIT=35;
+function renderOfflineBatchProgress(extra='') {
+    if (!offlineBatch) return;
+    const completed=offlineBatch.finished+offlineBatch.failed;
+    const message='Офлайн: '+completed+' из '+offlineBatch.total+
+        (offlineBatch.failed?' · ошибок: '+offlineBatch.failed:'')+
+        (extra?' · '+extra:(completed===offlineBatch.total?' · завершено':''));
+    const label=document.getElementById('playlist-download-state');
+    if(label)label.textContent=message;
+    const cache=document.getElementById('cache-progress-info');
+    if(cache)cache.textContent=message;
+}
+function fillOfflineBatchQueue() {
+    if (!offlineBatch || offlineBatch.stopped || navigator.onLine === false) return;
+    const queue=IS_NATIVE_APP?nativeCacheQueue:webCacheQueue;
+    const queued=IS_NATIVE_APP?nativeCacheQueuedUrls:webCacheQueuedUrls;
+    while(queue.length<OFFLINE_BATCH_QUEUE_LIMIT && offlineBatch.cursor<offlineBatch.tracks.length) {
+        const track=offlineBatch.tracks[offlineBatch.cursor++];
+        const url=canonicalTrackUrl(track);
+        // An already active/queued download is accounted for by its completion.
+        if(queued.has(url))continue;
+        if(IS_NATIVE_APP)enqueueNativeTrackCache(track,'playlist');
+        else enqueueWebTrackCache(track,'playlist');
+        if(!queued.has(url))offlineBatchProgress(url,true);
+    }
+}
+function stopOfflineBatchAtStorageLimit() {
+    if(!offlineBatch || offlineBatch.stopped)return;
+    offlineBatch.stopped=true;
+    const queue=IS_NATIVE_APP?nativeCacheQueue:webCacheQueue;
+    const queued=IS_NATIVE_APP?nativeCacheQueuedUrls:webCacheQueuedUrls;
+    for(let i=queue.length-1;i>=0;i--) {
+        if(queue[i].reason==='playlist'&&offlineBatch.pending.has(queue[i].resolved)) {
+            queued.delete(queue[i].resolved);
+            queue.splice(i,1);
+        }
+    }
+    offlineBatch.failed+=offlineBatch.pending.size;
+    offlineBatch.pending.clear();
+    renderOfflineBatchProgress('достигнут лимит '+offlineLimitMb()+' МБ');
+}
 function offlineBatchProgress(url,failed=false){
-    if(!offlineBatch||!offlineBatch.pending.has(url))return;
+    if(!offlineBatch||!offlineBatch.pending.has(url)){
+        fillOfflineBatchQueue();
+        return;
+    }
     offlineBatch.pending.delete(url);
     if(failed)offlineBatch.failed++;
     else offlineBatch.finished++;
-    const text='Офлайн: '+offlineBatch.finished+' из '+offlineBatch.total+
-        (offlineBatch.failed?' · ошибок: '+offlineBatch.failed:'');
-    const label=document.getElementById('playlist-download-state');
-    if(label)label.textContent=text;
-    const cache=document.getElementById('cache-progress-info');
-    if(cache)cache.textContent=text;
+    renderOfflineBatchProgress();
+    fillOfflineBatchQueue();
 }
 function toggleTrafficSaver(value){
     localStorage.setItem(STREAM_ECONOMY_KEY,value?'on':'off');
@@ -1318,6 +1377,7 @@ async function processNativeCacheQueue() {
 
             if(offlineStorageAtLimit()){
                 nativeCacheQueuedUrls.delete(job.resolved);
+                stopOfflineBatchAtStorageLimit();
                 offlineBatchProgress(job.resolved,true);
                 const el=document.getElementById('cache-verify-info');
                 if(el)el.textContent='Достигнут лимит кэша '+offlineLimitMb()+' МБ. Освободите место или измените лимит.';
@@ -1395,7 +1455,16 @@ async function webTrackAlreadyCached(trackOrUrl) {
         }
 
         for (const key of candidates) {
-            if (key && await cache.match(key)) return true;
+            if (!key) continue;
+            const entry = await cache.match(key);
+            if (!entry) continue;
+            const size = (await entry.blob()).size;
+            const expected = Number(entry.headers.get('content-length') || 0);
+            const mime = (entry.headers.get('content-type') || '').toLowerCase();
+            if (size >= 4096 && (!expected || size + 1024 >= expected) &&
+                !/text\/html|application\/json|text\/plain/.test(mime)) return true;
+            // Do not count an incomplete/HTML response as an offline song.
+            await cache.delete(key);
         }
     } catch (error) {}
     return false;
@@ -2382,7 +2451,7 @@ function refreshPlayerDiagnostics() {
     if(!el)return;
     const net=getNetworkProfile(),track=playbackPlaylist[currentIndex];
     el.textContent=[
-        'Платформа: '+(IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
+        'Платформа: '+(NATIVE_PLATFORM==='ios'?'iPhone / iPad (Capacitor)':IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
         'Соединение: '+(navigator.onLine?(net.effectiveType||'доступно'):'отсутствует'),
         'Воспроизведение: '+(playbackWanted?(mainAudio.paused?'загрузка':'играет'):'пауза'),
         'Готовность: '+mainAudio.readyState+' из 4',
@@ -2424,28 +2493,23 @@ window.addEventListener('dag-cache-progress', event => {
 function downloadCurrentPlaylistOffline() {
     if(navigator.onLine===false)return showNotification('Для скачивания нужна сеть.');
     if(!playlist.length)return showNotification('В этом списке нет треков.');
+    if(offlineBatch?.pending.size)return showNotification('Загрузка плейлиста уже идёт. Дождитесь завершения.');
     const tracks=playlist.filter(track=>track?.url&&isRemoteMediaUrl(track.url));
-    const jobs=[],seen=new Set();
+    const unique=[],seen=new Set();
     for(const track of tracks){
         const url=canonicalTrackUrl(track);
         if(!url||seen.has(url))continue;
         seen.add(url);
-        if(IS_NATIVE_APP){
-            if(nativeCacheQueuedUrls.has(url)||nativeCacheQueue.length>=35)continue;
-            enqueueNativeTrackCache(track,'playlist',false);
-            if(nativeCacheQueuedUrls.has(url))jobs.push(url);
-        }else{
-            if(webCacheQueuedUrls.has(url)||webCacheQueue.length>=35)continue;
-            enqueueWebTrackCache(track,'playlist',false);
-            if(webCacheQueuedUrls.has(url))jobs.push(url);
-        }
+        unique.push(track);
     }
-    offlineBatch={total:jobs.length,finished:0,failed:0,pending:new Set(jobs)};
+    if(!unique.length)return showNotification('В плейлисте нет доступных для загрузки аудиофайлов.');
+    offlineBatch={total:unique.length,finished:0,failed:0,pending:seen,
+        tracks:unique,cursor:0,stopped:false};
     const label=document.getElementById('playlist-download-state');
-    if(label)label.textContent=jobs.length?'Офлайн: 0 из '+jobs.length+
-        ' · скачиваем по очереди':'Нет новых задач: файлы уже в кэше или очередь заполнена';
+    if(label)label.textContent='Офлайн: 0 из '+unique.length+' · скачиваем по очереди';
     const cache=document.getElementById('cache-progress-info');
     if(cache)cache.textContent=label?.textContent||'';
+    fillOfflineBatchQueue();
 }
 async function verifyOfflineCache() {
     const result = document.getElementById('cache-verify-info');
@@ -2476,7 +2540,9 @@ async function verifyOfflineCache() {
                 const res=await store.match(key);
                 const size=(await res?.blob())?.size || 0;
                 const expected=Number(res?.headers.get('content-length') || 0);
-                if (size<4096 || (expected && size+1024<expected)) {
+                const mime=(res?.headers.get('content-type')||'').toLowerCase();
+                if (size<4096 || (expected && size+1024<expected) ||
+                    /text\/html|application\/json|text\/plain/.test(mime)) {
                     await store.delete(key); removed++;
                 }
             }
@@ -2513,6 +2579,7 @@ function clearOfflineAudioCache() {
             webCacheQueue.length=0; webCacheQueuedUrls.clear();
             await caches.delete('dag-audio-cache');
         }
+        offlineBatch=null;
         await openCacheDashboard();
         const info=document.getElementById('cache-verify-info');
         if(info)info.textContent='Кэш очищен. Плейлисты сохранены.';
@@ -3514,6 +3581,7 @@ async function playTrack(index, options = {}) {
         await requestAudioPlay();
 
         if (token !== currentPlaybackToken) return;
+        restoreNativeEqualizerAfterPlaybackStart();
         // Не рисуем ложное состояние воспроизведения. Событие playing
         // само выключит loader и включит анимацию только когда пошёл звук.
     } catch (error) {

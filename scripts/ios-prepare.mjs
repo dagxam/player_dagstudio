@@ -5,11 +5,16 @@ const root=resolve('ios/App/App');
 const plistPath=resolve(root,'Info.plist');
 const appDelegatePath=resolve(root,'AppDelegate.swift');
 let plist=await readFile(plistPath,'utf8');
-if(!plist.includes('UIBackgroundModes')){
+const backgroundModes=/(<key>UIBackgroundModes<\/key>\s*<array>)([\s\S]*?)(<\/array>)/;
+if(backgroundModes.test(plist)){
+    plist=plist.replace(backgroundModes,(whole,start,modes,end)=>
+        /<string>audio<\/string>/.test(modes)?whole:
+        start+modes+'\n\t\t<string>audio</string>\n\t'+end);
+}else{
     if(!plist.includes('<dict>'))throw Error('Unexpected iOS Info.plist format');
     plist=plist.replace('<dict>','<dict>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>audio</string>\n\t</array>');
-    await writeFile(plistPath,plist);
 }
+await writeFile(plistPath,plist);
 let app=await readFile(appDelegatePath,'utf8');
 if(!app.includes('import AVFoundation')){
     if(!app.includes('import UIKit'))throw Error('Missing UIKit import');

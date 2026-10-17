@@ -2,6 +2,17 @@ name: Prepare iOS App
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-ios.yml"
+      - "native/**"
+      - "scripts/**"
+      - "script.js"
+      - "index.php"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
 
 permissions:
   contents: read
@@ -21,7 +32,12 @@ jobs:
           node-version: "22"
 
       - name: Install native dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Test offline queue and iOS background audio preparation
+        run: |
+          node .github/test-offline-batch.mjs
+          node .github/test-ios-preparation.mjs
 
       - name: Build local web shell
         run: npm run native:web

@@ -65,6 +65,9 @@ jobs:
       - name: Test native progress and touch seeking
         run: node .github/test-native-media.mjs
 
+      - name: Test bounded offline playlist downloads
+        run: node .github/test-offline-batch.mjs
+
       - name: Test smart radio recommendations
         run: node .github/test-smart-radio.mjs
 

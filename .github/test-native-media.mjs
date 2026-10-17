@@ -48,6 +48,8 @@ assert.ok(javaEngine.includes('public void publishProgress()'),
     'Media3 live position must reach JS');
 assert.ok(script.includes("mainAudio.addEventListener('timeupdate', updateProgress)"),
     'bar must redraw when native audio position advances');
+assert.ok(script.includes('restoreNativeEqualizerAfterPlaybackStart();'),
+    'saved Android sound preset must be restored when native playback starts');
 assert.ok(script.includes('seekFromProgressClientX(event.clientX)'),
     'bar must accept touch scrubbing');
 assert.ok(css.includes('/* TEYES CC3: no full-width elliptical backdrop during buffering. */'),

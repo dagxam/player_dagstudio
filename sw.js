@@ -1,13 +1,13 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2275';
-const RUNTIME_CACHE = 'dagstudio-player-runtime-v2275';
+const CACHE_NAME = 'dagstudio-player-shell-v2276';
+const RUNTIME_CACHE = 'dagstudio-player-runtime-v2276';
 
 const CORE_ASSETS = [
     '/',
     '/index.php',
     '/style.css?v=2227',
     '/modern.css?v=16',
-    '/script.js?v=2275',
+    '/script.js?v=2276',
     '/manifest.json?v=2216',
     '/images/faviconch.png',
     '/images/icon-192.png',
