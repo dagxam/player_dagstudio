@@ -778,6 +778,289 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 .playlist-download-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
  margin:0 17px 8px;padding:8px 11px;border:1px solid var(--theme-border,#35404b);
  border-radius:12px;background:var(--theme-control,#1b2229);}
+
+/* Listening-first refresh: calmer navigation, bigger artwork and track lists.
+   All accents remain bound to the five existing theme tokens.
+   Keep playback markup/IDs and the lightweight TEYES rendering untouched. */
+@media (min-width:769px) {
+  .main-container {
+    width:100vw;
+    max-width:none;
+    height:100vh;
+    height:100dvh;
+    max-height:none;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+  }
+  .header-overlay {
+    height:76px;
+    padding:0 30px;
+    border-bottom:1px solid rgba(var(--theme-rgb,192,108,66),.13);
+    background:rgba(var(--theme-header-rgb,20,26,32),.97);
+  }
+  .brand-display {font-size:clamp(1.45rem,2vw,1.9rem);letter-spacing:.065em;}
+  .header-right {gap:11px;}
+  .header-right .icon-btn,.header-right .menu-btn {
+    width:46px;height:46px;
+    border-radius:15px;
+    box-shadow:none;
+  }
+  .left-col {
+    flex:0 0 38%;
+    width:38%;
+    max-width:530px;
+    min-width:315px;
+    padding:100px 32px 32px;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .left-col::before {
+    content:"СЕЙЧАС ИГРАЕТ";
+    position:absolute;
+    left:32px;
+    top:94px;
+    color:var(--theme-muted,#a6b0b9);
+    font-size:.72rem;
+    font-weight:800;
+    letter-spacing:.16em;
+  }
+  .visual-container {
+    height:clamp(156px,31vh,294px);
+    margin:10px 0 16px;
+    overflow:visible;
+  }
+  .vinyl-wrapper {
+    width:clamp(158px,29vh,262px);
+    height:clamp(158px,29vh,262px);
+    background:
+      repeating-radial-gradient(circle,rgba(255,255,255,.035) 0 1px,transparent 2px 5px),
+      #080b0c;
+  }
+  .vinyl-img {
+    width:68%;
+    height:68%;
+    border-width:7px;
+    box-shadow:0 0 0 1px rgba(var(--theme-rgb,192,108,66),.26);
+  }
+  .vinyl-wrapper::after {width:13px;height:13px;}
+  .track-info-display {
+    width:100%;
+    height:auto;
+    min-height:78px;
+    margin:0 0 14px;
+    padding:0 54px 0 2px;
+    align-items:flex-start;
+    justify-content:center;
+    text-align:left;
+    gap:5px;
+  }
+  .np-title {
+    display:-webkit-box;
+    -webkit-box-orient:vertical;
+    -webkit-line-clamp:2;
+    white-space:normal;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    width:100%;
+    max-height:2.55em;
+    line-height:1.26;
+    font-size:clamp(1.08rem,1.9vw,1.47rem);
+    font-weight:800;
+    margin:0;
+    overflow-wrap:anywhere;
+  }
+  .np-artist {
+    width:100%;
+    line-height:1.35;
+    font-size:.83rem;
+    letter-spacing:.02em;
+    text-transform:none;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    text-align:left;
+  }
+  .now-playing-heart {
+    right:0;
+    top:50%;
+    width:46px;
+    height:46px;
+    border-radius:50%;
+  }
+  .progress-area {margin:3px 0 21px;padding:10px 2px 7px;}
+  .progress-bar-wrap {height:7px;border-radius:99px;}
+  .progress-current::after {
+    content:"";
+    position:absolute;
+    right:-5px;top:50%;
+    width:12px;height:12px;
+    transform:translateY(-50%);
+    border-radius:50%;
+    background:var(--theme-bright,#dfaa8c);
+    box-shadow:0 0 0 3px var(--theme-left-b,#12171c);
+  }
+  .time-display {margin-top:13px;font-size:.78rem;}
+  .main-btns {width:100%;margin:0;gap:clamp(10px,1.6vw,20px);}
+  .main-btns .c-btn {
+    width:48px;height:48px;min-width:48px;
+    border-radius:50%;
+    box-shadow:none;
+  }
+  .main-btns .play-btn {
+    width:68px;height:68px;min-width:68px;
+    border-radius:50%;
+    font-size:1.5rem;
+    padding-left:3px;
+  }
+  .right-col {padding-top:76px;}
+  .right-col-header {
+    margin:19px 28px 16px;
+    padding:5px;
+    gap:7px;
+    min-height:59px;
+    background:var(--theme-control,#1b2229);
+    border:1px solid var(--theme-border,#35404b);
+    border-radius:17px;
+  }
+  .right-col-header .tab-btn,.right-col-header .pl-select-btn {
+    min-height:46px;
+    border-radius:12px;
+    padding:10px 12px;
+    font-size:.86rem;
+    letter-spacing:.015em;
+  }
+  .right-col-header .tab-btn.active,
+  .right-col-header .pl-select-btn.active {
+    background:rgba(var(--theme-rgb,192,108,66),.18);
+    border-color:rgba(var(--theme-rgb,192,108,66),.46);
+  }
+  .queue-toggle-btn {min-height:46px;min-width:46px;flex-basis:46px;border-radius:12px;}
+  .search-container-wrap {margin:0 28px 16px;}
+  .search-container-wrap::before {
+    content:"\f002";
+    font-family:"Font Awesome 6 Free";
+    font-weight:900;
+    position:absolute;
+    left:20px;top:50%;
+    transform:translateY(-50%);
+    pointer-events:none;
+    z-index:1;
+    font-size:1rem;
+    color:var(--theme-muted,#a6b0b9);
+  }
+  .search-input {
+    min-height:52px;
+    padding:13px 17px 13px 52px;
+    border-radius:15px;
+    font-size:.98rem;
+    box-shadow:none;
+  }
+  .active-pl-label {
+    margin:3px 30px 12px;
+    width:auto;
+    font-size:clamp(1.3rem,2.1vw,1.75rem);
+    line-height:1.25;
+    letter-spacing:.02em;
+    color:var(--theme-bright-text,#f5f6f8);
+    text-transform:none;
+    overflow-wrap:anywhere;
+  }
+  .playlist-download-bar {
+    margin:0 28px 15px;
+    padding:9px 13px;
+    min-height:48px;
+    gap:13px;
+    border-radius:13px;
+    background:rgba(var(--theme-rgb,192,108,66),.065);
+  }
+  .playlist-area {
+    min-height:0;
+    padding:0 22px 25px 28px;
+  }
+  .track-row {
+    margin:0 0 6px;
+    min-height:70px;
+    padding:9px 13px;
+    border-radius:14px;
+    border:1px solid transparent;
+    gap:13px;
+    transform:none;
+  }
+  .track-row:hover {background:rgba(var(--theme-rgb,192,108,66),.085);}
+  .track-row.active {
+    transform:none;
+    border:1px solid rgba(var(--theme-rgb,192,108,66),.35);
+    border-left:3px solid var(--theme-middle,#ca805d);
+    background:rgba(var(--theme-rgb,192,108,66),.14);
+  }
+  .track-row img {
+    width:50px!important;height:50px!important;
+    min-width:50px;
+    margin-right:0!important;
+    border-radius:12px!important;
+  }
+  .track-left {gap:5px;}
+  .t-title {font-size:1rem;line-height:1.3;font-weight:700;}
+  .t-artist {font-size:.81rem;line-height:1.35;}
+  .track-actions {display:flex;align-items:center;gap:1px;flex-shrink:0;}
+  .btn-list-action {
+    min-width:40px;min-height:40px;
+    border-radius:11px;
+    font-size:1.04rem;
+  }
+}
+
+/* CC3 and similar low-height widescreens: avoid covering the title or controls. */
+@media (min-width:769px) and (max-height:760px) {
+  .header-overlay {height:62px;padding:0 21px;}
+  .left-col {padding:73px 24px 15px;}
+  .left-col::before {top:76px;left:24px;font-size:.65rem;}
+  .visual-container {
+    height:clamp(140px,calc(100dvh - 385px),222px);
+    margin:18px 0 9px;
+  }
+  .vinyl-wrapper {width:clamp(135px,29vh,210px);height:clamp(135px,29vh,210px);}
+  .track-info-display {min-height:67px;margin-bottom:4px;}
+  .np-title {font-size:clamp(1.03rem,1.55vw,1.25rem);max-height:2.55em;}
+  .np-artist {font-size:.8rem;}
+  .progress-area {margin:0 0 9px;padding:6px 2px 6px;}
+  .time-display {margin-top:8px;}
+  .main-btns {gap:clamp(8px,1.35vw,16px);}
+  .main-btns .c-btn {width:44px;height:44px;min-width:44px;}
+  .main-btns .play-btn {width:60px;height:60px;min-width:60px;}
+  .right-col {padding-top:62px;}
+  .right-col-header {margin:7px 18px 11px;min-height:54px;padding:4px;}
+  .right-col-header .tab-btn,.right-col-header .pl-select-btn {min-height:43px;padding:9px;}
+  .queue-toggle-btn {min-width:43px;min-height:43px;flex-basis:43px;}
+  .active-pl-label {margin:0 20px 9px;font-size:1.35rem;}
+  .search-container-wrap {margin:0 18px 10px;}
+  .search-container-wrap::before {left:19px;}
+  .playlist-download-bar {margin:0 18px 9px;min-height:45px;padding:6px 10px;}
+  .playlist-area {padding:0 14px 16px 18px;}
+  .track-row {min-height:61px;padding:6px 10px;margin-bottom:4px;gap:10px;}
+  .track-row img {width:44px!important;height:44px!important;min-width:44px;}
+}
+@media (min-width:769px) and (max-height:540px) {
+  .left-col::before {display:none;}
+  .left-col {padding-top:60px;}
+  .visual-container {height:125px;margin:0 0 5px;}
+  .vinyl-wrapper {width:122px;height:122px;}
+  .track-info-display {min-height:58px;}
+  .progress-area {margin-bottom:3px;}
+  .main-btns .play-btn {width:53px;height:53px;min-width:53px;}
+}
+
+/* Mobile keeps the existing compact mini-player while sharing the new list rhythm. */
+@media (max-width:768px) {
+  .left-col .np-title {line-height:1.3!important;}
+  .right-col-header {border-radius:15px!important;}
+  .right-col-header .tab-btn,.right-col-header .pl-select-btn {border-radius:11px!important;}
+  .playlist-area .track-row {min-height:62px!important;gap:10px!important;}
+  .playlist-area .track-row.active {border-left:3px solid var(--theme-middle,#ca805d)!important;}
+  .playlist-area .track-row img {border-radius:11px!important;}
+  .playlist-area .track-actions .btn-list-action {border-radius:10px;min-width:32px;min-height:36px;}
+}
 .playlist-download-bar[hidden]{display:none!important;}
 .playlist-download-bar button{padding:8px 12px;min-height:37px;border-radius:9px;
  color:var(--theme-on-accent,#101317);background:var(--theme-middle,#ca805d);
