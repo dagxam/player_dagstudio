@@ -84,7 +84,7 @@ try {
         noOrnamentalStrip: !document.querySelector('.ornament-footer'),
         leftX:left.x, rightX:right.x, leftWidth:left.width,
         eqVisible:eq.width>=28,
-        mixesVisible:(()=>{const btn=document.getElementById('header-mixes-btn');const r=btn.getBoundingClientRect();return r.width>=38&&r.left>=0&&r.right<=innerWidth;})(),
+        mixesVisible:(()=>{const btn=document.getElementById('header-mixes-btn');const r=btn.getBoundingClientRect();return r.width>=(innerWidth<=768?34:38)&&r.left>=0&&r.right<=innerWidth;})(),
         mixesBesidePlaylists:(()=>{const r=document.getElementById('header-mixes-btn').getBoundingClientRect();const p=document.getElementById('btn-pl-select').getBoundingClientRect();return r.left>=p.right-2&&r.left-p.right<=24;})(),
         oldMixStripeAbsent:!document.querySelector('.right-col > .quick-mixes'),
         eqWidth:eq.width,
