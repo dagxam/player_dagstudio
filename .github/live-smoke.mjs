@@ -117,6 +117,7 @@ try {
           failures.push(id+': missing drawer');return;
         }
         overlay.classList.add('show');
+        overlay.style.animation='none';
         panel.style.animation='none';
         const box=panel.getBoundingClientRect(),close=panel.querySelector('.modal-close')?.getBoundingClientRect();
         if(Math.abs(innerWidth-box.right)>22||box.left<0||box.top<0||
@@ -126,16 +127,18 @@ try {
            document.documentElement.scrollWidth>innerWidth+2)
           failures.push(id+': '+JSON.stringify({left:box.left,right:box.right,
             top:box.top,bottom:box.bottom,scroll:getComputedStyle(panel).overflowY}));
-        overlay.classList.remove('show');panel.style.removeProperty('animation');
+        overlay.classList.remove('show');
+        overlay.style.removeProperty('animation');panel.style.removeProperty('animation');
       });
       ['alert-modal','ios-install-modal'].forEach(id=>{
         const overlay=document.getElementById(id),panel=overlay?.querySelector('.modal-box');
         overlay.classList.add('show');
+        overlay.style.animation='none';
         const box=panel.getBoundingClientRect();
         if(overlay.classList.contains('studio-side-dialog')||
            Math.abs(box.left+box.width/2-innerWidth/2)>4)
           failures.push(id+': informational window not centered');
-        overlay.classList.remove('show');
+        overlay.classList.remove('show');overlay.style.removeProperty('animation');
       });
       return failures;
     });
