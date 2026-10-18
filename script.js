@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2299';
+const WEB_BUILD_LABEL = '2300';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -5590,6 +5590,11 @@ function applyThemePalette(themeName) {
         '--theme-modal-b': blendThemeColors('#13181d', main, .12),
         '--theme-surface': blendThemeColors('#20272d', main, .19),
         '--theme-surface-hover': blendThemeColors('#303a43', main, .23),
+        '--theme-tile-top': blendThemeColors('#272d36', main, .33),
+        '--theme-tile-bottom': blendThemeColors('#11171e', main, .13),
+        '--theme-icon-surface': blendThemeColors('#252c35', main, .44),
+        '--theme-icon-edge': blendThemeColors('#45515d', main, .42),
+        '--theme-icon-text': blendThemeColors(bright, '#ffffff', .18),
         '--theme-control': blendThemeColors('#1b2229', main, .18),
         '--theme-control-hover': blendThemeColors('#313940', main, .22),
         '--theme-field': blendThemeColors('#141b20', main, .14),
@@ -5623,7 +5628,11 @@ function setTheme(themeName, save = true) {
 
     localStorage.setItem('dag_theme', themeName);
     if(save && currentUser) { api('update_theme', {theme: themeName}); }
-    document.querySelectorAll('.theme-dot').forEach(btn => { btn.classList.remove('active'); if(btn.getAttribute('onclick').includes(themeName)) { btn.classList.add('active'); } });
+    document.querySelectorAll('.theme-dot[data-theme]').forEach(btn => {
+        const selected = btn.dataset.theme === themeName;
+        btn.classList.toggle('active', selected);
+        btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
 }
 
 function loadTheme() { const saved = localStorage.getItem('dag_theme') || 'brown'; setTheme(saved, false); }

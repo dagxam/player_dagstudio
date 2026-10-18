@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2299', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2293', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -184,6 +184,9 @@ try {
         idleIntro
       };
       const themes={};
+      const cardArt=document.querySelector('#studio-curations .showcase-card-art');
+      const navIcon=document.querySelector('#showcase-search i');
+      const tile=document.querySelector('#studio-curations .showcase-curation-card');
       for(const name of ['brown','red','green','blue','purple']){
         setTheme(name,false);title.textContent='Жиганская';
         await delay(80);
@@ -192,7 +195,14 @@ try {
           ring:getComputedStyle(vinyl).boxShadow,
           action:getComputedStyle(document.querySelector('.showcase-cache-action')).backgroundImage,
           card:getComputedStyle(document.querySelector('.showcase-card-play')).borderColor,
-          art:getComputedStyle(landscape).filter
+          art:getComputedStyle(landscape).filter,
+          tile:getComputedStyle(tile).backgroundImage,
+          artFill:getComputedStyle(cardArt,'::before').backgroundImage,
+          icon:getComputedStyle(cardArt.querySelector('i')).backgroundImage,
+          iconColor:getComputedStyle(cardArt.querySelector('i')).color,
+          navIcon:getComputedStyle(navIcon).backgroundImage,
+          selectedTheme:[...document.querySelectorAll('.theme-choice[aria-pressed="true"]')]
+            .map(button=>button.dataset.theme).join(',')
         };
       }
       state.allThemes=Object.entries(themes).every(([n,x])=>x.tint===n);
@@ -200,6 +210,12 @@ try {
       state.variedActions=new Set(Object.values(themes).map(x=>x.action)).size===5;
       state.variedCards=new Set(Object.values(themes).map(x=>x.card)).size===5;
       state.variedArt=new Set(Object.values(themes).map(x=>x.art)).size>=4;
+      state.variedTiles=new Set(Object.values(themes).map(x=>x.tile)).size===5;
+      state.variedTileArtwork=new Set(Object.values(themes).map(x=>x.artFill)).size===5;
+      state.variedTileIcons=new Set(Object.values(themes).map(x=>x.icon)).size===5;
+      state.variedTileIconColors=new Set(Object.values(themes).map(x=>x.iconColor)).size===5;
+      state.variedMenuIcons=new Set(Object.values(themes).map(x=>x.navIcon)).size===5;
+      state.selectedThemes=Object.entries(themes).every(([n,x])=>x.selectedTheme===n);
       return state;
     }finally{
       playbackPlaylist=saved.tracks;currentIndex=saved.index;
@@ -468,6 +484,9 @@ try {
       const header=modal.querySelector('.menu-modal-heading').getBoundingClientRect();
       const closeButton=modal.querySelector('.showcase-settings-close').getBoundingClientRect();
       const cards=[...modal.querySelectorAll('.menu-account-column,.menu-action-column')];
+      const themeBounds=theme?.getBoundingClientRect();
+      const themeChoices=[...theme.querySelectorAll('.theme-choice')];
+      const themeTileBounds=themeChoices.map(button=>button.getBoundingClientRect());
       return {
         diagnostics:{left:rect.left,expectedLeft,right:rect.right,top:rect.top,bottom:rect.bottom,innerWidth,innerHeight,sideRight:side.right},
         within:Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
@@ -477,6 +496,9 @@ try {
           !!modal.querySelector('.menu-action-column')&&!!modal.querySelector('#app-update-btn'),
         colors:!!theme&&theme.parentElement.classList.contains('menu-action-column')&&
           theme.querySelectorAll('.theme-dot').length===5,
+        themeTilesFit:getComputedStyle(theme.querySelector('.theme-options')).display==='grid'&&
+          themeTileBounds.length===5&&themeTileBounds.every(box=>box.width>=35&&
+            box.left>=themeBounds.left-1&&box.right<=themeBounds.right+1),
         noOverflow:document.documentElement.scrollWidth<=innerWidth+2,
         headerAligned:closeButton.right<=header.right+2&&closeButton.left>=header.left&&
           closeButton.top>=header.top-2&&closeButton.bottom<=header.bottom+2,
@@ -734,7 +756,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2299',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2300',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -745,10 +767,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2299', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2300', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2299'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2300'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -832,7 +854,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2299', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2300', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -1307,7 +1329,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2299', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2293', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -1351,7 +1373,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2299','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2293','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});

@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=15">
+    <link rel="stylesheet" href="studio-next.css?v=16">
 </head>
 <body>
 
@@ -213,13 +213,13 @@
             <button id="playlist-sync-btn" class="menu-list-btn" onclick="manualSyncPlaylists()" type="button"><i class="fas fa-arrows-rotate"></i><span>Синхронизировать плейлисты</span></button>
             <div id="playlist-sync-status" class="playlist-sync-status" role="status" aria-live="polite">Плейлисты сохранены на устройстве</div>
             <div class="theme-selector-wrapper">
-                <div class="theme-lbl">ЦВЕТ ТЕМЫ:</div>
-                <div class="theme-options">
-                    <button class="theme-dot" style="background:#C06C42;" onclick="setTheme('brown')"></button>
-                    <button class="theme-dot" style="background:#D32F2F;" onclick="setTheme('red')"></button>
-                    <button class="theme-dot" style="background:#2E7D32;" onclick="setTheme('green')"></button>
-                    <button class="theme-dot" style="background:#1976D2;" onclick="setTheme('blue')"></button>
-                    <button class="theme-dot" style="background:#8b00ff;" onclick="setTheme('purple')"></button>
+                <div class="theme-lbl">ОФОРМЛЕНИЕ ПЛЕЕРА <span>Все плитки и значки меняют оттенок</span></div>
+                <div class="theme-options" role="group" aria-label="Цветовая тема плеера">
+                    <button type="button" class="theme-dot theme-choice theme-choice-brown" data-theme="brown" onclick="setTheme('brown')" aria-label="Медная тема" aria-pressed="false"><i class="fas fa-sun" aria-hidden="true"></i><span>Медь</span></button>
+                    <button type="button" class="theme-dot theme-choice theme-choice-red" data-theme="red" onclick="setTheme('red')" aria-label="Алая тема" aria-pressed="false"><i class="fas fa-fire-flame-curved" aria-hidden="true"></i><span>Алый</span></button>
+                    <button type="button" class="theme-dot theme-choice theme-choice-green" data-theme="green" onclick="setTheme('green')" aria-label="Зелёная тема" aria-pressed="false"><i class="fas fa-leaf" aria-hidden="true"></i><span>Лес</span></button>
+                    <button type="button" class="theme-dot theme-choice theme-choice-blue" data-theme="blue" onclick="setTheme('blue')" aria-label="Синяя тема" aria-pressed="false"><i class="fas fa-water" aria-hidden="true"></i><span>Океан</span></button>
+                    <button type="button" class="theme-dot theme-choice theme-choice-purple" data-theme="purple" onclick="setTheme('purple')" aria-label="Фиолетовая тема" aria-pressed="false"><i class="fas fa-gem" aria-hidden="true"></i><span>Неон</span></button>
                 </div>
             </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
@@ -358,7 +358,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2299" defer></script>
+<script src="script.js?v=2300" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=9" defer></script>
 <script src="studio-center.js?v=2" defer></script>
