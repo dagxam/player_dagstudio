@@ -357,7 +357,7 @@
 
 <script src="script.js?v=2288" defer></script>
 <script src="studio.js?v=4" defer></script>
-<script src="studio-next.js?v=5" defer></script>
+<script src="studio-next.js?v=6" defer></script>
 
 </body>
 </html>

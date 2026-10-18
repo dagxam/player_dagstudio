@@ -151,7 +151,9 @@ function renderSidebarPlaylists(){
      edit.appendChild(node('i','fas fa-gear'));
      edit.addEventListener('click',()=>{
        if(typeof openTrackManager==='function')openTrackManager(pl.id,pl.name,pl.type);
-       closeMobile();
+       // Keep the desktop flyout populated so a newly chosen icon updates
+       // visibly after closing the editor. Phone panel returns to navigation.
+       if(window.innerWidth<=768)closeMobile();
      });
      row.append(btn,edit);list.appendChild(row);
    });
