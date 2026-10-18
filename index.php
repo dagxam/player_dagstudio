@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=12">
+    <link rel="stylesheet" href="studio-next.css?v=13">
 </head>
 <body>
 

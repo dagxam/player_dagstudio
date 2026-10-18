@@ -1058,3 +1058,11 @@
  background:rgba(var(--theme-rgb,192,108,66),.24)!important;
  border-color:var(--theme-bright,var(--accent-color))!important;
 }
+
+/* Match the 158px CC3 sidebar in compact landscape settings. */
+@media (min-width:769px) and (max-width:1080px){
+ #menu-modal.showcase-settings-page.show{
+  inset:0 0 0 158px!important;
+  width:calc(100vw - 158px)!important;
+ }
+}
