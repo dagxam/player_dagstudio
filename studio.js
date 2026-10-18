@@ -35,15 +35,14 @@
   const waveButton=document.getElementById('studio-header-wave');
   let showingLikes=false,libraryFingerprint='',coverName='';
   function savedSongs(){
-    if(typeof tastePositiveTracks==='function')return tastePositiveTracks();
-    const unique=new Set(),result=[];
-    if(typeof playlists==='undefined')return result;
-    for(const p of playlists)for(const t of p.tracks||[]){
+    if(typeof likedPlaylistTracks==='function')return likedPlaylistTracks();
+    const known=new Set(),tracks=[];
+    for(const pl of playlists||[])for(const t of pl.tracks||[]){
       if(!t?.url)continue;
       const key=String(t.artist)+'|'+String(t.title);
-      if(!unique.has(key)){unique.add(key);result.push(t);}
+      if(!known.has(key)){known.add(key);tracks.push(t);}
     }
-    return result;
+    return tracks;
   }
   function hideLikes(){
     showingLikes=false;
@@ -60,7 +59,7 @@
     copy.appendChild(el('span','studio-library-eyebrow','ВАША МУЗЫКА'));
     copy.appendChild(el('h2','studio-library-heading','Мне нравится'));
     copy.appendChild(el('p','studio-library-caption',
-      songs.length+' треков · сохранённые и прослушанные до конца'));
+      songs.length+' треков · из ваших плейлистов'));
     title.appendChild(copy);
     const close=el('button','studio-library-close');
     close.type='button';close.title='Вернуться к списку';close.setAttribute('aria-label','Вернуться к трекам');
@@ -72,7 +71,7 @@
       empty.appendChild(el('i','far fa-heart'));
       empty.appendChild(el('strong','','Здесь появятся любимые песни'));
       empty.appendChild(el('p','',
-        'Сохраняйте понравившиеся треки в плейлист или дослушивайте их до конца.'));
+        'Добавьте песни в плейлист и убедитесь, что он не исключён из «Мне нравится».'));
       library.appendChild(empty);return;
     }
     const list=el('div','studio-liked-list');
@@ -104,13 +103,15 @@
   window.openStudioWave=function(){
     hideLikes();
     waveButton?.classList.add('active');
+    document.getElementById('studio-header-offline')?.classList.remove('active');
     if(typeof startQuickMix==='function')startQuickMix('wave');
   };
   // Return to the real list when a user searches, chooses a playlist or starts
   // a mix. No replacement of the existing source-switching/audio functions.
   document.addEventListener('click',event=>{
     const target=event.target.closest?.('#tab-search-btn,.quick-mix-btn,.playlist-select-btn,.studio-library-close');
-    if(target)hideLikes();
+    if(target){hideLikes();waveButton?.classList.remove('active');
+        document.getElementById('studio-header-offline')?.classList.remove('active');}
   },true);
   searchInput?.addEventListener('focus',()=>{
     if(showingLikes){hideLikes();if(typeof switchTab==='function')switchTab('search');}
@@ -126,6 +127,7 @@
     const signature=songs.map(s=>String(s.artist)+'|'+String(s.title)+'|'+String(s.url)).join('~');
     if(signature!==lastData){lastData=signature;renderLikes();}
   }
+  window.addEventListener('dag-library-changed',()=>{lastData='';if(showingLikes)renderLikes();});
   synchronize();
   const heartbeat=setInterval(synchronize,1600);
   window.addEventListener('pagehide',()=>clearInterval(heartbeat),{once:true});

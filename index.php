@@ -25,7 +25,7 @@
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
-    <link rel="stylesheet" href="studio.css?v=5">
+    <link rel="stylesheet" href="studio.css?v=6">
 </head>
 <body>
 
@@ -44,6 +44,7 @@
             <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
             <button id="studio-header-wave" class="studio-top-btn studio-wave-btn" type="button" onclick="openStudioWave()" title="Слушать Мою волну" aria-label="Моя волна"><i class="fas fa-wave-square" aria-hidden="true"></i><span>МОЯ ВОЛНА</span></button>
             <button id="studio-header-likes" class="studio-top-btn" type="button" onclick="openStudioLikes()" title="Мне нравится" aria-label="Мне нравится" aria-pressed="false"><i class="fas fa-heart" aria-hidden="true"></i><span>МНЕ НРАВИТСЯ</span></button>
+            <button id="studio-header-offline" class="studio-top-btn studio-offline-btn" type="button" onclick="openOfflineListening()" title="Слушать сохранённые без интернета" aria-label="Офлайн-прослушивание"><i class="fas fa-cloud-arrow-down" aria-hidden="true"></i><span>ОФЛАЙН</span></button>
             <button class="pl-select-btn header-playlists-btn" id="btn-pl-select" onclick="openPlaylistSelect()" type="button" aria-label="Плейлисты" title="Плейлисты">
                 <i class="fas fa-folder-open" aria-hidden="true"></i><span class="header-playlists-label">ПЛЕЙЛИСТЫ</span>
             </button>
@@ -57,7 +58,9 @@
     <div class="left-col">
         <div class="visual-container">
             <div class="loader-overlay" id="loader-overlay"><div class="spinner"></div></div>
-            <div class="vinyl-wrapper" id="vinyl-view"><div class="vinyl-img"><img src="images/cover.png" alt="Обложка" id="cover-img"></div></div>
+            <div class="vinyl-wrapper" id="vinyl-view"><div class="vinyl-img"><img src="images/cover.png" alt="Обложка" id="cover-img"></div>
+                <button type="button" class="vinyl-wave-play" id="vinyl-wave-play" onclick="openStudioWave()" aria-label="Запустить Мою волну" title="Слушать Мою волну"><i class="fas fa-play" aria-hidden="true"></i><span>МОЯ ВОЛНА</span></button>
+            </div>
         </div>
 
         <div class="track-info-display">
@@ -246,7 +249,11 @@
 </div>
 
 <div id="manage-pl-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('manage-pl-modal')">&times;</span><h3 class="modal-title">ПЛЕЙЛИСТЫ</h3><div id="manage-pl-list" class="playlist-list"></div><button class="modal-btn btn-primary" onclick="openNewPlModal()">+ СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
-<div id="track-manager-modal" class="modal-overlay"><div class="modal-box" style="padding: 30px;"><span class="modal-close" onclick="closeModal('track-manager-modal')">&times;</span><input type="text" id="tm-rename-input" class="tm-rename-input" placeholder="Название плейлиста" onblur="savePlaylistName()"><div class="tm-actions-bar"><button class="tm-act-btn" onclick="showAddLinkUI('link')"><i class="fas fa-link"></i></button><button class="tm-act-btn" onclick="triggerLocalUploadManager()"><i class="fas fa-file-audio"></i></button></div><div id="tm-add-link-area" style="display:none; margin-bottom:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:12px;"><input type="text" id="tm-link-input" class="auth-input" placeholder="Вставьте ссылку..." style="margin-bottom:10px;"><input type="text" id="tm-link-name" class="auth-input" placeholder="Название трека..." style="margin-bottom:10px;"><button class="modal-btn btn-primary" id="tm-add-confirm-btn">ДОБАВИТЬ</button></div><div id="track-manage-list" class="track-manage-list"></div></div></div>
+<div id="track-manager-modal" class="modal-overlay"><div class="modal-box" style="padding: 30px;"><span class="modal-close" onclick="closeModal('track-manager-modal')">&times;</span><input type="text" id="tm-rename-input" class="tm-rename-input" placeholder="Название плейлиста" onblur="savePlaylistName()">
+    <label class="studio-likes-exclusion" for="tm-exclude-likes">
+        <input type="checkbox" id="tm-exclude-likes" onchange="setPlaylistExcludedFromLikes(editingPlaylistId,this.checked)">
+        <span><strong>Исключить из «Мне нравится»</strong><small>Треки останутся в плейлисте, но не появятся в общей подборке любимых песен. Выбор сохраняется на этом устройстве.</small></span>
+    </label><div class="tm-actions-bar"><button class="tm-act-btn" onclick="showAddLinkUI('link')"><i class="fas fa-link"></i></button><button class="tm-act-btn" onclick="triggerLocalUploadManager()"><i class="fas fa-file-audio"></i></button></div><div id="tm-add-link-area" style="display:none; margin-bottom:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:12px;"><input type="text" id="tm-link-input" class="auth-input" placeholder="Вставьте ссылку..." style="margin-bottom:10px;"><input type="text" id="tm-link-name" class="auth-input" placeholder="Название трека..." style="margin-bottom:10px;"><button class="modal-btn btn-primary" id="tm-add-confirm-btn">ДОБАВИТЬ</button></div><div id="track-manage-list" class="track-manage-list"></div></div></div>
 <div id="save-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('save-modal')">&times;</span><h3 class="modal-title">ВЫБРАТЬ ПЛЕЙЛИСТ</h3><div id="playlist-select-list" class="playlist-list"></div></div></div>
 <div id="input-modal" class="modal-overlay"><div class="modal-box" style="padding-top: 30px;"><span class="modal-close" onclick="closeModal('input-modal')">&times;</span><h3 class="modal-title" style="margin-bottom: 20px;">НОВЫЙ ПЛЕЙЛИСТ</h3><input type="text" id="new-tab-name" class="auth-input" placeholder="Введите название..." style="margin-bottom: 25px; text-align:center; font-weight:bold;"><button class="modal-btn btn-dark" onclick="submitCreateTab()" style="padding: 12px; font-size: 0.9rem;">СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
 
@@ -339,8 +346,8 @@
     </div>
 </div>
 
-<script src="script.js?v=2282" defer></script>
-<script src="studio.js?v=3" defer></script>
+<script src="script.js?v=2283" defer></script>
+<script src="studio.js?v=4" defer></script>
 
 </body>
 </html>

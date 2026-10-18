@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2282';
+const WEB_BUILD_LABEL = '2283';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2282', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2283', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2282') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2282', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2283') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2283', '1');
         window.location.reload();
     });
 }
@@ -2661,12 +2661,13 @@ async function submitCreateTab() {
 function openManagePlaylists() { 
     const list = document.getElementById('manage-pl-list'); 
     list.innerHTML = ''; 
-    playlists.forEach(pl => { 
+    playlists.forEach(pl => {
         const div = document.createElement('div'); 
         div.className = 'pl-manage-item'; 
         const nameWrap = document.createElement('span');
         nameWrap.className = 'pl-manage-name';
         nameWrap.textContent = pl.name || '';
+        if(playlistExcludedFromLikes(pl.id))nameWrap.title='Исключён из «Мне нравится»';
         const actions = document.createElement('div');
         actions.className = 'pl-manage-actions';
         const editBtn = document.createElement('button');
@@ -2717,7 +2718,9 @@ function openTrackManager(plId, plName, plType) {
     editingPlaylistId = plId; 
     document.getElementById('tm-rename-input').value = plName;
     document.getElementById('tm-add-link-area').style.display = 'none';
-    renderTrackManagerList(pl); 
+    renderTrackManagerList(pl);
+    const checkbox=document.getElementById('tm-exclude-likes');
+    if(checkbox)checkbox.checked=playlistExcludedFromLikes(plId);
     closeModal('manage-pl-modal'); 
     document.getElementById('track-manager-modal').classList.add('show'); 
 }
@@ -3375,6 +3378,12 @@ mainAudio.addEventListener('timeupdate', function() {
               }).catch(()=>{}).finally(()=>{track._savingNewSource=false;});
         }
 
+        // Count actually heard tracks whether or not they live in a playlist.
+        if (mainAudio.currentTime>=10&&track._tasteListenRecordedForUrl!==track.url) {
+            track._tasteListenRecordedForUrl=track.url;
+            tasteRecord('listen',track);
+        }
+
         // Дополнительная страховка: после 8 секунд онлайн-прослушивания
         // ставим трек в очередь постоянного кэша только один раз за запуск.
         if (IS_NATIVE_APP && navigator.onLine !== false && mainAudio.currentTime >= 8 &&
@@ -3393,6 +3402,8 @@ mainAudio.addEventListener('error', function() {
     recordPlayerEvent('media-error',mediaCode);
     if(!track._playingFromCache)sourceHealthUpdate(track,'error');
     showLoader(false);
+    if(navigator.onLine===false&&playbackTab!=='offline')
+        startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
     if (mediaCode === 4 && (track._streamRetries || 0) >= MAX_STREAM_RETRIES) {
         artistEl.textContent = 'Источник не поддерживается на устройстве';
         updateState(false);
@@ -3401,9 +3412,101 @@ mainAudio.addEventListener('error', function() {
     scheduleStreamRecovery('media-error', getNetworkProfile().weak ? 2500 : 1200);
 });
 
+// Offline playback catalog is device-local. It includes music heard from
+// searches/radio, not only tracks that happen to be in named playlists.
+const OFFLINE_CATALOG_PREFIX='dag_offline_catalog_v1:';
+function offlineCatalogKey(){return OFFLINE_CATALOG_PREFIX+String(currentUser||'guest').toLowerCase();}
+function offlineCatalogRead(){
+    try{const x=JSON.parse(localStorage.getItem(offlineCatalogKey())||'[]');return Array.isArray(x)?x:[];}
+    catch(e){return [];}
+}
+function offlineCatalogRemember(track){
+    if(!track?.url||!track?.artist||!track?.title)return;
+    const normalized=normalizeCacheTrack(track);
+    const previous=offlineCatalogRead().filter(t=>canonicalTrackUrl(t)!==canonicalTrackUrl(normalized));
+    previous.unshift({...normalized,lastUsed:Date.now()});
+    try{localStorage.setItem(offlineCatalogKey(),JSON.stringify(previous.slice(0,320)));}catch(e){}
+}
+function offlineCandidateTracks(){
+    const seen=new Set(),results=[];
+    const add=track=>{
+        if(!track?.url||!track.title)return;
+        const id=canonicalTrackUrl(track);
+        if(!id||seen.has(id))return;
+        seen.add(id);results.push(track);
+    };
+    const index=readNativeAudioIndex(),owner=currentCacheOwner();
+    if(IS_NATIVE_APP)for(const row of Object.values(index)){
+        if(row?.path&&(!Array.isArray(row.owners)||row.owners.includes(owner)))
+            add({title:row.title||'Сохранённая песня',artist:row.artist||'DAGSTUDIO',
+                url:row.url,source:row.source||'',thumb:row.thumb||''});
+    }
+    for(const item of offlineCatalogRead())add(item);
+    for(const pl of playlists)for(const t of pl.tracks||[])add(t);
+    const state=tasteLoad();
+    for(const item of Object.values(state.tracks||{}))if(item?.track)add(item.track);
+    const playing=playbackPlaylist[currentIndex];
+    if(playing)add(playing);
+    return results.slice(0,700);
+}
+let offlineBuildSerial=0;
+async function offlineTrackList(){
+    const serial=++offlineBuildSerial,candidates=offlineCandidateTracks(),ready=[];
+    for(const track of candidates){
+        if(serial!==offlineBuildSerial)return [];
+        if(!isRemoteMediaUrl(track.url)){ready.push(track);continue;}
+        const cached=await getDeviceCachedAudio(track);
+        if(serial!==offlineBuildSerial){
+            if(cached?.isBlob)URL.revokeObjectURL(cached.url);
+            return [];
+        }
+        if(cached?.inCache)ready.push(track);
+        // getDeviceCachedAudio creates a temporary blob URL for web checks;
+        // playTrack obtains a new one only for the actually chosen song.
+        if(cached?.isBlob)URL.revokeObjectURL(cached.url);
+        if(ready.length>=400)break;
+    }
+    return ready;
+}
+function offlineStatus(message){
+    const status=document.getElementById('quick-mix-status');
+    if(status){status.textContent=message;status.hidden=!message;}
+}
+async function startOfflineListening(options={}){
+    const initialToken=currentPlaybackToken;
+    const playing=playbackPlaylist[currentIndex];
+    const currentlyWanted=playbackWanted;
+    const tracks=await offlineTrackList();
+    if(!tracks.length){
+        offlineStatus('В памяти нет готовых аудиофайлов. Скачайте плейлист при наличии сети.');
+        return false;
+    }
+    if(options.auto&&(!currentlyWanted||currentPlaybackToken!==initialToken||
+        playbackPlaylist[currentIndex]!==playing))return false;
+    const existing=playing&&tracks.findIndex(t=>canonicalTrackUrl(t)===canonicalTrackUrl(playing));
+    currentTab='offline';
+    playlist=tracks;
+    renderPlaylist();
+    // Keep the actual playback queue in sync with what the user sees.
+    const btn=document.getElementById('studio-header-offline');
+    if(btn)btn.classList.add('active');
+    document.getElementById('studio-header-wave')?.classList.remove('active');
+    const label=document.getElementById('active-tab-name');
+    if(label){label.textContent='ОФЛАЙН · '+tracks.length+' ПЕСЕН';label.style.display='block';}
+    if(existing>=0&&currentlyWanted&&playing?._playingFromCache){
+        playbackPlaylist=tracks.slice();playbackTab='offline';currentIndex=existing;
+        updateActiveTrackInList(existing);
+    }else if(options.autoplay!==false){
+        await playTrack(existing>=0?existing:0);
+    }
+    offlineStatus('Офлайн · '+tracks.length+' проверенных сохранённых треков');
+    return true;
+}
+window.openOfflineListening=function(){return startOfflineListening({autoplay:true});};
 window.addEventListener('offline', function() {
     recordPlayerEvent('network-offline');
     if (currentIndex < 0 || mainAudio.ended) return;
+    if(playbackWanted)startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
 
     const track = playbackPlaylist[currentIndex];
     if (track && track._playingFromCache) return;
@@ -3465,6 +3568,7 @@ async function playTrack(index, options = {}) {
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
     const track = playbackPlaylist[index];
+    offlineCatalogRemember(track);
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 
@@ -3522,6 +3626,7 @@ async function playTrack(index, options = {}) {
 
         const immediateLegacyStart =
             AUDIO_COMPAT_PROFILE.fullFileFallback &&
+            currentTab!=='offline' && playbackTab!=='offline' &&
             navigator.onLine !== false &&
             track.url &&
             isRemoteMediaUrl(track.url);
@@ -3737,10 +3842,10 @@ function tasteSave(state) {
     }));}catch(e){}
 }
 function tasteRecord(kind,track) {
-    if(!track?.artist||!track?.title||!['finish','skip','like','dislike'].includes(kind))return;
+    if(!track?.artist||!track?.title||!['listen','finish','skip','like','dislike'].includes(kind))return;
     const state=tasteLoad(),id=tasteTrackId(track),artist=normalizeTrackIdentity(track.artist);
     if(!id||!artist)return;
-    const change=kind==='like'?5:kind==='finish'?2:kind==='dislike'?-8:-2;
+    const change=kind==='like'?5:kind==='finish'?3:kind==='listen'?1:kind==='dislike'?-8:-2;
     const now=Date.now();
     const update=(dict,key)=>{
         if(!key)return;
@@ -3753,13 +3858,13 @@ function tasteRecord(kind,track) {
     // Keep only playable, user-approved or fully completed tracks in the wave.
     // Do not store a listening event as a like; skipped/disliked tracks are excluded.
     const saved=state.tracks[id];
-    if(kind==='like'||kind==='finish') {
+    if(kind==='like'||kind==='finish'||kind==='listen') {
         if(track.url&&/^https?:\/\//i.test(String(track.url))) {
             saved.track={title:String(track.title).slice(0,180),
                 artist:String(track.artist).slice(0,120),url:String(track.url),
                 thumb:String(track.thumb||'').slice(0,600),
                 source:String(track.source||'').slice(0,80),genre:String(track.genre||'').slice(0,65)};
-            saved.positive=true;
+            if(kind!=='listen')saved.positive=true;
             saved[kind]=true;
         }
     } else if(kind==='dislike') {
@@ -3782,11 +3887,44 @@ function tastePositiveTracks() {
         if(seen.has(identity))return;
         seen.add(identity);result.push(track);
     }
-    // User-saved playlist entries already represent explicit positive choices.
-    for(const pl of playlists)for(const track of (pl.tracks||[]))add(track);
+    // Only user-approved or fully heard tracks seed the personal radio.
+    // Playlist membership alone does not make the Wave a copy of the library.
+    for(const pl of playlists)for(const track of (pl.tracks||[]))
+        if(state.tracks?.[tasteTrackId(track)]?.positive)add(track);
     // Complete plays are persisted locally for the current account/device.
     for(const record of Object.values(state.tracks||{}).sort((a,b)=>(b.at||0)-(a.at||0)))
-        if(record?.positive&&record.track)add(record.track);
+        if((record?.positive||record?.listen)&&record.track)add(record.track);
+    return result;
+}
+// Explicit library favourites are different from listening-derived Wave.
+const LIKES_EXCLUSIONS_PREFIX='dag_likes_exclusions_v1:';
+function playlistLikesExclusions(){
+    try {
+        const x=JSON.parse(localStorage.getItem(LIKES_EXCLUSIONS_PREFIX+tasteOwnerKey())||'{}');
+        return x&&typeof x==='object'?x:{};
+    }catch(e){return {};}
+}
+function playlistExcludedFromLikes(id) {
+    return playlistLikesExclusions()[String(id)]===true;
+}
+function setPlaylistExcludedFromLikes(id,excluded) {
+    const data=playlistLikesExclusions();
+    if(excluded)data[String(id)]=true;
+    else delete data[String(id)];
+    try{localStorage.setItem(LIKES_EXCLUSIONS_PREFIX+tasteOwnerKey(),JSON.stringify(data));}catch(e){}
+    window.dispatchEvent(new CustomEvent('dag-library-changed'));
+}
+function likedPlaylistTracks(){
+    const result=[],known=new Set();
+    for(const pl of playlists){
+        if(playlistExcludedFromLikes(pl.id))continue;
+        for(const t of pl.tracks||[]){
+            if(!t?.url)continue;
+            const id=tasteTrackId(t)||canonicalTrackUrl(t);
+            if(!id||known.has(id))continue;
+            known.add(id);result.push(t);
+        }
+    }
     return result;
 }
 function tastePreferredArtists(seeds=[]) {
@@ -3795,8 +3933,8 @@ function tastePreferredArtists(seeds=[]) {
         if(data?.label)names.set(name,data.label);
     for(const track of seeds)if(track?.artist&&!track?._smartRadio)
         names.set(normalizeTrackIdentity(track.artist),String(track.artist));
-    for(const p of playlists)for(const track of (p.tracks||[]))if(track?.artist)
-        names.set(normalizeTrackIdentity(track.artist),String(track.artist));
+    for(const record of Object.values(state.tracks||{}))if(record?.track?.artist)
+        names.set(normalizeTrackIdentity(record.track.artist),String(record.track.artist));
     const sorted=Object.entries(state.artists||{}).sort((a,b)=>b[1].score-a[1].score);
     const ranked=sorted.filter(([name,data])=>data.score>0&&names.has(name)).map(([name])=>names.get(name));
     const current=smartRadioQueryArtists(seeds);
@@ -4381,8 +4519,10 @@ async function loadMoreSearchResults() {
 const playlistArea = document.querySelector('.playlist-area');
 if(playlistArea) {
     playlistArea.addEventListener('scroll', function() {
-        if (currentTab === 'search' && !isSearchLoading && hasMoreSearchResults) {
-            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) { loadMoreSearchResults(); }
+        if (this.scrollTop + this.clientHeight >= this.scrollHeight - 160) {
+            if (currentTab === 'search' && !isSearchLoading && hasMoreSearchResults)
+                loadMoreSearchResults();
+            else if (String(currentTab).startsWith('mix:'))loadMoreQuickMix();
         }
     });
 }
@@ -4607,6 +4747,7 @@ async function startQuickMix(key) {
     closeModal('quick-mixes-modal');
     const requestId=++quickMixRequestId;
     quickMixCurrent={key,title:config.title,tracks:waveTracks.slice(),loading:true,
+        loadingMore:false, pageNumbers:new Map(), exhaustedQueries:new Set(),
         checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
     renderQuickMixButtons();
     setQuickMixStatus(config.regions?'Ищем песни народов Кавказа…':
@@ -4649,6 +4790,7 @@ async function startQuickMix(key) {
                         }
                     }
                     if(response?.success&&Array.isArray(response.data)&&response.data.length) {
+                        quickMixCurrent.pageNumbers.set(query,1);
                         const usable=quickMixUnique(response.data);
                         if(usable.length)return quickMixRankTracks(usable,config)
                             .map(track=>({...track,_mixRegion:item.region,
@@ -4703,9 +4845,75 @@ async function startQuickMix(key) {
     renderQuickMixButtons();
     if(!started)setQuickMixStatus('Нет доступных песен. Попробуйте другую подборку.'+
         quickMixSourcesCaption(quickMixCurrent));
-    else setQuickMixStatus('Подборка готова · '+quickMixCurrent.tracks.length+' треков'+
-        (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
-        quickMixSourcesCaption(quickMixCurrent));
+    else setQuickMixStatus('Подборка · '+quickMixCurrent.tracks.length+
+        ' треков · прокрутите ниже для новых'+quickMixSourcesCaption(quickMixCurrent));
+}
+// Background pages advance by query and are merged by both URL and
+// artist/title. Never recycle the first-page results on repeated scrolls.
+async function loadMoreQuickMix() {
+    const state=quickMixCurrent;
+    if(!state||state.loading||state.loadingMore||state.exhausted||
+        currentTab!=='mix:'+state.key||navigator.onLine===false)return;
+    state.loadingMore=true;
+    const requestId=quickMixRequestId;
+    const config=QUICK_MIXES[state.key];
+    const directions=quickMixSearchPlan(config);
+    const offset=Number(state.nextDirection||0);
+    const picks=[];
+    for(let attempt=0;attempt<directions.length&&picks.length<2;attempt++){
+        const direction=directions[(offset+attempt)%directions.length];
+        const query=direction.queries.find(q=>!state.exhaustedQueries.has(q))||'';
+        if(query)picks.push({direction,query});
+    }
+    state.nextDirection=(offset+Math.max(1,picks.length))%Math.max(1,directions.length);
+    if(!picks.length){state.exhausted=true;state.loadingMore=false;
+        setQuickMixStatus('Все доступные треки проверены. Можно выбрать другую подборку.');
+        return;}
+    setQuickMixStatus('Ищем новые песни…');
+    const collected=[];
+    try {
+        for(const {direction,query} of picks){
+            if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
+            const page=Math.min(6,(state.pageNumbers.get(query)||1)+1);
+            state.pageNumbers.set(query,page);
+            if(page>=6)state.exhaustedQueries.add(query);
+            try{
+                const net=getNetworkProfile();
+                const response=await api('search_global',{query,page,
+                    network:net.weak?'weak':'normal',save_data:net.saveData?1:0});
+                if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
+                if(response?.sources)for(const [server,health] of Object.entries(response.sources)){
+                    state.checkedSources.add(server);
+                    if(health?.ok)state.activeSources.add(server);
+                }
+                if(!response?.success||!response.data?.length){
+                    state.exhaustedQueries.add(query);continue;
+                }
+                const fresh=quickMixUnique(response.data,[...state.tracks,...collected])
+                    .map(track=>({...track,_mixRegion:direction.region,_mixSearchQuery:query}));
+                collected.push(...quickMixRankTracks(fresh,config).slice(0,16));
+                if(response.data.length<12)state.exhaustedQueries.add(query);
+            }catch(err){recordPlayerEvent('quick-mix-more-error');}
+        }
+        if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
+        const unique=quickMixUnique(collected,state.tracks);
+        if(unique.length){
+            state.tracks.push(...unique);
+            if(playbackTab==='mix:'+state.key&&playbackWanted){
+                const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
+                playbackPlaylist.push(...unique.filter(t=>!known.has(canonicalTrackUrl(t))));
+            }
+            playlist=state.tracks;
+            const scroller=document.querySelector('.playlist-area');
+            const oldScroll=scroller?.scrollTop||0;
+            renderPlaylist();
+            if(scroller)scroller.scrollTop=oldScroll;
+        }
+        state.exhausted=state.exhaustedQueries.size>=directions.reduce((n,d)=>n+d.queries.length,0);
+        setQuickMixStatus(unique.length
+            ?'Добавлено '+unique.length+' новых треков · всего '+state.tracks.length
+            :state.exhausted?'Новых песен больше не найдено.':'Продолжите прокрутку — ищем другие релизы.');
+    }finally{state.loadingMore=false;}
 }
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) {
@@ -4782,7 +4990,7 @@ function renderPlaylist() {
             : '';
 
         let actionBtn = ''; 
-        if(currentTab === 'search' || String(currentTab).startsWith('mix:')) {
+        if(currentTab === 'search' || currentTab === 'offline' || currentTab === 'studio-likes' || String(currentTab).startsWith('mix:')) {
             const isLiked = playlists.some(pl => pl.tracks.some(track => track.url === t.url)); 
             const likeClass = isLiked ? 'fas fa-heart liked' : 'far fa-heart'; 
             actionBtn = `

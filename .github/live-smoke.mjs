@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2282', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2283', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -127,7 +127,7 @@ try {
       const rect=s=>document.querySelector(s).getBoundingClientRect();
       const left=rect('.left-col'),right=rect('.right-col');
       const header=rect('.header-overlay'),eq=rect('.header-eq-btn'),wave=rect('#studio-header-wave'),
-        likes=rect('#studio-header-likes'),pl=rect('#btn-pl-select'),mixes=rect('#header-mixes-btn');
+        likes=rect('#studio-header-likes'),offline=rect('#studio-header-offline'),pl=rect('#btn-pl-select'),mixes=rect('#header-mixes-btn');
       const car=innerWidth>768;
       return {
         noSidebar:!document.querySelector('#studio-sidebar'),
@@ -137,8 +137,9 @@ try {
         trackSpace:car?right.width>=380:right.width>=310,
         contiguous:car?Math.abs(left.right-right.left)<=4:true,
         fullHeader:car?header.left<=1&&header.width>=innerWidth-2:true,
-        controls: [eq,wave,likes,pl,mixes].every(r=>r.width>=34&&r.left>=0&&r.right<=innerWidth+1),
-        ordered:eq.right<=wave.left+4&&wave.right<=likes.left+4&&likes.right<=pl.left+4&&pl.right<=mixes.left+4,
+        controls: [eq,wave,likes,offline,pl,mixes].every(r=>r.width>=34&&r.left>=0&&r.right<=innerWidth+1),
+        vinylWave:document.getElementById('vinyl-wave-play')?.getAttribute('onclick')==='openStudioWave()',
+        ordered:eq.right<=wave.left+4&&wave.right<=likes.left+4&&likes.right<=offline.left+4&&offline.right<=pl.left+4&&pl.right<=mixes.left+4,
         mainAudioCount:document.querySelectorAll('audio').length===1,
         searchInHeader:document.getElementById('search-container-box').parentElement.classList.contains('right-col-header'),
         pageOverflow:document.documentElement.scrollWidth>innerWidth+2
@@ -177,6 +178,38 @@ try {
       !likes.smart||!likes.closed||!likes.waveAction)
     throw new Error('Studio likes or simple queue regression '+JSON.stringify(likes));
 
+  const tasteAndLibrary=await page.evaluate(()=>{
+    const original=playlists.slice(),who=currentUser;
+    const owner=String(currentUser||'guest').toLowerCase();
+    const k='dag_likes_exclusions_v1:'+owner;
+    const previous=localStorage.getItem(k);
+    const tkey='dag_taste_v1_'+owner,profile=localStorage.getItem(tkey);
+    const p1={id:471,name:'Visible',tracks:[{title:'A',artist:'One',url:'https://example.invalid/a.mp3'}]};
+    const p2={id:472,name:'Excluded',tracks:[{title:'B',artist:'Two',url:'https://example.invalid/b.mp3'}]};
+    try{
+      playlists=[p1,p2];
+      setPlaylistExcludedFromLikes(472,true);
+      const liked=likedPlaylistTracks();
+      const withoutExcluded=liked.length===1&&liked[0].title==='A';
+      setPlaylistExcludedFromLikes(472,false);
+      const restored=likedPlaylistTracks().length===2;
+      const heard={title:'History song',artist:'Another Artist',url:'https://example.invalid/history.mp3'};
+      tasteRecord('listen',heard);
+      const personal=tastePositiveTracks().some(t=>t.url===heard.url);
+      const managerCheckbox=!!document.getElementById('tm-exclude-likes');
+      const topOffline=document.getElementById('studio-header-offline')?.getAttribute('onclick')==='openOfflineListening()';
+      const turnMode=typeof window.openOfflineListening==='function';
+      return {withoutExcluded,restored,personal,managerCheckbox,topOffline,turnMode};
+    }finally{
+      playlists=original;currentUser=who;
+      if(previous===null)localStorage.removeItem(k);else localStorage.setItem(k,previous);
+      if(profile===null)localStorage.removeItem(tkey);else localStorage.setItem(tkey,profile);
+    }
+  });
+  console.log('PERSONAL_WAVE_PLAYLIST_EXCLUSIONS',JSON.stringify(tasteAndLibrary));
+  if(Object.values(tasteAndLibrary).some(x=>!x))
+    throw new Error('Wave, library or offline UI regression '+JSON.stringify(tasteAndLibrary));
+
   // Existing playlists button is still in the topbar; the new controls
   // between equalizer and playlists must not create duplicate handlers.
   for(const vp of [{width:1024,height:600},{width:1280,height:720},
@@ -187,7 +220,9 @@ try {
         likes=document.getElementById('studio-header-likes'),pl=document.getElementById('btn-pl-select');
       const r=pl.getBoundingClientRect();
       return {one:document.querySelectorAll('#btn-pl-select').length===1,
-        ordered:eq.nextElementSibling===wave&&wave.nextElementSibling===likes&&likes.nextElementSibling===pl,
+        ordered:eq.nextElementSibling===wave&&wave.nextElementSibling===likes&&
+          likes.nextElementSibling===document.getElementById('studio-header-offline')&&
+          document.getElementById('studio-header-offline').nextElementSibling===pl,
         visible:r.width>=34&&r.right<=innerWidth+1,
         functional:pl.getAttribute('onclick')==='openPlaylistSelect()',
         noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
@@ -269,11 +304,22 @@ try {
     throw new Error('Playlist was not shuffled instantly '+JSON.stringify(shuffleResult));
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
+  const newDiscovery=await page.evaluate(async()=>{
+    const response=await fetch('/script.js?v=2283',{cache:'no-store'});
+    const text=await response.text();
+    return {paged: text.includes('async function loadMoreQuickMix()'),
+      dedup:text.includes('quickMixUnique(collected,state.tracks)'),
+      offlineIndex:text.includes('async function offlineTrackList()'),
+      offlineRecovery:text.includes('startOfflineListening({auto:true,autoplay:true})'),
+      listeningHistory:text.includes("tasteRecord('listen',track)")};
+  });
+  console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
+  if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2282', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2283', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2282'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2283'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -357,7 +403,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2282', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2283', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -836,7 +882,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2282', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2283', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -880,7 +926,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2282','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2283','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});
