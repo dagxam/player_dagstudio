@@ -652,23 +652,17 @@ try {
     throw new Error('Queue context isolation regression');
 
   await page.click('#showcase-collections');
-  await page.waitForSelector('#quick-mixes-modal.show',{timeout:5000});
-  const dialogState=await page.evaluate(()=>{
-    const dialog=document.getElementById('quick-mixes-modal');
-    const b=document.getElementById('header-mixes-btn');
-    const buttons=[...dialog.querySelectorAll('.quick-mix-btn')];
-    return {open:dialog.classList.contains('show'),expanded:b.getAttribute('aria-expanded'),
-      choices:buttons.length,allWithinDialog:buttons.every(x=>dialog.contains(x)),
-      oldStripGone:!document.querySelector('.right-col > .quick-mixes')};
+  const centerCollections=await page.evaluate(()=>{
+    const root=document.getElementById('studio-curations');
+    const items=root.querySelectorAll('.showcase-center-card');
+    return {cards:items.length,visible:getComputedStyle(root).display!=='none',
+      noPopup:!document.querySelector('#quick-mixes-modal.show'),
+      oneCenter:!!document.querySelector('.right-col.showcase-curated')};
   });
-  console.log('QUICK_MIX_DIALOG_OPEN',JSON.stringify(dialogState));
-  if(!dialogState.open||dialogState.expanded!=='true'||dialogState.choices!==8||
-      !dialogState.allWithinDialog||!dialogState.oldStripGone)
-    throw new Error('Quick mix dialog open/layout failed');
-  await page.click('#quick-mixes-modal .modal-close');
-  const closed=await page.evaluate(()=>!document.getElementById('quick-mixes-modal').classList.contains('show')&&
-    document.getElementById('header-mixes-btn').getAttribute('aria-expanded')==='false');
-  if(!closed) throw new Error('Quick mix dialog did not close');
+  console.log('CC3_COLLECTIONS_CENTER',JSON.stringify(centerCollections));
+  if(centerCollections.cards<8||!centerCollections.visible||
+     !centerCollections.noPopup||!centerCollections.oneCenter)
+    throw new Error('CC3 collection grid missing');
 
   const ios=await page.evaluate(()=>({
       guide:typeof showIOSInstallGuide==='function',
@@ -714,14 +708,16 @@ try {
     throw new Error('Mix category labels/ranking/save controls regressed');
 
   await page.click('#showcase-collections');
-  await page.click('#quick-mixes [data-mix="caucasus"]');
-  const regionModal=await page.evaluate(()=>({
-    opened:document.getElementById('caucasus-radio-modal').classList.contains('show'),
-    regions:document.querySelectorAll('#caucasus-regions .caucasus-region-btn').length
+  await page.click('#studio-curations .showcase-center-card:first-child .showcase-center-card-open');
+  const regionCenter=await page.evaluate(()=>({
+    regions:document.querySelectorAll('#studio-curations .showcase-center-card').length,
+    visible:document.querySelector('.right-col').classList.contains('showcase-curated'),
+    noPopup:!document.querySelector('#caucasus-radio-modal.show')
   }));
-  console.log('CAUCASUS_RADIO_PICKER',JSON.stringify(regionModal));
-  if(!regionModal.opened||regionModal.regions<17)throw new Error('Caucasus picker missing');
-  await page.click('#caucasus-radio-modal .modal-close');
+  console.log('CAUCASUS_CENTRAL_PICKER',JSON.stringify(regionCenter));
+  if(regionCenter.regions<17||!regionCenter.visible||!regionCenter.noPopup)
+     throw new Error('Caucasus center list missing');
+  await page.evaluate(()=>window.studioCenterRender?.('home'));
 
   const caucasusChecks=await page.evaluate(()=>{
     const conf=QUICK_MIXES.caucasus;
