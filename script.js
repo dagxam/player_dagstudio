@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2283';
+const WEB_BUILD_LABEL = '2287';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2283', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2287', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2283') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2283', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2287') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2287', '1');
         window.location.reload();
     });
 }
@@ -4749,6 +4749,11 @@ async function startQuickMix(key) {
     quickMixCurrent={key,title:config.title,tracks:waveTracks.slice(),loading:true,
         loadingMore:false, pageNumbers:new Map(), exhaustedQueries:new Set(),
         checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
+    // Immediately display this collection instead of keeping the previous
+    // playlist on screen while the first remote search is in progress.
+    currentTab='mix:'+key;
+    playlist=quickMixCurrent.tracks;
+    renderQuickMixView();
     renderQuickMixButtons();
     setQuickMixStatus(config.regions?'Ищем песни народов Кавказа…':
         config.mode==='classic'?'Ищем любимую классику…':'Ищем популярные песни и новинки…');

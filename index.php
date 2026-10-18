@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=3">
+    <link rel="stylesheet" href="studio-next.css?v=4">
 </head>
 <body>
 
@@ -60,7 +60,7 @@
         <div class="visual-container">
             <div class="loader-overlay" id="loader-overlay"><div class="spinner"></div></div>
             <div class="vinyl-wrapper" id="vinyl-view"><div class="vinyl-img"><img src="images/cover.png" alt="Обложка" id="cover-img"></div>
-                <button type="button" class="vinyl-wave-play" id="vinyl-wave-play" onclick="openStudioWave()" aria-label="Запустить Мою волну" title="Слушать Мою волну"><i class="fas fa-play" aria-hidden="true"></i><span>МОЯ ВОЛНА</span></button>
+                <button type="button" class="vinyl-wave-play" id="vinyl-wave-play" onclick="openStudioWave()" aria-label="Запустить Мою волну" title="Слушать Мою волну"><i class="fas fa-play" aria-hidden="true"></i></button>
             </div>
         </div>
 
@@ -347,9 +347,9 @@
     </div>
 </div>
 
-<script src="script.js?v=2283" defer></script>
+<script src="script.js?v=2287" defer></script>
 <script src="studio.js?v=4" defer></script>
-<script src="studio-next.js?v=2" defer></script>
+<script src="studio-next.js?v=3" defer></script>
 
 </body>
 </html>

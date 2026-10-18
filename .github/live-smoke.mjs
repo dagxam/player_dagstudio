@@ -135,7 +135,7 @@ try {
         themes[name]={
           tint:root.dataset.showcaseTint,
           ring:getComputedStyle(vinyl).boxShadow,
-          action:getComputedStyle(document.querySelector('.showcase-hero-foot-btn')).backgroundImage,
+          action:getComputedStyle(document.querySelector('.showcase-cache-action')).backgroundImage,
           card:getComputedStyle(document.querySelector('.showcase-card-play')).borderColor,
           art:getComputedStyle(landscape).filter
         };
@@ -155,6 +155,65 @@ try {
   console.log('SHOWCASE_NOW_PLAYING_ARTWORK_AND_THEMES',JSON.stringify(showcaseArtwork));
   if(Object.values(showcaseArtwork).some(x=>!x))
     throw new Error('Showcase playback artwork/theme regression '+JSON.stringify(showcaseArtwork));
+
+  // Accepted UX: wave play shows just an icon, no offline footer under
+  // the player; choosing any collection switches the CENTER to its song list.
+  const curatedSelection=await page.evaluate(()=>{
+    const root=document.querySelector('.main-container');
+    const pane=document.querySelector('.right-col');
+    const originals={start:startQuickMix,tab:currentTab,tracks:playlist,
+      mix:quickMixCurrent,playing:playbackPlaylist,index:currentIndex};
+    const calls=[];
+    const stubTracks=[{title:'Трек выбранной подборки',artist:'DAGSTUDIO',
+      url:'https://example.invalid/showcase-collection.mp3'}];
+    const checkVisible=()=>pane.classList.contains('showcase-list')&&
+       getComputedStyle(document.querySelector('#studio-curations')).display==='none'&&
+       [...document.querySelectorAll('#playlist-container .track-row .t-title')]
+         .some(e=>e.textContent.includes('Трек выбранной подборки'));
+    try{
+      startQuickMix=(key)=>{
+        calls.push(key);
+        quickMixCurrent={key,title:'Проверочная подборка',tracks:stubTracks.slice()};
+        currentTab='mix:'+key;
+        renderQuickMixView();
+      };
+      const button=document.getElementById('vinyl-wave-play');
+      const iconOnly=!button.querySelector('span') &&
+        button.querySelectorAll('i.fa-play').length===1 &&
+        button.getAttribute('aria-label')?.includes('Мою волну');
+      const noFoot=!document.querySelector('.showcase-hero-foot') &&
+        !!document.getElementById('showcase-offline') &&
+        !!document.querySelector('.showcase-cache-action');
+      const cards=document.querySelectorAll('#studio-curations .showcase-curation-card');
+      window.studioShowCurated();
+      cards[2].click(); // road mix
+      const road=checkVisible()&&calls.at(-1)==='road';
+      window.studioShowCurated();
+      cards[1].click(); // Wave
+      const wave=checkVisible()&&calls.at(-1)==='wave';
+      window.studioShowCurated();
+      cards[0].click(); // Caucasus republic chooser
+      const modal=document.getElementById('caucasus-radio-modal');
+      const republicChooser=modal.classList.contains('show') &&
+        !!document.querySelector('#caucasus-regions .caucasus-region-btn');
+      document.querySelector('#caucasus-regions .caucasus-region-btn')?.click();
+      const caucasus=checkVisible()&&calls.at(-1)==='caucasus';
+      // Selection from the original quick-mix dialog must also reveal tracks.
+      window.studioShowCurated();
+      document.querySelector('#quick-mixes [data-mix="retro"]').click();
+      const modalMix=checkVisible()&&calls.at(-1)==='retro';
+      return {iconOnly,noFoot,road,wave,republicChooser,caucasus,modalMix};
+    }finally{
+      startQuickMix=originals.start;
+      currentTab=originals.tab;playlist=originals.tracks;quickMixCurrent=originals.mix;
+      playbackPlaylist=originals.playing;currentIndex=originals.index;
+      closeModal('caucasus-radio-modal');
+      renderPlaylist();window.studioShowCurated();
+    }
+  });
+  console.log('CURATED_SELECTION_SHOWS_TRACKS',JSON.stringify(curatedSelection));
+  if(Object.values(curatedSelection).some(v=>!v))
+    throw new Error('Curated collection did not open its tracks '+JSON.stringify(curatedSelection));
 
   const likes=await page.evaluate(()=>{
     const existing=playlists.slice(),audio=document.getElementById('main-audio');

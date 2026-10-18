@@ -32,7 +32,11 @@ function showCurated(){
  activate('wave');
 }
 function showList(key){
- showingCollection=false;right.classList.remove('showcase-curated');
+ showingCollection=false;
+ // Switch away from favourites without losing the existing playing queue.
+ if(key!=='likes'&&document.getElementById('studio-header-likes')?.classList.contains('active'))
+  window.openStudioLikes?.();
+ right.classList.remove('showcase-curated');
  right.classList.add('showcase-list');activate(key);
 }
 function closeMobile(){nav.classList.remove('open');document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');}
@@ -41,7 +45,7 @@ add('search','Поиск','magnifying-glass',()=>{
  document.getElementById('search-input')?.focus();
 });
 add('wave','Моя волна','wave-square',()=>{
- showCurated();window.openStudioWave?.();activate('wave');
+ showList('wave');window.openStudioWave?.();activate('wave');
 });
 add('playlists','Плейлисты','music',()=>{
  showList('playlists');document.getElementById('btn-pl-select')?.click();
@@ -85,11 +89,24 @@ const choices=[
 ];
 const grid=node('div','showcase-curation-list');
 function selectMix(key){
- if(key==='caucasus'){const source=document.querySelector('#quick-mixes [data-mix="caucasus"]');source?.click();return;}
- if(key==='wave'){showCurated();window.openStudioWave?.();return;}
- showList('collections');
+ // Caucasus first asks which republic to play; reveal its list only after selection.
+ if(key==='caucasus'){
+  document.querySelector('#quick-mixes [data-mix="caucasus"]')?.click();
+  return;
+ }
+ showList(key==='wave'?'wave':'collections');
+ if(key==='wave'){window.openStudioWave?.();return;}
  if(typeof startQuickMix==='function')startQuickMix(key);
 }
+// Covers the selections made inside the original mix and republic dialogs as well
+// as cards in the central collection. Both use the same playlists and audio engine.
+document.addEventListener('click',event=>{
+ const source=event.target.closest?.('#quick-mixes .quick-mix-btn[data-mix]');
+ if(source&&source.dataset.mix!=='caucasus')
+  showList(source.dataset.mix==='wave'?'wave':'collections');
+ if(event.target.closest?.('#caucasus-regions .caucasus-region-btn'))
+  showList('collections');
+},true);
 choices.forEach((entry,i)=>{
  const card=node('button','showcase-curation-card');card.type='button';
  card.setAttribute('aria-label','Включить: '+entry.title);
@@ -134,16 +151,9 @@ const trackInfo=player.querySelector('.track-info-display');
 if(trackInfo)player.insertBefore(mini,trackInfo);
 const collection=node('div','showcase-track-collection','Музыка для тебя');
 if(trackInfo)trackInfo.insertAdjacentElement('afterend',collection);
-const heroFoot=node('div','showcase-hero-foot');
-const footIcon=node('i','fas fa-cloud-arrow-down');
-const footCopy=node('span','showcase-hero-foot-copy');footCopy.appendChild(node('strong','', 'Музыка без интернета'));
-footCopy.appendChild(node('small','', 'Сохраняйте песни перед поездкой'));
-const footAction=node('button','showcase-hero-foot-btn','Подготовить');
-footAction.type='button';footAction.addEventListener('click',()=>typeof openCacheDashboard==='function'&&openCacheDashboard());
-heroFoot.append(footIcon,footCopy,footAction);player.appendChild(heroFoot);
 const listToggle=node('button','showcase-list-toggle');
 listToggle.type='button';listToggle.appendChild(node('i','fas fa-list'));listToggle.appendChild(node('span','', 'Открыть очередь'));
-listToggle.addEventListener('click',()=>showList('wave'));
+listToggle.addEventListener('click',()=>{showList('wave');if(typeof quickMixCurrent!=='undefined'&&quickMixCurrent?.key)activate(quickMixCurrent.key==='wave'?'wave':'collections');});
 player.appendChild(listToggle);
 const mobileToggle=node('button','showcase-mobile-toggle');mobileToggle.id='showcase-menu-toggle';
 mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыть навигацию');mobileToggle.setAttribute('aria-expanded','false');

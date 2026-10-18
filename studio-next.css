@@ -477,3 +477,10 @@
  .studio-showcase .showcase-hero-foot-copy small{display:none!important}
 }
 @media(prefers-reduced-motion:reduce){.studio-showcase .vinyl-wave-play{transition:none!important}}
+
+/* Only the play icon inside the wave artwork: preserve the spoken accessible label. */
+.studio-showcase .vinyl-wave-play{display:grid!important;place-items:center!important;padding:0!important;gap:0!important}
+.studio-showcase .vinyl-wave-play i{margin:0 0 0 3px!important;line-height:1!important}
+.studio-showcase .vinyl-wave-play span{display:none!important}
+/* Offline access remains in sidebar / menu only; the right playback footer is gone. */
+.studio-showcase .showcase-hero-foot{display:none!important}
