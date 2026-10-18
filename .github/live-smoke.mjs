@@ -270,6 +270,48 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
+  const waveChartsNav=await page.evaluate(()=>{
+    const root=document.querySelector('.main-container');
+    const side=document.getElementById('studio-navigation');
+    const saved={start:startQuickMix,tab:currentTab,pl:playlists,list:playlist,
+      playback:playbackPlaylist,index:currentIndex,user:currentUser};
+    const calls=[];
+    try{
+      currentUser='test';playlists=[{id:788,name:'Тестовый плейлист',tracks:[]}];
+      startQuickMix=key=>{calls.push(key);};
+      document.getElementById('showcase-playlists').click();
+      const onePl=document.querySelectorAll('#studio-curations .showcase-center-card').length===1;
+      const plStyle=getComputedStyle(document.querySelector('#studio-curations .showcase-curation-list'));
+      const singlePl=plStyle.display==='flex'&&plStyle.flexDirection==='column';
+      document.getElementById('showcase-collections').click();
+      const categoryList=document.querySelector('#studio-curations .showcase-curation-list');
+      const singleCollections=getComputedStyle(categoryList).flexDirection==='column'&&
+        categoryList.querySelectorAll('.showcase-center-card').length>=8;
+      document.getElementById('showcase-charts').click();
+      const chartsStarted=calls.includes('charts')&&
+        document.querySelector('.right-col').classList.contains('showcase-list');
+      currentTab='mix:charts';
+      setQuickMixStatus('Ищем подтверждённые новые релизы…');
+      const status=document.querySelector('#playlist-container .showcase-search-status');
+      const chartsStatus=!!status&&getComputedStyle(status).display!=='none'&&
+        status.textContent.includes('релизы');
+      document.getElementById('showcase-wave').click();
+      const waveOnly=root.classList.contains('showcase-wave-only')&&
+        getComputedStyle(document.querySelector('.right-col')).display==='none'&&
+        document.querySelectorAll('audio').length===1;
+      document.getElementById('showcase-collections').click();
+      const waveExited=!root.classList.contains('showcase-wave-only');
+      return {onePl,singlePl,singleCollections,chartsStarted,chartsStatus,waveOnly,waveExited};
+    }finally{
+      startQuickMix=saved.start;currentTab=saved.tab;playlists=saved.pl;
+      playlist=saved.list;playbackPlaylist=saved.playback;currentIndex=saved.index;
+      currentUser=saved.user;window.studioCenterRender('home');renderPlaylist();
+    }
+  });
+  console.log('WAVE_CHARTS_SINGLE_COLUMN',JSON.stringify(waveChartsNav));
+  if(Object.values(waveChartsNav).some(x=>!x))
+    throw new Error('Wave/Charts/one-column UX regression '+JSON.stringify(waveChartsNav));
+
   const likes=await page.evaluate(()=>{
     const existing=playlists.slice(),audio=document.getElementById('main-audio');
     const play=audio.play;let started=0;
