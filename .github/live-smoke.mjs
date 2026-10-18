@@ -299,14 +299,15 @@ try {
       const validSeeds=seeds.length===1&&seeds[0].url===own.url;
       api=async(action)=>({success:true,data:[own,blocked,discovered]});
       const remote=await findWaveNextTrack();
-      const startsFromOwn=remote?.url===own.url&&remote?._waveRadio&&remote?.url!==blocked.url;
+      const startsFromNetwork=remote?.url===discovered.url&&remote?._waveRadio&&
+        remote?.url!==own.url&&remote?.url!==blocked.url;
       findWaveNextTrack=async()=>discovered;
       playTrack=async i=>{started=playlist[i];playbackPlaylist=[...playlist];
         playbackTab='mix:wave';currentIndex=i;playbackWanted=true;calls.push('play');};
       await startQuickMix('wave');
-      const firstOwn=started?.url===own.url&&quickMixCurrent.tracks.length===1&&
-        quickMixCurrent.tracks[0].url===own.url;
-      return {validSeeds,startsFromOwn,firstOwn};
+      const firstNetwork=started?.url===discovered.url&&quickMixCurrent.tracks.length===1&&
+        quickMixCurrent.tracks[0].url===discovered.url;
+      return {validSeeds,startsFromNetwork,firstNetwork};
     }finally{
       currentUser=old.user;playlists=old.library;currentTab=old.tab;
       playlist=old.list;playbackPlaylist=old.playback;currentIndex=old.index;
@@ -318,7 +319,7 @@ try {
       renderPlaylist();window.studioCenterRender('home');
     }
   });
-  console.log('WAVE_START_LIBRARY_THEN_DISCOVER',JSON.stringify(waveDiscovery));
+  console.log('WAVE_START_FROM_ONLINE_DISCOVERY',JSON.stringify(waveDiscovery));
   if(Object.values(waveDiscovery).some(x=>!x))
     throw new Error('Wave playback selection regression '+JSON.stringify(waveDiscovery));
 
