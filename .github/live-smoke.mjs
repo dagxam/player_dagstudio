@@ -119,35 +119,34 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
-  // DAGSTUDIO two-zone: no sidebar, no duplicate bottom controls.
-  for (const viewport of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720},
-      {width:390,height:844},{width:320,height:640}]) {
+  // 2026 approved design: real three-zone layout and car touch targets.
+  for(const viewport of [{width:800,height:480},{width:1024,height:600},
+      {width:1280,height:720},{width:390,height:844},{width:320,height:640}]){
     await page.setViewport(viewport);
     const state=await page.evaluate(()=>{
       const rect=s=>document.querySelector(s).getBoundingClientRect();
-      const left=rect('.left-col'),right=rect('.right-col');
-      const header=rect('.header-overlay'),eq=rect('.header-eq-btn'),wave=rect('#studio-header-wave'),
-        likes=rect('#studio-header-likes'),offline=rect('#studio-header-offline'),pl=rect('#btn-pl-select'),mixes=rect('#header-mixes-btn');
-      const car=innerWidth>768;
+      const side=rect('#studio-navigation'),center=rect('.right-col'),hero=rect('.left-col'),
+        play=rect('#vinyl-wave-play'),nav=document.querySelector('#studio-navigation'),
+        list=document.getElementById('studio-curations');
+      const wide=innerWidth>768;
       return {
-        noSidebar:!document.querySelector('#studio-sidebar'),
-        noDock:!document.querySelector('.studio-dock'),
-        noHero:!document.querySelector('#studio-hero'),
-        playerWide:car?left.width>=285:left.width>=310,
-        trackSpace:car?right.width>=380:right.width>=310,
-        contiguous:car?Math.abs(left.right-right.left)<=4:true,
-        fullHeader:car?header.left<=1&&header.width>=innerWidth-2:true,
-        controls: [eq,wave,likes,offline,pl,mixes].every(r=>r.width>=34&&r.left>=0&&r.right<=innerWidth+1),
-        vinylWave:document.getElementById('vinyl-wave-play')?.getAttribute('onclick')==='openStudioWave()',
-        ordered:eq.right<=wave.left+4&&wave.right<=likes.left+4&&likes.right<=offline.left+4&&offline.right<=pl.left+4&&pl.right<=mixes.left+4,
-        mainAudioCount:document.querySelectorAll('audio').length===1,
-        searchInHeader:document.getElementById('search-container-box').parentElement.classList.contains('right-col-header'),
-        pageOverflow:document.documentElement.scrollWidth>innerWidth+2
+        sidebar:wide?(side.width>=150&&side.left>=-1):(side.width>200&&getComputedStyle(nav).position==='fixed'),
+        center:wide?(center.width>=275&&Math.abs(center.left-side.right)<5):center.width>=innerWidth-3,
+        hero:wide?(hero.width>=270&&Math.abs(hero.left-center.right)<5):hero.width>=innerWidth-3,
+        cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length===6,
+        brand:!!nav.querySelector('.showcase-brand'),
+        allActions:['search','wave','playlists','likes','offline','charts','collections','equalizer','settings'].every(k=>
+             !!document.getElementById('showcase-'+k)),
+        activeWave:!!nav.querySelector('[data-showcase="wave"].active'),
+        playButton:play.width>=54&&play.height>=54,
+        audio:document.querySelectorAll('audio').length===1,
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+3,
+        hasMobileMenu:wide?true:getComputedStyle(document.querySelector('#showcase-menu-toggle')).display!=='none'
       };
     });
-    console.log('STUDIO_TWO_ZONE',JSON.stringify({viewport,state}));
-    if(Object.entries(state).some(([key,value])=>key==='pageOverflow'?value:!value))
-      throw new Error('Studio two-zone regression '+JSON.stringify({viewport,state}));
+    console.log('SHOWCASE_LAYOUT',JSON.stringify({viewport,state}));
+    if(Object.values(state).some(v=>!v))
+      throw new Error('Showcase responsive layout regression '+JSON.stringify({viewport,state}));
   }
   await page.setViewport({width:1200,height:800});
   const likes=await page.evaluate(()=>{
@@ -210,25 +209,24 @@ try {
   if(Object.values(tasteAndLibrary).some(x=>!x))
     throw new Error('Wave, library or offline UI regression '+JSON.stringify(tasteAndLibrary));
 
-  // Existing playlists button is still in the topbar; the new controls
-  // between equalizer and playlists must not create duplicate handlers.
-  for(const vp of [{width:1024,height:600},{width:1280,height:720},
-      {width:390,height:844},{width:320,height:640}]){
+  // All former topbar actions are now reachable from the left sidebar.
+  for(const vp of [{width:1024,height:600},{width:1280,height:720}]){
     await page.setViewport(vp);
-    const check=await page.evaluate(()=>{
-      const eq=document.querySelector('.header-eq-btn'),wave=document.getElementById('studio-header-wave'),
-        likes=document.getElementById('studio-header-likes'),pl=document.getElementById('btn-pl-select');
-      const r=pl.getBoundingClientRect();
-      return {one:document.querySelectorAll('#btn-pl-select').length===1,
-        ordered:eq.nextElementSibling===wave&&wave.nextElementSibling===likes&&
-          likes.nextElementSibling===document.getElementById('studio-header-offline')&&
-          document.getElementById('studio-header-offline').nextElementSibling===pl,
-        visible:r.width>=34&&r.right<=innerWidth+1,
-        functional:pl.getAttribute('onclick')==='openPlaylistSelect()',
-        noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+    const state=await page.evaluate(()=>{
+      const nav=document.querySelector('#studio-navigation');
+      return {all:nav.querySelectorAll('.showcase-nav-btn').length>=9,
+        visible:nav.getBoundingClientRect().width>150,
+        headerHidden:getComputedStyle(document.querySelector('.header-overlay')).display==='none',
+        originalControlsRetained:!!document.querySelector('#btn-pl-select')&&
+           !!document.querySelector('#studio-header-wave')&&
+           !!document.querySelector('#studio-header-offline')&&
+           !!document.querySelector('.header-eq-btn'),
+        logoPlay:document.getElementById('vinyl-wave-play').getAttribute('onclick')==='openStudioWave()',
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+3};
     });
-    console.log('STUDIO_TOP_ACTIONS',JSON.stringify({vp,check}));
-    if(Object.values(check).some(x=>!x))throw new Error('Top actions regression '+JSON.stringify({vp,check}));
+    console.log('SHOWCASE_NAV_ACTIONS',JSON.stringify({vp,state}));
+    if(Object.values(state).some(x=>!x))
+      throw new Error('Showcase navigation regression '+JSON.stringify({vp,state}));
   }
   await page.setViewport({width:1200,height:800});
 
@@ -532,7 +530,7 @@ try {
   if (!isolatedQueue.isolated || isolatedQueue.index!==0 || !isolatedQueue.buttons)
     throw new Error('Queue context isolation regression');
 
-  await page.click('#header-mixes-btn');
+  await page.click('#showcase-collections');
   await page.waitForSelector('#quick-mixes-modal.show',{timeout:5000});
   const dialogState=await page.evaluate(()=>{
     const dialog=document.getElementById('quick-mixes-modal');
@@ -594,7 +592,7 @@ try {
       !categoryOrder.foreign||!categoryOrder.sorter||!categoryOrder.mixSaving)
     throw new Error('Mix category labels/ranking/save controls regressed');
 
-  await page.click('#header-mixes-btn');
+  await page.click('#showcase-collections');
   await page.click('#quick-mixes [data-mix="caucasus"]');
   const regionModal=await page.evaluate(()=>({
     opened:document.getElementById('caucasus-radio-modal').classList.contains('show'),
@@ -641,7 +639,7 @@ try {
   if(!Object.values(radioPrefetchChecks).every(Boolean))
     throw new Error('Smart radio prefetch or premature-end checks missing');
 
-  await page.click('.menu-btn');
+  await page.click('#showcase-settings');
   await page.waitForSelector('#menu-modal.show', { timeout: 5000 });
 
   const authVisible = await page.$eval('#auth-section', el => getComputedStyle(el).display !== 'none');
@@ -723,7 +721,7 @@ try {
   }
 
   await page.evaluate(() => window.closeModal('menu-modal'));
-  await page.click('.header-eq-btn');
+  await page.click('#showcase-equalizer');
   await page.waitForSelector('#equalizer-modal.show', { timeout: 5000 });
   const eqState = await page.evaluate(() => ({
     bands: document.querySelectorAll('#eq-bands .eq-band').length,

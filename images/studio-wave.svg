@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 1100">
+<defs>
+ <radialGradient id="sky"><stop offset="0" stop-color="#823810"/><stop offset=".34" stop-color="#45200f"/><stop offset=".73" stop-color="#140e0e"/><stop offset="1" stop-color="#08090b"/></radialGradient>
+ <radialGradient id="glow"><stop stop-color="#ffce82" stop-opacity=".74"/><stop offset=".33" stop-color="#ed812f" stop-opacity=".52"/><stop offset=".75" stop-color="#ab420e" stop-opacity=".19"/><stop offset="1" stop-color="#af440d" stop-opacity="0"/></radialGradient>
+ <linearGradient id="rim" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#ffe3b5"/><stop offset=".25" stop-color="#fb9144"/><stop offset=".55" stop-color="#a84514"/><stop offset=".77" stop-color="#ffb75b"/><stop offset="1" stop-color="#74250f"/></linearGradient>
+ <linearGradient id="mount" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#b95d27"/><stop offset=".35" stop-color="#522914"/><stop offset="1" stop-color="#030305"/></linearGradient>
+ <filter id="blur"><feGaussianBlur stdDeviation="29"/></filter>
+ <filter id="orange"><feGaussianBlur stdDeviation="8"/></filter>
+ <g id="petal"><path d="M550 82q-43 35-24 82l24 34 24-34q19-47-24-82zm-27 86q-58 0-49 57l41 36 35-30 35 30 41-36q9-57-49-57" fill="none" stroke="#b35a27" stroke-width="11" stroke-linecap="round"/><path d="M550 115v96m-49 3 49 31 49-31" stroke="#e98c45" stroke-width="5" fill="none"/></g>
+</defs>
+<rect width="1100" height="1100" fill="url(#sky)"/>
+<circle cx="550" cy="430" r="430" fill="url(#glow)"/>
+<circle cx="550" cy="435" r="319" fill="none" stroke="#ec7727" stroke-width="33" opacity=".55" filter="url(#blur)"/>
+<circle cx="550" cy="435" r="307" fill="none" stroke="url(#rim)" stroke-width="6"/>
+<circle cx="550" cy="435" r="296" fill="none" stroke="#fc9c3a" stroke-opacity=".21" stroke-width="2"/>
+<g opacity=".56">
+ <use href="#petal"/><use href="#petal" transform="rotate(45 550 435)"/><use href="#petal" transform="rotate(90 550 435)"/><use href="#petal" transform="rotate(135 550 435)"/><use href="#petal" transform="rotate(180 550 435)"/><use href="#petal" transform="rotate(225 550 435)"/><use href="#petal" transform="rotate(270 550 435)"/><use href="#petal" transform="rotate(315 550 435)"/>
+</g>
+<g fill="none" stroke="#ce6730" stroke-width="7" opacity=".5">
+ <path d="M550 20v65m0 710v72M142 435h76m664 0h77M257 142l49 49m489 488 49 49M844 142l-49 49M257 728l49-49"/>
+</g>
+<circle cx="550" cy="435" r="270" fill="#0a0908" opacity=".41"/>
+<circle cx="550" cy="435" r="260" fill="none" stroke="#f79b45" stroke-opacity=".14" stroke-width="2" stroke-dasharray="3 19"/>
+<g transform="translate(0 530)">
+ <path d="M0 260 95 190 170 229 290 125 347 178 419 76 478 166 581 35 682 196 779 94 865 207 934 145 1100 270V570H0Z" fill="url(#mount)" opacity=".96"/>
+ <path d="m239 166 51-41 20 29 26-11 11 35m100-57 34-52 24 79 33-23m15-35 28-55 34 46 31 57m108-21 55-70 39 62 22-15" fill="none" stroke="#f9ad69" stroke-width="10" stroke-opacity=".58"/>
+ <path d="M0 335 150 270 248 314 365 215 430 282 540 229 631 320 749 234 830 284 931 231 1100 357V570H0Z" fill="#090809"/>
+</g>
+</svg>

@@ -51,11 +51,17 @@ Promise.race([
 // Native Media3 capability detection injects script.js asynchronously, whereas
 // studio.js normally has "defer". Loading the UI too early can lose playlist state.
 html = html.replace(/\s*<script src="studio\.js\?v=[^"]+" defer><\/script>/i, '');
+html = html.replace(/\s*<script src="studio-next\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(
   'document.body.appendChild(script);',
   `script.addEventListener('load', () => {
   const ui = document.createElement('script');
   ui.src = 'studio.js';
+  ui.addEventListener('load', () => {
+    const showcase = document.createElement('script');
+    showcase.src = 'studio-next.js';
+    document.body.appendChild(showcase);
+  });
   document.body.appendChild(ui);
 });
 document.body.appendChild(script);`
@@ -71,6 +77,8 @@ await copyFile(join(root, 'style.css'), join(out, 'style.css'));
 await copyFile(join(root, 'modern.css'), join(out, 'modern.css'));
 await copyFile(join(root, 'studio.css'), join(out, 'studio.css'));
 await copyFile(join(root, 'studio.js'), join(out, 'studio.js'));
+await copyFile(join(root, 'studio-next.css'), join(out, 'studio-next.css'));
+await copyFile(join(root, 'studio-next.js'), join(out, 'studio-next.js'));
 
 await esbuild({
   entryPoints: [join(root, 'native', 'native-bridge.js')],

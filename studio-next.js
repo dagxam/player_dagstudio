@@ -1,0 +1,149 @@
+/* DAGSTUDIO Showcase 2026 — interface only; existing audio is the source of truth. */
+(function(){
+'use strict';
+const root=document.querySelector('.main-container'),right=document.getElementById('right-col-container');
+const originalHeader=document.querySelector('.header-overlay'),player=document.querySelector('.left-col');
+if(!root||!right||!originalHeader||!player||document.getElementById('studio-navigation'))return;
+root.classList.add('studio-showcase');
+const node=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=value;return e};
+const createButton=(text,icon,fn,id,cls='')=>{
+ const e=node('button','showcase-nav-btn '+cls);e.type='button';if(id)e.id=id;
+ const i=node('i','fas fa-'+icon);i.setAttribute('aria-hidden','true');e.appendChild(i);e.appendChild(node('span','',text));
+ e.addEventListener('click',()=>{fn();closeMobile();});return e;
+};
+const nav=node('aside','showcase-sidebar');nav.id='studio-navigation';nav.setAttribute('aria-label','Навигация DAGSTUDIO');
+const logo=node('div','showcase-brand');
+const brandIcon=node('img');brandIcon.src='images/cover.png';brandIcon.alt='';brandIcon.className='showcase-brand-icon';
+logo.appendChild(brandIcon);
+const brandText=node('div','showcase-brand-text');brandText.appendChild(node('strong','', 'DAGSTUDIO'));brandText.appendChild(node('small','', 'P L A Y E R'));logo.appendChild(brandText);nav.appendChild(logo);
+const menu=node('nav','showcase-menu');const buttons=new Map();
+const activate=key=>{
+ menu.querySelectorAll('.showcase-nav-btn').forEach(b=>{const match=b.dataset.showcase===key;b.classList.toggle('active',match);
+ if(match)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+};
+const add=(key,label,icon,fn)=>{
+ const b=createButton(label,icon,fn,'showcase-'+key);
+ b.dataset.showcase=key;buttons.set(key,b);menu.appendChild(b);return b;
+};
+let showingCollection=true;
+function showCurated(){
+ showingCollection=true;right.classList.add('showcase-curated');
+ right.classList.remove('showcase-list');
+ activate('wave');
+}
+function showList(key){
+ showingCollection=false;right.classList.remove('showcase-curated');
+ right.classList.add('showcase-list');activate(key);
+}
+function closeMobile(){nav.classList.remove('open');document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');}
+add('search','Поиск','magnifying-glass',()=>{
+ showList('search');if(typeof switchTab==='function')switchTab('search');
+ document.getElementById('search-input')?.focus();
+});
+add('wave','Моя волна','wave-square',()=>{
+ showCurated();window.openStudioWave?.();activate('wave');
+});
+add('playlists','Плейлисты','music',()=>{
+ showList('playlists');document.getElementById('btn-pl-select')?.click();
+});
+add('likes','Мне нравится','heart',()=>{
+ showList('likes');
+ const b=document.getElementById('studio-header-likes');
+ if(b&&!b.classList.contains('active'))window.openStudioLikes?.();
+});
+add('offline','Офлайн','circle-down',()=>{
+ showList('offline');window.openOfflineListening?.();
+});
+add('charts','Чарты','chart-simple',()=>{showList('charts');if(typeof startQuickMix==='function')startQuickMix('hits');});
+add('collections','Подборки','layer-group',()=>{
+ showCurated();document.getElementById('header-mixes-btn')?.click();activate('collections');
+});
+add('equalizer','Эквалайзер','sliders',()=>{if(typeof openEqualizer==='function')openEqualizer();});
+add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();});
+nav.appendChild(menu);
+const sidebarBottom=node('div','showcase-sidebar-bottom');
+sidebarBottom.appendChild(node('span','showcase-sidebar-kicker','В ДОРОГУ С МУЗЫКОЙ'));
+sidebarBottom.appendChild(node('strong','', 'Всегда с тобой'));
+sidebarBottom.appendChild(node('p','', 'Сохраняйте плейлисты заранее и слушайте без сети.'));
+const cacheBtn=node('button','showcase-cache-action','Офлайн-настройки');cacheBtn.type='button';
+cacheBtn.addEventListener('click',()=>{closeMobile();if(typeof openCacheDashboard==='function')openCacheDashboard();});
+sidebarBottom.appendChild(cacheBtn);nav.appendChild(sidebarBottom);
+root.insertBefore(nav,root.firstChild);
+
+// The middle panel is the ORIGINAL playlist/search pane with a curated cover.
+// Opening a real list reveals the same DOM, controls and scroll/pagination.
+const home=node('section','showcase-curations');home.id='studio-curations';
+const heading=node('div','showcase-section-head');heading.appendChild(node('div','showcase-kicker','ПОДОБРАНО ДЛЯ ТЕБЯ'));heading.appendChild(node('h2','', 'Для тебя'));
+home.appendChild(heading);
+const choices=[
+ {key:'caucasus',title:'Кавказское настроение',caption:'Музыка наших гор',icon:'mountain',art:'mountains'},
+ {key:'wave',title:'В стиле артистов',caption:'Похожие песни и новые имена',icon:'star',art:'artist'},
+ {key:'road',title:'В дорогу',caption:'Музыка долгого пути',icon:'route',art:'road'},
+ {key:'russian',title:'Народные мотивы',caption:'Тёплое, близкое звучание',icon:'guitar',art:'folk'},
+ {key:'retro',title:'Чувства и мысли',caption:'Знакомые мелодии и истории',icon:'heart',art:'retro'},
+ {key:'hits',title:'Лучшие композиции',caption:'Хиты и новые открытия',icon:'bolt',art:'hits'}
+];
+const grid=node('div','showcase-curation-list');
+function selectMix(key){
+ if(key==='caucasus'){const source=document.querySelector('#quick-mixes [data-mix="caucasus"]');source?.click();return;}
+ if(key==='wave'){showCurated();window.openStudioWave?.();return;}
+ showList('collections');
+ if(typeof startQuickMix==='function')startQuickMix(key);
+}
+choices.forEach((entry,i)=>{
+ const card=node('button','showcase-curation-card');card.type='button';
+ card.setAttribute('aria-label','Включить: '+entry.title);
+ const picture=node('span','showcase-card-art art-'+entry.art);
+ picture.appendChild(node('i','fas fa-'+entry.icon));
+ const body=node('span','showcase-card-body');body.appendChild(node('strong','',entry.title));body.appendChild(node('small','',entry.caption));
+ const play=node('span','showcase-card-play');play.appendChild(node('i','fas fa-play'));
+ card.append(picture,body,play);card.addEventListener('click',()=>selectMix(entry.key));grid.appendChild(card);
+});
+home.appendChild(grid);
+right.insertBefore(home,right.firstChild);
+const openList=node('button','showcase-open-list','Показать список песен');
+openList.type='button';openList.addEventListener('click',()=>showList('wave'));
+const titleArt=node('div','showcase-hero-copy');
+titleArt.appendChild(node('span','showcase-hero-tag','DAGSTUDIO · ПЕРСОНАЛЬНОЕ РАДИО'));
+titleArt.appendChild(node('h1','', 'Моя волна'));
+titleArt.appendChild(node('div','showcase-audio-glyph','━━　▂▅▆▃▁　━━'));
+titleArt.appendChild(node('p','', 'МУЗЫКА, КОТОРАЯ БЛИЖЕ К ТЕБЕ'));
+const visual=player.querySelector('.visual-container');if(visual)visual.appendChild(titleArt);
+const mini=node('div','showcase-hero-meta');
+const now=node('span','showcase-current-label','Сейчас играет');const current=node('strong','', 'Ваша музыка');mini.append(now,current);
+const trackInfo=player.querySelector('.track-info-display');
+if(trackInfo)player.insertBefore(mini,trackInfo);
+const heroFoot=node('div','showcase-hero-foot');
+const footIcon=node('i','fas fa-cloud-arrow-down');
+const footCopy=node('span','showcase-hero-foot-copy');footCopy.appendChild(node('strong','', 'Музыка без интернета'));
+footCopy.appendChild(node('small','', 'Сохраняйте песни перед поездкой'));
+const footAction=node('button','showcase-hero-foot-btn','Подготовить');
+footAction.type='button';footAction.addEventListener('click',()=>typeof openCacheDashboard==='function'&&openCacheDashboard());
+heroFoot.append(footIcon,footCopy,footAction);player.appendChild(heroFoot);
+const listToggle=node('button','showcase-list-toggle');
+listToggle.type='button';listToggle.appendChild(node('i','fas fa-list'));listToggle.appendChild(node('span','', 'Открыть очередь'));
+listToggle.addEventListener('click',()=>showList('wave'));
+player.appendChild(listToggle);
+const mobileToggle=node('button','showcase-mobile-toggle');mobileToggle.id='showcase-menu-toggle';
+mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыть навигацию');mobileToggle.setAttribute('aria-expanded','false');
+mobileToggle.appendChild(node('i','fas fa-bars'));
+mobileToggle.addEventListener('click',()=>{const open=!nav.classList.contains('open');nav.classList.toggle('open',open);
+ mobileToggle.setAttribute('aria-expanded',String(open));});
+root.appendChild(mobileToggle);
+const shade=node('div','showcase-mobile-shade');shade.addEventListener('click',closeMobile);root.appendChild(shade);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();});
+const themeRefresh=()=>{
+ let name='brown';try{name=localStorage.getItem('dag_theme')||'brown';}catch(e){}
+ const img=typeof colorThemes!=='undefined'?colorThemes[name]?.img:null;
+ if(img&&brandIcon.getAttribute('src')!==img)brandIcon.src=img;
+ const t=document.getElementById('track-title')?.textContent?.trim();
+ current.textContent=t&&t!=='ВЫБЕРИТЕ ТРЕК'?t:'Ваша музыка';
+};
+const refresh=setInterval(()=>{if(!document.hidden)themeRefresh();},1800);
+window.addEventListener('pagehide',()=>clearInterval(refresh),{once:true});
+themeRefresh();showCurated();
+// All originals remain reachable via user controls; only their topbar is
+// visually hidden on wide screens and retained under the mobile fallback.
+document.getElementById('search-input')?.addEventListener('focus',()=>showList('search'));
+window.studioShowCurated=showCurated;window.studioShowList=showList;
+})();
