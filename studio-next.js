@@ -42,7 +42,11 @@ function showList(key){
  right.classList.remove('showcase-curated');
  right.classList.add('showcase-list');activate(key);
 }
-function closeMobile(){nav.classList.remove('open');document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');}
+function closeMobile(){
+ closePlaylistSubmenu();
+ nav.classList.remove('open');
+ document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');
+}
 add('search','Поиск','magnifying-glass',()=>{
  showList('search');if(typeof switchTab==='function')switchTab('search');
  document.getElementById('search-input')?.focus();
@@ -53,25 +57,64 @@ add('wave','Моя волна','wave-square',()=>{
 const playlistToggle=add('playlists','Плейлисты','music',()=>toggleSidebarPlaylists());
 playlistToggle.setAttribute('aria-expanded','false');
 playlistToggle.setAttribute('aria-controls','showcase-playlist-submenu');
-const chevron=node('i','fas fa-chevron-down showcase-playlist-chevron');
+const chevron=node('i','fas fa-chevron-right showcase-playlist-chevron');
 chevron.setAttribute('aria-hidden','true');playlistToggle.appendChild(chevron);
-const playlistSubmenu=node('div','showcase-playlist-submenu');
-playlistSubmenu.id='showcase-playlist-submenu';playlistSubmenu.setAttribute('role','group');
-playlistSubmenu.setAttribute('aria-label','Ваши плейлисты');playlistSubmenu.hidden=true;
-menu.appendChild(playlistSubmenu);
+const playlistSubmenu=node('section','showcase-playlist-submenu');
+playlistSubmenu.id='showcase-playlist-submenu';
+playlistSubmenu.setAttribute('aria-label','Ваши плейлисты');
+playlistSubmenu.hidden=true;
+// Flyout is outside the scrollable sidebar, otherwise the sidebar clips it
+// and the rest of the navigation moves down.
+document.body.appendChild(playlistSubmenu);
+const playlistFlyoutHeader=node('div','showcase-playlist-flyout-heading');
+const playlistBack=node('button','showcase-playlist-back');
+playlistBack.type='button';playlistBack.setAttribute('aria-label','Назад к меню');
+playlistBack.appendChild(node('i','fas fa-arrow-left'));
+playlistBack.addEventListener('click',()=>{closePlaylistSubmenu();playlistToggle.focus();});
+const flyoutHeadingText=node('span','', 'Мои плейлисты');
+playlistFlyoutHeader.append(playlistBack,flyoutHeadingText);
+playlistSubmenu.appendChild(playlistFlyoutHeader);
+function positionPlaylistSubmenu(){
+ if(playlistSubmenu.hidden)return;
+ const sidebar=nav.getBoundingClientRect();
+ const mobile=window.innerWidth<=768;
+ const left=mobile?Math.max(8,sidebar.left+8):Math.min(window.innerWidth-260,sidebar.right+7);
+ const width=mobile?Math.min(340,window.innerWidth-16):Math.min(344,window.innerWidth-left-12);
+ playlistSubmenu.style.left=Math.max(8,left)+'px';
+ playlistSubmenu.style.width=Math.max(230,width)+'px';
+ playlistSubmenu.style.maxHeight=(window.innerHeight-16)+'px';
+ // Measure after width and content are laid out to keep the flyout on-screen.
+ const anchor=playlistToggle.getBoundingClientRect();
+ const height=playlistSubmenu.getBoundingClientRect().height;
+ const preferred=mobile?8:anchor.top-8;
+ playlistSubmenu.style.top=Math.max(8,Math.min(preferred,window.innerHeight-height-8))+'px';
+}
+function closePlaylistSubmenu(){
+ playlistToggle.setAttribute('aria-expanded','false');
+ playlistToggle.classList.remove('expanded');
+ playlistSubmenu.hidden=true;
+}
 function toggleSidebarPlaylists(){
  const expanded=playlistToggle.getAttribute('aria-expanded')!=='true';
- playlistToggle.setAttribute('aria-expanded',String(expanded));
- playlistToggle.classList.toggle('expanded',expanded);
- playlistSubmenu.hidden=!expanded;
- if(expanded){
-   activate('playlists');renderSidebarPlaylists();
- }
+ if(!expanded){closePlaylistSubmenu();return;}
+ playlistToggle.setAttribute('aria-expanded','true');
+ playlistToggle.classList.add('expanded');
+ playlistSubmenu.hidden=false;
+ activate('playlists');
+ renderSidebarPlaylists();
+ positionPlaylistSubmenu();
 }
+document.addEventListener('pointerdown',event=>{
+ if(playlistSubmenu.hidden)return;
+ if(playlistSubmenu.contains(event.target)||playlistToggle.contains(event.target))return;
+ closePlaylistSubmenu();
+});
+window.addEventListener('resize',positionPlaylistSubmenu);
+nav.addEventListener('scroll',positionPlaylistSubmenu,{passive:true});
 function renderSidebarPlaylists(){
  const expanded=playlistToggle.getAttribute('aria-expanded')==='true';
  if(!expanded)return;
- playlistSubmenu.replaceChildren();
+ playlistSubmenu.replaceChildren(playlistFlyoutHeader);
  const items=typeof playlists!=='undefined'&&Array.isArray(playlists)?playlists:[];
  if(!items.length){
    const empty=node('p','showcase-playlist-empty',
@@ -130,6 +173,7 @@ function renderSidebarPlaylists(){
    closeMobile();
  });
  actions.append(create,manage);playlistSubmenu.appendChild(actions);
+ positionPlaylistSubmenu();
 }
 window.addEventListener('dag-playlists-updated',renderSidebarPlaylists);
 
@@ -241,11 +285,24 @@ player.appendChild(listToggle);
 const mobileToggle=node('button','showcase-mobile-toggle');mobileToggle.id='showcase-menu-toggle';
 mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыть навигацию');mobileToggle.setAttribute('aria-expanded','false');
 mobileToggle.appendChild(node('i','fas fa-bars'));
-mobileToggle.addEventListener('click',()=>{const open=!nav.classList.contains('open');nav.classList.toggle('open',open);
- mobileToggle.setAttribute('aria-expanded',String(open));});
+mobileToggle.addEventListener('click',()=>{
+ const open=!nav.classList.contains('open');
+ if(!open)closePlaylistSubmenu();
+ nav.classList.toggle('open',open);
+ mobileToggle.setAttribute('aria-expanded',String(open));
+});
 root.appendChild(mobileToggle);
 const shade=node('div','showcase-mobile-shade');shade.addEventListener('click',closeMobile);root.appendChild(shade);
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();});
+document.addEventListener('keydown',e=>{
+ if(e.key!=='Escape')return;
+ if(!playlistSubmenu.hidden){
+   closePlaylistSubmenu();
+   playlistToggle.focus();
+   e.preventDefault();
+   return;
+ }
+ closeMobile();
+});
 function refreshShowcase(){
  let name='brown';try{name=localStorage.getItem('dag_theme')||'brown';}catch(e){}
  const img=typeof colorThemes!=='undefined'?colorThemes[name]?.img:null;

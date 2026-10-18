@@ -234,8 +234,16 @@ try {
         {success:true,icon:args.icon}:{error:'Unexpected test action'};
       window.dispatchEvent(new Event('dag-playlists-updated'));
       const nav=document.getElementById('showcase-playlists');
+      const nextNav=document.getElementById('showcase-likes');
+      const nextBefore=nextNav.getBoundingClientRect().top;
       nav.click();
       const submenu=document.getElementById('showcase-playlist-submenu');
+      const popupRect=submenu.getBoundingClientRect(),sidebar=document.getElementById('studio-navigation').getBoundingClientRect();
+      const flyoutRight=popupRect.left>=sidebar.right-2&&popupRect.right<=innerWidth+2&&
+         popupRect.top>=0&&popupRect.bottom<=innerHeight+2&&popupRect.width>=240;
+      const noPush=Math.abs(nextNav.getBoundingClientRect().top-nextBefore)<=1;
+      const portalled=submenu.parentElement===document.body;
+
       const expanded=nav.getAttribute('aria-expanded')==='true'&&!submenu.hidden;
       const twoRows=submenu.querySelectorAll('.showcase-playlist-item').length===2;
       const initialIcon=!!submenu.querySelector('.showcase-playlist-link i.fa-music');
@@ -257,10 +265,14 @@ try {
         [...document.querySelectorAll('#playlist-container .track-row .t-title')]
           .some(x=>x.textContent==='Первый трек');
       const noAutoplay=playbackPlaylist[currentIndex]===oldPlaying;
+      const closesOnSelection=submenu.hidden&&nav.getAttribute('aria-expanded')==='false';
+      nav.click();
+      const reopened=!submenu.hidden&&nav.getAttribute('aria-expanded')==='true';
       nav.click();
       const collapsed=nav.getAttribute('aria-expanded')==='false'&&submenu.hidden;
       return {expanded,twoRows,initialIcon,editor,eighteen,saved,
-        iconUpdated,radioChecked,listOpened,noAutoplay,collapsed};
+        iconUpdated,radioChecked,listOpened,noAutoplay,closesOnSelection,
+        reopened,collapsed,flyoutRight,noPush,portalled};
     }finally{
       currentUser=previous.user;playlists=previous.items;currentTab=previous.tab;
       playlist=previous.view;api=previous.api;editingPlaylistId=previous.editing;
@@ -274,6 +286,35 @@ try {
   console.log('PLAYLIST_SIDEBAR_ICON_EDITOR',JSON.stringify(playlistAccordion));
   if(Object.values(playlistAccordion).some(v=>!v))
     throw new Error('Playlist submenu or icon settings regression '+JSON.stringify(playlistAccordion));
+
+  // A 320px car-phone screen cannot fit a second column to the right.
+  // It opens as an overlay inside the navigation surface, without pushing
+  // the rest of the menu down or causing horizontal page overflow.
+  for(const vp of [{width:390,height:844},{width:320,height:640}]){
+    await page.setViewport(vp);
+    const state=await page.evaluate(()=>{
+      const toggle=document.getElementById('showcase-menu-toggle');
+      toggle.click();
+      const btn=document.getElementById('showcase-playlists'),
+        following=document.getElementById('showcase-likes');
+      const previousTop=following.getBoundingClientRect().top;
+      btn.click();
+      const menu=document.getElementById('showcase-playlist-submenu');
+      const rect=menu.getBoundingClientRect();
+      const open=!menu.hidden&&menu.querySelector('.showcase-playlist-back') &&
+         rect.left>=0&&rect.right<=innerWidth+1&&rect.bottom<=innerHeight+1;
+      const noPush=Math.abs(following.getBoundingClientRect().top-previousTop)<1;
+      const noOverflow=document.documentElement.scrollWidth<=innerWidth+2;
+      menu.querySelector('.showcase-playlist-back').click();
+      const back=menu.hidden&&document.getElementById('studio-navigation').classList.contains('open');
+      toggle.click();
+      return {open:!!open,noPush,noOverflow,back,closed:menu.hidden};
+    });
+    console.log('PLAYLIST_FLYOUT_SMALL_SCREEN',JSON.stringify({vp,state}));
+    if(Object.values(state).some(x=>!x))
+      throw new Error('Phone playlist flyout regression '+JSON.stringify({vp,state}));
+  }
+  await page.setViewport({width:1200,height:800});
 
   const likes=await page.evaluate(()=>{
     const existing=playlists.slice(),audio=document.getElementById('main-audio');
