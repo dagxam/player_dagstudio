@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2294';
+const WEB_BUILD_LABEL = '2296';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -3998,11 +3998,14 @@ async function findWaveNextTrack(){
     const library=waveLibrarySeeds();
     // Never play a song already saved in any playlist, including excluded
     // collections. Exclusions also keep their performers out of wave seeds.
-    const own=(playlists||[]).flatMap(pl=>pl.tracks||[]);
-    const known=[...playbackPlaylist,...playbackQueue,...own];
+    const excluded=new Set((playlists||[]).filter(pl=>playlistExcludedFromLikes(pl.id))
+        .flatMap(pl=>pl.tracks||[]).map(t=>tasteTrackId(t)));
+    const own=(playlists||[]).filter(pl=>!playlistExcludedFromLikes(pl.id))
+        .flatMap(pl=>pl.tracks||[]);
+    const known=[...playbackPlaylist,...playbackQueue];
     const titles=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
     const urls=new Set(known.map(t=>String(t.url||'')));
-    const seen=track=>!track?.url||urls.has(String(track.url))||
+    const seen=track=>!track?.url||excluded.has(tasteTrackId(track))||urls.has(String(track.url))||
         titles.has(normalizeTrackIdentity(track.artist)+'|'+normalizeTrackIdentity(track.title));
     const prior=playbackPlaylist[currentIndex]?.artist||'';
     // Prefer verified recent tracks and other singers; the user shouldn't hear
@@ -4020,7 +4023,7 @@ async function findWaveNextTrack(){
             normalizeTrackIdentity(t.artist)!==normalizeTrackIdentity(prior));
         return (other.length?other:candidates)[0]||null;
     }
-    const discovered=quickMixCurrent?.key==='wave'?quickMixCurrent.tracks||[]:[];
+    const discovered=[...(quickMixCurrent?.key==='wave'?quickMixCurrent.tracks||[]:[]),...own];
     let found=choose(discovered);
     if(found)return {...found,_smartRadio:true,_waveRadio:true};
     const names=[...new Set([
@@ -4733,7 +4736,8 @@ const QUICK_MIXES={
     charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
         artists:[`новинки ${new Date().getFullYear()}`,'new music releases',
           'новые песни','latest songs','новинки России','new pop music',
-          'Кавказские новинки','новая музыка','new hip hop','new rock music']},
+          'Кавказские новинки','новая музыка','new hip hop','new rock music',
+          'Zivert','Баста','Miyagi','The Weeknd','Dua Lipa']},
     russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
     caucasus:{title:'Кавказские',mode:'popular',regions:[
         // Region labels are search directions, not verified audio-language tags.
@@ -4989,6 +4993,16 @@ async function startQuickMix(key) {
         loadingMore:false, pageNumbers:new Map(), exhaustedQueries:new Set(),
         checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
     if(key==='wave'){
+        // Start instantly from the user's included playlist library, then find
+        // another recommendation asynchronously during playback.
+        const own=waveLibrarySeeds();
+        if(own.length){
+            const ranked=quickMixRankTracks(quickMixUnique(own),{mode:'popular'});
+            const first={...ranked[0],_smartRadio:true,_waveRadio:true};
+            quickMixCurrent.tracks=[first];quickMixCurrent.loading=false;
+            currentTab='mix:wave';playlist=[first];renderQuickMixView();
+            playTrack(0);return;
+        }
         // Playback starts with the first NEW suggestion from the network.
         // Hide the browser; the giant player remains the only wave UI.
         currentTab='mix:wave';playlist=[];renderQuickMixView();
@@ -5029,7 +5043,7 @@ async function startQuickMix(key) {
         setQuickMixStatus('Локальная «Моя волна» · '+waveTracks.length+' сохранённых песен');
         return;
     }
-    const batchSize=key==='charts'?3:(getNetworkProfile().weak?1:2);
+    const batchSize=key==='charts'?5:(getNetworkProfile().weak?1:2);
     const plan=quickMixSearchPlan(config);
     for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;

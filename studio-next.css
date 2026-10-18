@@ -1016,3 +1016,45 @@
   font-size:.86rem!important;text-align:left!important;
  }
 }
+
+/* CC3 wave mode: no phantom center column, no lopsided artwork. */
+@media(min-width:769px){
+ .main-container.studio-showcase.showcase-wave-only{
+  display:grid!important;grid-template-columns:clamp(158px,16vw,236px) minmax(0,1fr)!important;
+  grid-template-rows:minmax(0,1fr)!important;height:100dvh!important;
+ }
+ .main-container.studio-showcase.showcase-wave-only>.right-col{display:none!important}
+ .main-container.studio-showcase.showcase-wave-only>.left-col{
+  grid-column:2!important;grid-row:1!important;width:100%!important;max-width:none!important;
+  min-width:0!important;align-items:center!important;justify-content:flex-end!important;
+  padding:8px clamp(22px,5vw,90px) 16px!important;
+  background-position:center center!important;
+ }
+ .studio-showcase.showcase-wave-only>.left-col .visual-container,
+ .studio-showcase.showcase-wave-only>.left-col .track-info-display,
+ .studio-showcase.showcase-wave-only>.left-col .progress-area,
+ .studio-showcase.showcase-wave-only>.left-col .main-btns{
+  width:min(100%,780px)!important;max-width:100%!important;align-self:center!important;
+  margin-left:auto!important;margin-right:auto!important;
+ }
+ .studio-showcase.showcase-wave-only>.left-col .visual-container{align-items:center!important;justify-content:center!important}
+}
+.studio-showcase .showcase-sidebar-bottom{
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.38)!important;
+ background:linear-gradient(145deg,rgba(var(--theme-rgb,192,108,66),.16),rgba(var(--theme-rgb,192,108,66),.03))!important;
+ border-radius:15px!important;padding:12px 10px!important;
+ box-shadow:0 12px 26px #0005,inset 0 1px 0 #ffffff0b!important;
+}
+.studio-showcase .showcase-sidebar-bottom>strong{
+ color:var(--theme-bright-text,#fff)!important;font-weight:850!important}
+.studio-showcase .showcase-sidebar-bottom .showcase-sidebar-kicker{
+ color:var(--theme-bright,var(--accent-color))!important;letter-spacing:.08em}
+.studio-showcase .showcase-sidebar-bottom p{color:var(--theme-muted,#b4aaaf)!important}
+.studio-showcase #showcase-offline{
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.23)!important;
+ background:linear-gradient(95deg,rgba(var(--theme-rgb,192,108,66),.14),transparent)!important;
+}
+.studio-showcase #showcase-offline:hover{
+ background:rgba(var(--theme-rgb,192,108,66),.24)!important;
+ border-color:var(--theme-bright,var(--accent-color))!important;
+}
