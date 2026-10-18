@@ -298,14 +298,14 @@ try {
       const validSeeds=seeds.length===1&&seeds[0].url===own.url;
       api=async(action)=>({success:true,data:[own,blocked,discovered]});
       const remote=await findWaveNextTrack();
-      const excludesOwn=remote?.title===discovered.title&&remote?._waveRadio;
+      const startsFromOwn=remote?.url===own.url&&remote?._waveRadio&&remote?.url!==blocked.url;
       findWaveNextTrack=async()=>discovered;
       playTrack=async i=>{started=playlist[i];playbackPlaylist=[...playlist];
         playbackTab='mix:wave';currentIndex=i;playbackWanted=true;calls.push('play');};
       await startQuickMix('wave');
-      const firstRemote=started?.url===discovered.url&&quickMixCurrent.tracks.length===1&&
-        quickMixCurrent.tracks[0].url===discovered.url;
-      return {validSeeds,excludesOwn,firstRemote};
+      const firstOwn=started?.url===own.url&&quickMixCurrent.tracks.length===1&&
+        quickMixCurrent.tracks[0].url===own.url;
+      return {validSeeds,startsFromOwn,firstOwn};
     }finally{
       currentUser=old.user;playlists=old.library;currentTab=old.tab;
       playlist=old.list;playbackPlaylist=old.playback;currentIndex=old.index;
@@ -317,9 +317,32 @@ try {
       renderPlaylist();window.studioCenterRender('home');
     }
   });
-  console.log('WAVE_DISCOVER_NEW_NETWORK_NOT_OWN',JSON.stringify(waveDiscovery));
+  console.log('WAVE_START_LIBRARY_THEN_DISCOVER',JSON.stringify(waveDiscovery));
   if(Object.values(waveDiscovery).some(x=>!x))
     throw new Error('Wave playback selection regression '+JSON.stringify(waveDiscovery));
+
+  // When the user chooses My Wave the center column disappears and the
+  // original playback controls expand across the space next to navigation.
+  for(const vp of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720}]){
+    await page.setViewport(vp);
+    const waveLayout=await page.evaluate(()=>{
+      window.studioWaveScreen();
+      const root=document.querySelector('.main-container'),nav=document.getElementById('studio-navigation').getBoundingClientRect();
+      const player=document.querySelector('.left-col').getBoundingClientRect();
+      const right=document.querySelector('.right-col');
+      return {active:root.classList.contains('showcase-wave-only'),
+        hidden:getComputedStyle(right).display==='none',
+        startsAtSidebar:Math.abs(player.left-nav.right)<=3,
+        fillsRest:Math.abs(player.right-innerWidth)<=3,
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+3,
+        noScroll:document.documentElement.scrollHeight<=innerHeight+3};
+    });
+    console.log('CC3_WAVE_NO_EMPTY_COLUMN',JSON.stringify({vp,waveLayout}));
+    if(Object.values(waveLayout).some(x=>!x))
+       throw new Error('Wave must fill empty center area '+JSON.stringify({vp,waveLayout}));
+  }
+  await page.setViewport({width:1200,height:800});
+  await page.evaluate(()=>window.studioCenterRender('home'));
 
   const waveQueuedNext=await page.evaluate(()=>{
     const saved={list:playbackPlaylist,index:currentIndex,tab:playbackTab,
