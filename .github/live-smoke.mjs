@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2298', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2299', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -99,6 +99,58 @@ try {
     if(Object.values(state).some(v=>!v))
       throw new Error('Showcase responsive layout regression '+JSON.stringify({viewport,state}));
   }
+
+  // Action dialogs are right-hand drawers on TEYES and mobile. Guidance and
+  // informational notifications remain centered, without page scrolling.
+  for(const viewport of [{width:800,height:480},{width:1024,height:600},
+      {width:1280,height:720},{width:390,height:844}]){
+    await page.setViewport(viewport);
+    const dialogs=await page.evaluate(()=>{
+      const ids=['quick-mixes-modal','caucasus-radio-modal','confirm-modal',
+        'manage-pl-modal','track-manager-modal','save-modal','input-modal',
+        'equalizer-modal','queue-modal','sleep-modal','diagnostics-modal',
+        'cache-dashboard-modal'];
+      const failures=[];
+      ids.forEach(id=>{
+        const overlay=document.getElementById(id),panel=overlay?.querySelector('.modal-box');
+        if(!overlay||!panel||!overlay.classList.contains('studio-side-dialog')){
+          failures.push(id+': missing drawer');return;
+        }
+        overlay.classList.add('show');
+        panel.style.animation='none';
+        const box=panel.getBoundingClientRect(),close=panel.querySelector('.modal-close')?.getBoundingClientRect();
+        if(Math.abs(innerWidth-box.right)>22||box.left<0||box.top<0||
+           box.bottom>innerHeight+1||box.height<innerHeight-32||
+           getComputedStyle(panel).overflowY!=='auto'||
+           !close||close.right>box.right+1||close.left<box.left-1||
+           document.documentElement.scrollWidth>innerWidth+2)
+          failures.push(id+': '+JSON.stringify({left:box.left,right:box.right,
+            top:box.top,bottom:box.bottom,scroll:getComputedStyle(panel).overflowY}));
+        overlay.classList.remove('show');panel.style.removeProperty('animation');
+      });
+      ['alert-modal','ios-install-modal'].forEach(id=>{
+        const overlay=document.getElementById(id),panel=overlay?.querySelector('.modal-box');
+        overlay.classList.add('show');
+        const box=panel.getBoundingClientRect();
+        if(overlay.classList.contains('studio-side-dialog')||
+           Math.abs(box.left+box.width/2-innerWidth/2)>4)
+          failures.push(id+': informational window not centered');
+        overlay.classList.remove('show');
+      });
+      return failures;
+    });
+    console.log('RIGHT_DRAWERS',JSON.stringify({viewport,dialogs}));
+    if(dialogs.length)throw new Error('Right dialog layout regression '+JSON.stringify({viewport,dialogs}));
+  }
+  await page.setViewport({width:1024,height:600});
+  await page.evaluate(()=>document.getElementById('sleep-modal').classList.add('show'));
+  await page.keyboard.press('Escape');
+  if(await page.$eval('#sleep-modal',el=>el.classList.contains('show')))
+    throw new Error('Right drawer did not close on Escape');
+  await page.evaluate(()=>document.getElementById('sleep-modal').classList.add('show'));
+  await page.mouse.click(12,12);
+  if(await page.$eval('#sleep-modal',el=>el.classList.contains('show')))
+    throw new Error('Right drawer did not close on backdrop click');
   await page.setViewport({width:1200,height:800});
   // The accepted mockup is an actual now-playing state, not a permanent
   // wave splash screen. Check track transitions and all 5 theme palettes.
@@ -679,7 +731,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2298',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2299',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -690,10 +742,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2298', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2299', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2298'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2299'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -777,7 +829,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2298', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2299', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -1252,7 +1304,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2298', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2299', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -1296,7 +1348,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2298','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2299','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});

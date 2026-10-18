@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2298';
+const WEB_BUILD_LABEL = '2299';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -4955,15 +4955,20 @@ function renderQuickMixButtons() {
     });
 }
 document.addEventListener('keydown',event=>{
-    if(event.key==='Escape' && document.getElementById('caucasus-radio-modal')?.classList.contains('show')) {
-        event.preventDefault();closeModal('caucasus-radio-modal');
+    if(event.key!=='Escape' || document.getElementById('alert-modal')?.classList.contains('show'))return;
+    const visible=Array.from(document.querySelectorAll('.studio-side-dialog.show'));
+    // Confirmation prompts have a higher stacking level than ordinary panels.
+    const dialog=document.getElementById('confirm-modal')?.classList.contains('show')
+        ?document.getElementById('confirm-modal'):visible[visible.length-1];
+    if(!dialog)return;
+    event.preventDefault();closeModal(dialog.id);
+    if(dialog.id==='quick-mixes-modal'||dialog.id==='caucasus-radio-modal')
         document.getElementById('header-mixes-btn')?.focus();
-    }
-    if(event.key==='Escape' && document.getElementById('quick-mixes-modal')?.classList.contains('show')) {
-        event.preventDefault();
-        closeModal('quick-mixes-modal');
-        document.getElementById('header-mixes-btn')?.focus();
-    }
+});
+document.querySelectorAll('.studio-side-dialog').forEach(dialog=>{
+    dialog.addEventListener('click',event=>{
+        if(event.target===dialog)closeModal(dialog.id);
+    });
 });
 function renderQuickMixView() {
     if(!quickMixCurrent)return;

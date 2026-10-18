@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=14">
+    <link rel="stylesheet" href="studio-next.css?v=15">
 </head>
 <body>
 
@@ -139,7 +139,7 @@
   </div>
 </div>
 <!-- Подборки собраны в одну кнопку около эквалайзера: без длинной полосы над поиском. -->
-<div id="caucasus-radio-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="caucasus-radio-title" onclick="if(event.target===this)closeModal('caucasus-radio-modal')">
+<div id="caucasus-radio-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true" aria-labelledby="caucasus-radio-title">
     <div class="modal-box quick-mixes-modal-box caucasus-radio-box">
         <button type="button" class="modal-close" onclick="closeModal('caucasus-radio-modal')" aria-label="Закрыть">&times;</button>
         <div class="quick-mixes-heading">
@@ -152,7 +152,7 @@
         <p class="quick-mixes-footer">Язык песен не определяется автоматически: разделы задают направление поиска.</p>
     </div>
 </div>
-<div id="quick-mixes-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quick-mixes-title" onclick="if(event.target===this)closeModal('quick-mixes-modal')">
+<div id="quick-mixes-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true" aria-labelledby="quick-mixes-title">
     <div class="modal-box quick-mixes-modal-box">
         <button type="button" class="modal-close" onclick="closeModal('quick-mixes-modal')" aria-label="Закрыть подборки">&times;</button>
         <div class="quick-mixes-heading">
@@ -186,7 +186,7 @@
 </div>
 
 <div id="alert-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('alert-modal')">&times;</span><h3 class="modal-title">УВЕДОМЛЕНИЕ</h3><p style="color:#ccc; margin-bottom:30px; font-size:1.1rem; line-height:1.5;" id="alert-msg">Сообщение</p><button class="modal-btn btn-primary" onclick="closeModal('alert-modal')">OK</button></div></div>
-<div id="confirm-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('confirm-modal')">&times;</span><h3 class="modal-title">ПОДТВЕРЖДЕНИЕ</h3><p style="color:#ccc; margin-bottom:30px; font-size:1.1rem;" id="confirm-msg">Вы уверены?</p><div style="display:flex; gap:15px;"><button class="modal-btn btn-danger" onclick="closeModal('confirm-modal')">НЕТ</button><button class="modal-btn btn-primary" id="confirm-btn-yes">ДА</button></div></div></div>
+<div id="confirm-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box"><button type="button" class="modal-close" onclick="closeModal('confirm-modal')" aria-label="Закрыть подтверждение">&times;</button><h3 class="modal-title">ПОДТВЕРЖДЕНИЕ</h3><p style="color:#ccc; margin-bottom:30px; font-size:1.1rem;" id="confirm-msg">Вы уверены?</p><div style="display:flex; gap:15px;"><button class="modal-btn btn-danger" onclick="closeModal('confirm-modal')">НЕТ</button><button class="modal-btn btn-primary" id="confirm-btn-yes">ДА</button></div></div></div>
 
 <div id="menu-modal" class="modal-overlay">
     <div class="modal-box menu-modal-box">
@@ -252,8 +252,8 @@
     </div>
 </div>
 
-<div id="manage-pl-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('manage-pl-modal')">&times;</span><h3 class="modal-title">ПЛЕЙЛИСТЫ</h3><div id="manage-pl-list" class="playlist-list"></div><button class="modal-btn btn-primary" onclick="openNewPlModal()">+ СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
-<div id="track-manager-modal" class="modal-overlay"><div class="modal-box" style="padding: 30px;"><span class="modal-close" onclick="closeModal('track-manager-modal')">&times;</span><input type="text" id="tm-rename-input" class="tm-rename-input" placeholder="Название плейлиста" onblur="savePlaylistName()">
+<div id="manage-pl-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box"><button type="button" class="modal-close" onclick="closeModal('manage-pl-modal')" aria-label="Закрыть управление плейлистами">&times;</button><h3 class="modal-title">ПЛЕЙЛИСТЫ</h3><div id="manage-pl-list" class="playlist-list"></div><button class="modal-btn btn-primary" onclick="openNewPlModal()">+ СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
+<div id="track-manager-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box" style="padding: 30px;"><button type="button" class="modal-close" onclick="closeModal('track-manager-modal')" aria-label="Закрыть редактор плейлиста">&times;</button><div class="studio-drawer-eyebrow">РЕДАКТОР ПЛЕЙЛИСТА</div><input type="text" id="tm-rename-input" class="tm-rename-input" placeholder="Название плейлиста" aria-label="Название плейлиста" onblur="savePlaylistName()">
     <div class="playlist-icon-editor" aria-label="Оформление плейлиста">
         <div class="playlist-icon-editor-head">
             <span class="playlist-icon-editor-preview"><i id="tm-playlist-icon-preview" class="fas fa-music" aria-hidden="true"></i></span>
@@ -266,13 +266,13 @@
         <input type="checkbox" id="tm-exclude-likes" onchange="setPlaylistExcludedFromLikes(editingPlaylistId,this.checked)">
         <span><strong>Исключить из «Мне нравится»</strong><small>Треки останутся в плейлисте, но не появятся в общей подборке любимых песен. Выбор сохраняется на этом устройстве.</small></span>
     </label><div class="tm-actions-bar"><button class="tm-act-btn" onclick="showAddLinkUI('link')"><i class="fas fa-link"></i></button><button class="tm-act-btn" onclick="triggerLocalUploadManager()"><i class="fas fa-file-audio"></i></button></div><div id="tm-add-link-area" style="display:none; margin-bottom:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:12px;"><input type="text" id="tm-link-input" class="auth-input" placeholder="Вставьте ссылку..." style="margin-bottom:10px;"><input type="text" id="tm-link-name" class="auth-input" placeholder="Название трека..." style="margin-bottom:10px;"><button class="modal-btn btn-primary" id="tm-add-confirm-btn">ДОБАВИТЬ</button></div><div id="track-manage-list" class="track-manage-list"></div></div></div>
-<div id="save-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('save-modal')">&times;</span><h3 class="modal-title">ВЫБРАТЬ ПЛЕЙЛИСТ</h3><div id="playlist-select-list" class="playlist-list"></div></div></div>
-<div id="input-modal" class="modal-overlay"><div class="modal-box" style="padding-top: 30px;"><span class="modal-close" onclick="closeModal('input-modal')">&times;</span><h3 class="modal-title" style="margin-bottom: 20px;">НОВЫЙ ПЛЕЙЛИСТ</h3><input type="text" id="new-tab-name" class="auth-input" placeholder="Введите название..." style="margin-bottom: 25px; text-align:center; font-weight:bold;"><button class="modal-btn btn-dark" onclick="submitCreateTab()" style="padding: 12px; font-size: 0.9rem;">СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
+<div id="save-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box"><button type="button" class="modal-close" onclick="closeModal('save-modal')" aria-label="Закрыть выбор плейлиста">&times;</button><h3 class="modal-title">ВЫБРАТЬ ПЛЕЙЛИСТ</h3><div id="playlist-select-list" class="playlist-list"></div></div></div>
+<div id="input-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box" style="padding-top: 30px;"><button type="button" class="modal-close" onclick="closeModal('input-modal')" aria-label="Закрыть создание плейлиста">&times;</button><h3 class="modal-title" style="margin-bottom: 20px;">НОВЫЙ ПЛЕЙЛИСТ</h3><input type="text" id="new-tab-name" class="auth-input" placeholder="Введите название..." style="margin-bottom: 25px; text-align:center; font-weight:bold;"><button class="modal-btn btn-dark" onclick="submitCreateTab()" style="padding: 12px; font-size: 0.9rem;">СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
 
 <input type="file" id="local-file-input" multiple accept="audio/*" style="display:none;" onchange="handleLocalFileSelect(this)">
-<div id="equalizer-modal" class="modal-overlay">
+<div id="equalizer-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true">
     <div class="modal-box equalizer-modal-box">
-        <span class="modal-close" onclick="closeModal('equalizer-modal')">&times;</span>
+        <button type="button" class="modal-close" onclick="closeModal('equalizer-modal')" aria-label="Закрыть эквалайзер">&times;</button>
         <div class="eq-head">
             <div>
                 <div class="eq-kicker">DAGSTUDIO SOUND</div>
@@ -302,7 +302,7 @@
 </div>
 
 
-<div id="queue-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="queue-modal-title">
+<div id="queue-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true" aria-labelledby="queue-modal-title">
     <div class="modal-box utility-modal studio-queue-dialog">
         <button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть очередь">&times;</button>
         <h3 class="modal-title" id="queue-modal-title"><i class="fas fa-list-ol"></i> Очередь воспроизведения</h3>
@@ -311,7 +311,7 @@
         <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
     </div>
 </div>
-<div id="sleep-modal" class="modal-overlay">
+<div id="sleep-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true">
     <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('sleep-modal')" aria-label="Закрыть">&times;</button>
         <h3 class="modal-title">Таймер сна</h3><p id="sleep-timer-state" class="utility-info">Выключен</p>
         <div class="utility-buttons">
@@ -323,7 +323,7 @@
         </div>
     </div>
 </div>
-<div id="diagnostics-modal" class="modal-overlay">
+<div id="diagnostics-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true">
     <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('diagnostics-modal')" aria-label="Закрыть">&times;</button>
         <h3 class="modal-title">Состояние плеера</h3><pre id="diagnostics-info" class="diagnostics-info"></pre>
         <div class="utility-buttons">
@@ -335,7 +335,7 @@
         <pre id="source-health-info" class="diagnostics-info"></pre>
     </div>
 </div>
-<div id="cache-dashboard-modal" class="modal-overlay">
+<div id="cache-dashboard-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true">
     <div class="modal-box utility-modal"><button type="button" class="modal-close" onclick="closeModal('cache-dashboard-modal')" aria-label="Закрыть">&times;</button>
         <h3 class="modal-title">Кэш устройства</h3><p class="utility-info" id="cache-dashboard-info">Проверяем…</p>
         <p class="utility-info" id="cache-progress-info">Фоновое скачивание не выполняется</p>
@@ -358,7 +358,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2298" defer></script>
+<script src="script.js?v=2299" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=9" defer></script>
 <script src="studio-center.js?v=2" defer></script>
