@@ -1059,6 +1059,134 @@
  border-color:var(--theme-bright,var(--accent-color))!important;
 }
 
+/* Final CC3 layout: the viewport itself never scrolls. Only the selected
+   track list and, when necessary, the settings panels can scroll. */
+@media(min-width:769px){
+ html:has(.studio-showcase),body:has(.studio-showcase){
+  height:100%!important;max-height:100%!important;overflow:hidden!important;
+ }
+ .main-container.studio-showcase{height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+ .main-container.studio-showcase.showcase-wave-only{
+  grid-template-columns:clamp(158px,16vw,236px) minmax(0,1fr)!important;
+  column-gap:0!important;
+ }
+ .main-container.studio-showcase.showcase-wave-only>.showcase-sidebar{grid-column:1!important}
+ .main-container.studio-showcase.showcase-wave-only>.right-col{display:none!important}
+ .main-container.studio-showcase.showcase-wave-only>.left-col{
+  grid-column:2!important;grid-row:1!important;min-width:0!important;
+  width:100%!important;max-width:none!important;margin:0!important;
+  padding:clamp(8px,2vh,20px) clamp(18px,3vw,54px) clamp(10px,2vh,24px)!important;
+  border-left:1px solid rgba(var(--theme-rgb,192,108,66),.2)!important;
+  background-size:cover!important;background-position:center!important;
+ }
+ .studio-showcase.showcase-wave-only>.left-col .visual-container{
+  width:100%!important;max-width:1100px!important;align-self:center!important;
+ }
+ .studio-showcase.showcase-wave-only>.left-col .track-info-display,
+ .studio-showcase.showcase-wave-only>.left-col .main-btns,
+ .studio-showcase.showcase-wave-only>.left-col .showcase-hero-meta,
+ .studio-showcase.showcase-wave-only>.left-col .showcase-track-collection{
+  width:min(100%,920px)!important;max-width:920px!important;
+ }
+
+ /* Settings: fixed, well-aligned top bar and independently scrolling cards. */
+ #menu-modal.showcase-settings-page.show>.menu-modal-box{
+  height:100dvh!important;max-height:100dvh!important;overflow:hidden!important;
+  padding:0 clamp(13px,2vw,34px) 12px!important;
+ }
+ #menu-modal.showcase-settings-page .menu-modal-heading{
+  position:relative!important;top:auto!important;flex:0 0 62px!important;
+  min-height:62px!important;max-height:62px!important;
+  display:flex!important;align-items:center!important;gap:13px!important;
+  margin:0 0 12px!important;padding:0!important;
+  background:transparent!important;
+ }
+ #menu-modal.showcase-settings-page .menu-layout{
+  flex:1 1 auto!important;min-height:0!important;max-height:100%!important;
+  overflow:hidden!important;align-items:stretch!important;
+  grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr)!important;
+ }
+ #menu-modal.showcase-settings-page .menu-account-column,
+ #menu-modal.showcase-settings-page .menu-action-column{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  overflow-y:auto!important;overscroll-behavior:contain!important;
+  scrollbar-width:thin;scrollbar-color:rgba(var(--theme-rgb,192,108,66),.45) transparent;
+ }
+ #menu-modal.showcase-settings-page .showcase-settings-close{
+  position:static!important;display:grid!important;place-items:center!important;
+  margin-left:auto!important;transform:none!important;
+  width:38px!important;height:38px!important;flex:0 0 38px!important;
+  border-radius:11px!important;font-size:1rem!important;
+ }
+}
+
+#menu-modal.showcase-settings-page .showcase-settings-title{
+ display:flex;flex-direction:column;min-width:0;gap:2px;line-height:1.12;
+}
+#menu-modal.showcase-settings-page .showcase-settings-title>span{
+ color:var(--theme-muted,#ada1a6);font:800 .62rem/1.3 Inter,Arial,sans-serif;
+ letter-spacing:.18em;
+}
+#menu-modal.showcase-settings-page .showcase-settings-title>strong{
+ color:var(--theme-bright-text,#fff);font:800 clamp(1.15rem,1.7vw,1.55rem)/1.2 Inter,Arial,sans-serif;
+ letter-spacing:-.035em;
+}
+#menu-modal.showcase-settings-page .showcase-settings-back{
+ white-space:nowrap;min-width:0;min-height:38px;
+}
+#menu-modal.showcase-settings-page .menu-account-column,
+#menu-modal.showcase-settings-page .menu-action-column{scroll-padding-top:12px}
+
+/* Compact offline and road-trip controls, with matching theme colors. */
+.studio-showcase .showcase-sidebar-bottom{
+ display:flex!important;flex-direction:column!important;gap:8px!important;
+ padding:11px!important;background:linear-gradient(155deg,
+ rgba(var(--theme-rgb,192,108,66),.19),rgba(9,10,13,.91))!important;
+}
+.studio-showcase .showcase-sidebar-bottom::before{display:none!important}
+.studio-showcase .showcase-road-heading{display:flex;align-items:center;gap:8px;min-width:0}
+.studio-showcase .showcase-road-icon{
+ flex:0 0 34px;width:34px;height:34px;display:grid;place-items:center;
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.3);border-radius:11px;
+ background:rgba(var(--theme-rgb,192,108,66),.18);color:var(--showcase-accent);
+}
+.studio-showcase .showcase-road-words{display:flex;flex-direction:column;gap:3px;min-width:0}
+.studio-showcase .showcase-road-words>strong{font-size:.78rem;color:var(--theme-bright-text,#fff)}
+.studio-showcase .showcase-sidebar-bottom p{margin:0!important;font-size:.68rem!important;line-height:1.4!important}
+.studio-showcase .showcase-cache-action{
+ display:flex;align-items:center;justify-content:space-between;gap:6px;
+ min-height:38px!important;padding:8px 9px!important;font-size:.69rem!important;
+}
+.studio-showcase .showcase-cache-action i{font-size:.78rem}
+.studio-showcase #showcase-offline{
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.22)!important;
+}
+@media(min-width:769px) and (max-height:720px){
+ .studio-showcase .showcase-sidebar-bottom{gap:6px!important;padding:8px!important}
+ .studio-showcase .showcase-sidebar-bottom p{display:none!important}
+ .studio-showcase .showcase-road-icon{width:28px;height:28px;flex-basis:28px}
+ .studio-showcase .showcase-cache-action{min-height:33px!important}
+ #menu-modal.showcase-settings-page .menu-modal-heading{flex-basis:54px!important;min-height:54px!important;max-height:54px!important;margin-bottom:8px!important}
+ #menu-modal.showcase-settings-page .menu-account-column,
+ #menu-modal.showcase-settings-page .menu-action-column{padding:12px!important}
+ #menu-modal.showcase-settings-page .menu-list-btn{min-height:38px!important}
+}
+@media(min-width:769px) and (max-height:540px){
+ .studio-showcase .showcase-sidebar-bottom{display:none!important}
+}
+@media(max-width:768px){
+ #menu-modal.showcase-settings-page .menu-modal-heading{
+  display:flex!important;align-items:center!important;gap:10px!important;
+  margin:0 0 10px!important;padding:7px 0 12px!important;
+ }
+ #menu-modal.showcase-settings-page .showcase-settings-close{
+  position:static!important;margin-left:auto!important;flex:0 0 36px!important;
+  width:36px!important;height:36px!important;transform:none!important;
+ }
+ #menu-modal.showcase-settings-page .showcase-settings-back{padding:7px!important}
+ #menu-modal.showcase-settings-page .showcase-settings-back span{display:none}
+}
+
 /* Match the 158px CC3 sidebar in compact landscape settings. */
 @media (min-width:769px) and (max-width:1080px){
  #menu-modal.showcase-settings-page.show{

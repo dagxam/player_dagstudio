@@ -60,6 +60,14 @@ assert.equal(recentOnly[0].title,'Now');
 assert.equal(recentOnly[0]._releaseVerified,true);
 assert.equal(recentOnly[1].title,'Past');
 assert.equal(recentOnly[1]._releaseVerified,false);
+const datedOld={artist:'Archive',title:'Older release',url:'https://x.example/archive',
+ release_date:'2020-04-01'};
+const chartWithOld=ctx.quickMixRankTracks([olderOne,datedOld,freshOne],{mode:'recent'});
+assert.equal(chartWithOld.length,3,'charts keep dated older results as fallback');
+assert.equal(chartWithOld[0].title,'Now');
+assert.equal(chartWithOld[1].title,'Older release');
+assert.equal(chartWithOld[1]._releaseVerified,true);
+assert.equal(chartWithOld[2]._releaseVerified,false);
 console.log('DIVERSE_ARTISTS_FRESH_FIRST_AND_VERIFIED_CHARTS_OK');
 console.log('POPULARITY_AND_RELEASE_RANKING_OK');
 

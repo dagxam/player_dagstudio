@@ -53,3 +53,30 @@ assert.ok(wave.some(t=>t.title==='Услышанная'),
  'Wave retains learned listening history alongside library tracks');
 
 console.log('WAVE_HISTORY_AND_PLAYLIST_LIKES_OK');
+
+// Even when saved songs are ranked higher than online results, the Wave must
+// only play a newly discovered song. Excluded libraries cannot seed searches.
+const allowed={artist:'Разрешённый артист',title:'Моя песня',url:'https://example.org/allowed.mp3'};
+const excluded={artist:'Исключённый артист',title:'Скрытая',url:'https://example.org/excluded.mp3'};
+const discovered={artist:'Новый артист',title:'Открытие',url:'https://example.org/discovered.mp3'};
+ctx.playlists=[{id:10,tracks:[allowed]},{id:11,tracks:[excluded]}];
+ctx.setPlaylistExcludedFromLikes(11,true);
+ctx.tasteRecord('like',excluded);
+ctx.playbackPlaylist=[];ctx.playbackQueue=[];ctx.currentIndex=-1;
+ctx.quickMixCurrent={key:'wave',tracks:[allowed]};
+ctx.quickMixUnique=items=>items;
+ctx.quickMixRankTracks=items=>items;
+ctx.quickMixReleaseTimestamp=()=>0;
+ctx.getNetworkProfile=()=>({weak:false,saveData:false});
+ctx.recordPlayerEvent=()=>{};
+const queries=[];
+ctx.api=async (action,params)=>{
+    assert.equal(action,'search_global');
+    queries.push(params.query);
+    return {success:true,data:[allowed,excluded,discovered]};
+};
+const recommendation=await ctx.findWaveNextTrack();
+assert.equal(recommendation.url,discovered.url,'saved songs are seeds, not Wave playback');
+assert.equal(recommendation._waveRadio,true);
+assert.ok(!queries.includes(excluded.artist),'excluded playlist artists must not seed discovery');
+console.log('WAVE_ONLINE_DISCOVERY_EXCLUDES_SAVED_AND_DISABLED_OK');

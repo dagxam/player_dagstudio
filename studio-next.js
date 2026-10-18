@@ -77,10 +77,18 @@ menu.addEventListener('click',event=>{
  }
 });
 const sidebarBottom=node('div','showcase-sidebar-bottom');
-sidebarBottom.appendChild(node('span','showcase-sidebar-kicker','В ДОРОГУ С МУЗЫКОЙ'));
-sidebarBottom.appendChild(node('strong','', 'Всегда с тобой'));
-sidebarBottom.appendChild(node('p','', 'Сохраняйте плейлисты заранее и слушайте без сети.'));
-const cacheBtn=node('button','showcase-cache-action','Офлайн-настройки');cacheBtn.type='button';
+const roadHead=node('div','showcase-road-heading');
+const roadIcon=node('span','showcase-road-icon');
+roadIcon.appendChild(node('i','fas fa-route'));
+const roadWords=node('div','showcase-road-words');
+roadWords.appendChild(node('span','showcase-sidebar-kicker','МУЗЫКА В ДОРОГУ'));
+roadWords.appendChild(node('strong','', 'Всегда с тобой'));
+roadHead.append(roadIcon,roadWords);sidebarBottom.appendChild(roadHead);
+sidebarBottom.appendChild(node('p','', 'Подготовьте песни к поездке без интернета.'));
+const cacheBtn=node('button','showcase-cache-action');cacheBtn.type='button';
+cacheBtn.appendChild(node('i','fas fa-cloud-arrow-down'));
+cacheBtn.appendChild(node('span','', 'Подготовить музыку'));
+cacheBtn.appendChild(node('i','fas fa-arrow-right'));
 cacheBtn.addEventListener('click',()=>{closeMobile();if(typeof openCacheDashboard==='function')openCacheDashboard();});
 sidebarBottom.appendChild(cacheBtn);nav.appendChild(sidebarBottom);
 root.insertBefore(nav,root.firstChild);

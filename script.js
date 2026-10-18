@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2296';
+const WEB_BUILD_LABEL = '2297';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -3996,13 +3996,13 @@ let waveSearchCursor=0;
 async function findWaveNextTrack(){
     if(navigator.onLine===false)return null;
     const library=waveLibrarySeeds();
+    if(!library.length)return null;
     // Never play a song already saved in any playlist, including excluded
     // collections. Exclusions also keep their performers out of wave seeds.
     const excluded=new Set((playlists||[]).filter(pl=>playlistExcludedFromLikes(pl.id))
         .flatMap(pl=>pl.tracks||[]).map(t=>tasteTrackId(t)));
-    const own=(playlists||[]).filter(pl=>!playlistExcludedFromLikes(pl.id))
-        .flatMap(pl=>pl.tracks||[]);
-    const known=[...playbackPlaylist,...playbackQueue];
+    const saved=(playlists||[]).flatMap(pl=>pl.tracks||[]);
+    const known=[...saved,...playbackPlaylist,...playbackQueue];
     const titles=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
     const urls=new Set(known.map(t=>String(t.url||'')));
     const seen=track=>!track?.url||excluded.has(tasteTrackId(track))||urls.has(String(track.url))||
@@ -4023,11 +4023,11 @@ async function findWaveNextTrack(){
             normalizeTrackIdentity(t.artist)!==normalizeTrackIdentity(prior));
         return (other.length?other:candidates)[0]||null;
     }
-    const discovered=[...(quickMixCurrent?.key==='wave'?quickMixCurrent.tracks||[]:[]),...own];
-    let found=choose(discovered);
-    if(found)return {...found,_smartRadio:true,_waveRadio:true};
+    // The library supplies search directions only: NEVER use its saved audio
+    // as a playable result. Old preference data from excluded playlists must
+    // not leak into the queries either.
     const names=[...new Set([
-       ...tastePreferredGenres(), ...tastePreferredArtists(library),
+       ...library.map(t=>String(t.genre||'').trim()),
        ...library.map(t=>String(t.artist||'').trim())
     ])].filter(Boolean).slice(0,90);
     if(!names.length)return null;
@@ -4044,7 +4044,7 @@ async function findWaveNextTrack(){
                 save_data:net.saveData?1:0
             });
             if(response?.success&&Array.isArray(response.data)){
-                found=choose(response.data);
+                const found=choose(response.data);
                 if(found)return {...found,_smartRadio:true,_waveRadio:true};
             }
         }catch(e){recordPlayerEvent('wave-discovery-error');}
@@ -4315,6 +4315,16 @@ async function playSmartRadioNext() {
                 prefetched.promise,
                 new Promise(resolve=>setTimeout(()=>resolve(null),5500))
             ]);
+        }
+        // A search can finish and enqueue its result while Next is awaiting
+        // that same promise. Consume it once, without duplicating the song.
+        if(playbackTab==='mix:wave'&&prefetched?.queued&&candidate){
+            const queuedIndex=playbackPlaylist.indexOf(candidate);
+            if(queuedIndex>currentIndex){
+                smartRadioPrefetch=null;
+                playTrack(queuedIndex,{fromPlayback:true,fromSmartRadio:true});
+                return true;
+            }
         }
         if (smartRadioPrefetch===prefetched) smartRadioPrefetch=null;
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
@@ -4734,10 +4744,10 @@ if(mainSearchInput) {
 
 const QUICK_MIXES={
     charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
-        artists:[`новинки ${new Date().getFullYear()}`,'new music releases',
+        artists:['Zivert','Баста','Miyagi','The Weeknd','Dua Lipa',
+          `новинки ${new Date().getFullYear()}`,'new music releases',
           'новые песни','latest songs','новинки России','new pop music',
-          'Кавказские новинки','новая музыка','new hip hop','new rock music',
-          'Zivert','Баста','Miyagi','The Weeknd','Dua Lipa']},
+          'Кавказские новинки','новая музыка','new hip hop','new rock music']},
     russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
     caucasus:{title:'Кавказские',mode:'popular',regions:[
         // Region labels are search directions, not verified audio-language tags.
@@ -4806,14 +4816,17 @@ function quickMixRankTracks(tracks,config) {
         fresh:!!quickMixReleaseTimestamp(track)&&now-quickMixReleaseTimestamp(track)<=365*86400000
     })).sort((a,b)=>b.score-a.score||a.index-b.index);
     if(config?.mode==='recent'){
-        // Show verified releases first. Unknown-date songs can still appear,
-        // clearly marked as unverified instead of an indefinitely empty chart.
+        // Prefer genuinely dated recent releases; do not invent dates for
+        // other providers, and don't silently discard older dated results.
         const verified=ranked.filter(e=>e.fresh)
             .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track) ||
                   b.score-a.score).map(e=>({...e.track,_releaseVerified:true}));
+        const older=ranked.filter(e=>!e.fresh&&quickMixReleaseTimestamp(e.track))
+            .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track))
+            .map(e=>({...e.track,_releaseVerified:true}));
         const unknown=ranked.filter(e=>!quickMixReleaseTimestamp(e.track))
             .map(e=>({...e.track,_releaseVerified:false}));
-        return [...quickMixDiversify(verified),...quickMixDiversify(unknown)];
+        return [...quickMixDiversify(verified),...quickMixDiversify(older),...quickMixDiversify(unknown)];
     }
     if(config?.mode==='classic')return quickMixDiversify(ranked.map(e=>e.track));
     // New releases first; other songs follow only when dated releases end.
@@ -4971,14 +4984,12 @@ async function startQuickMix(key) {
     // Wave is ONLINE discovery, not a replay of the user's own playlists.
     const waveTracks=[];
     if(key==='wave'){
-        const preferred=tastePreferredArtists(seeds);
-        const genres=tastePreferredGenres();
-        if(!seeds.length&&!preferred.length&&!genres.length){
+        if(!seeds.length){
             setQuickMixStatus('Добавьте песни в плейлист или послушайте их до конца — так «Моя волна» изучит вкусы.');
             closeModal('quick-mixes-modal');return;
         }
         QUICK_MIXES.wave={title:'Моя волна',mode:'popular',
-            artists:[...new Set([...genres,...preferred,...seeds.map(t=>t.artist)])]
+            artists:[...new Set([...seeds.map(t=>t.genre),...seeds.map(t=>t.artist)])]
                 .filter(Boolean).slice(0,18)};
         waveSearchCursor=0;
     }
@@ -4993,16 +5004,6 @@ async function startQuickMix(key) {
         loadingMore:false, pageNumbers:new Map(), exhaustedQueries:new Set(),
         checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
     if(key==='wave'){
-        // Start instantly from the user's included playlist library, then find
-        // another recommendation asynchronously during playback.
-        const own=waveLibrarySeeds();
-        if(own.length){
-            const ranked=quickMixRankTracks(quickMixUnique(own),{mode:'popular'});
-            const first={...ranked[0],_smartRadio:true,_waveRadio:true};
-            quickMixCurrent.tracks=[first];quickMixCurrent.loading=false;
-            currentTab='mix:wave';playlist=[first];renderQuickMixView();
-            playTrack(0);return;
-        }
         // Playback starts with the first NEW suggestion from the network.
         // Hide the browser; the giant player remains the only wave UI.
         currentTab='mix:wave';playlist=[];renderQuickMixView();
@@ -5045,6 +5046,22 @@ async function startQuickMix(key) {
     }
     const batchSize=key==='charts'?5:(getNetworkProfile().weak?1:2);
     const plan=quickMixSearchPlan(config);
+    // Publish chart songs as soon as ONE search returns. A slow provider/query
+    // must not hold the entire first page blank until Promise.all completes.
+    function publishChartResults(item,tracks){
+        if(key!=='charts'||requestId!==quickMixRequestId||!tracks?.length)return;
+        const newTracks=quickMixSpreadSources(
+            quickMixUnique(tracks,quickMixCurrent.tracks),3);
+        if(!newTracks.length)return;
+        quickMixCurrent.tracks.push(...newTracks);
+        quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
+        started=true;
+        if(currentTab==='mix:charts'){
+            playlist=quickMixCurrent.tracks;renderPlaylist();
+        }
+        setQuickMixStatus('Найдено '+quickMixCurrent.tracks.length+
+            ' композиций · проверяем другие источники'+quickMixSourcesCaption(quickMixCurrent));
+    }
     for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;
         const batch=plan.slice(offset,offset+batchSize);
@@ -5072,8 +5089,12 @@ async function startQuickMix(key) {
                         const usable=quickMixUnique(response.data);
                         if(usable.length){
                     const ranked=quickMixRankTracks(usable,config);
-                    if(ranked.length)return ranked.map(track=>({...track,_mixRegion:item.region,
-                        _mixSearchQuery:query}));
+                    if(ranked.length){
+                        const found=ranked.map(track=>({...track,_mixRegion:item.region,
+                            _mixSearchQuery:query}));
+                        publishChartResults(item,found);
+                        return found;
+                    }
                 }
                     }
                 } catch(error) {recordPlayerEvent('quick-mix-search-error');}
@@ -5081,6 +5102,7 @@ async function startQuickMix(key) {
             return [];
         }));
         if(requestId!==quickMixRequestId)return;
+        if(key==='charts')continue; // Already rendered each completed chart search.
         // Cap each direction so one language or one republic cannot
         // monopolize the Caucasian playlist before others are searched.
         const next=[];
@@ -5129,7 +5151,7 @@ async function startQuickMix(key) {
         :'Нет доступных песен. Попробуйте другую подборку.'+
         quickMixSourcesCaption(quickMixCurrent));
     else setQuickMixStatus(key==='charts'
-        ?'Найдено '+quickMixCurrent.tracks.length+' треков · с датой выпуска: '+
+        ?'Найдено '+quickMixCurrent.tracks.length+' треков · с подтверждённой датой: '+
           quickMixCurrent.tracks.filter(t=>t._releaseVerified).length+
           ' · остальные без даты · прокрутите для новых'+quickMixSourcesCaption(quickMixCurrent)
         :'Подборка · '+quickMixCurrent.tracks.length+
