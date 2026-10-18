@@ -109,10 +109,31 @@ titleArt.appendChild(node('h1','', 'Моя волна'));
 titleArt.appendChild(node('div','showcase-audio-glyph','━━　▂▅▆▃▁　━━'));
 titleArt.appendChild(node('p','', 'МУЗЫКА, КОТОРАЯ БЛИЖЕ К ТЕБЕ'));
 const visual=player.querySelector('.visual-container');if(visual)visual.appendChild(titleArt);
+// The scenic artwork belongs to the player, not to an inert screenshot.
+// Its decorative layers are styled by the active DAGSTUDIO color theme.
+const vinyl=player.querySelector('#vinyl-view');
+if(vinyl){
+ const landscape=node('img','showcase-sunset-art');landscape.src='images/studio-sunset.svg';
+ landscape.alt='';landscape.setAttribute('aria-hidden','true');
+ vinyl.insertBefore(landscape,vinyl.firstChild);
+ vinyl.setAttribute('aria-label','Оформление текущей композиции');
+}
+if(visual){
+ const ornaments=node('div','showcase-ornament-lines');
+ ornaments.setAttribute('aria-hidden','true');
+ ornaments.appendChild(node('span','showcase-ornament-left'));
+ ornaments.appendChild(node('span','showcase-ornament-right'));
+ visual.appendChild(ornaments);
+}
+
 const mini=node('div','showcase-hero-meta');
-const now=node('span','showcase-current-label','Сейчас играет');const current=node('strong','', 'Ваша музыка');mini.append(now,current);
+const now=node('span','showcase-current-label','СЕЙЧАС ИГРАЕТ');
+const current=node('strong','', 'DAGSTUDIO PLAYER');
+mini.append(now,current);
 const trackInfo=player.querySelector('.track-info-display');
 if(trackInfo)player.insertBefore(mini,trackInfo);
+const collection=node('div','showcase-track-collection','Музыка для тебя');
+if(trackInfo)trackInfo.insertAdjacentElement('afterend',collection);
 const heroFoot=node('div','showcase-hero-foot');
 const footIcon=node('i','fas fa-cloud-arrow-down');
 const footCopy=node('span','showcase-hero-foot-copy');footCopy.appendChild(node('strong','', 'Музыка без интернета'));
@@ -132,16 +153,43 @@ mobileToggle.addEventListener('click',()=>{const open=!nav.classList.contains('o
 root.appendChild(mobileToggle);
 const shade=node('div','showcase-mobile-shade');shade.addEventListener('click',closeMobile);root.appendChild(shade);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();});
-const themeRefresh=()=>{
+function refreshShowcase(){
  let name='brown';try{name=localStorage.getItem('dag_theme')||'brown';}catch(e){}
  const img=typeof colorThemes!=='undefined'?colorThemes[name]?.img:null;
  if(img&&brandIcon.getAttribute('src')!==img)brandIcon.src=img;
- const t=document.getElementById('track-title')?.textContent?.trim();
- current.textContent=t&&t!=='ВЫБЕРИТЕ ТРЕК'?t:'Ваша музыка';
-};
-const refresh=setInterval(()=>{if(!document.hidden)themeRefresh();},1800);
-window.addEventListener('pagehide',()=>clearInterval(refresh),{once:true});
-themeRefresh();showCurated();
+ root.dataset.showcaseTint=name;
+ // Do not infer playback from DOM text alone: playbackPlaylist is authoritative,
+ // including a paused or cached track and native Media3 on a car head unit.
+ let track=null;
+ try{track=playbackPlaylist[currentIndex]||null;}catch(e){}
+ const hasTrack=Boolean(track?.url);
+ root.classList.toggle('showcase-has-track',hasTrack);
+ const title=document.getElementById('track-title')?.textContent?.trim()||'';
+ current.textContent=hasTrack?'ИГРАЕТ СЕЙЧАС':'Ваша музыка';
+ if(hasTrack){
+  const tab=String(typeof playbackTab==='undefined'?'':playbackTab);
+  const selected=tab.startsWith('mix:')?tab.slice(4):tab;
+  const labels={caucasus:'Кавказское настроение',wave:'Моя волна',
+   road:'В дорогу',russian:'Русские песни',retro:'Ретро',
+   hits:'Лучшие композиции',offline:'Офлайн-музыка',
+   'studio-likes':'Мне нравится'};
+  const prefix=track?.genre?String(track.genre):labels[selected]||'Музыка для тебя';
+  collection.textContent=prefix;
+ }else{collection.textContent='Персональная музыка DAGSTUDIO';}
+ // The prominent wave invitation is shown only before a track is selected.
+ titleArt.setAttribute('aria-hidden',String(hasTrack));
+ const button=document.getElementById('vinyl-wave-play');
+ if(button)button.hidden=hasTrack;
+}
+const trackTitle=document.getElementById('track-title');
+let observer=null;
+if(trackTitle){
+ observer=new MutationObserver(refreshShowcase);
+ observer.observe(trackTitle,{characterData:true,childList:true,subtree:true});
+}
+const refresh=setInterval(()=>{if(!document.hidden)refreshShowcase();},1200);
+window.addEventListener('pagehide',()=>{clearInterval(refresh);observer?.disconnect();},{once:true});
+refreshShowcase();showCurated();
 // All originals remain reachable via user controls; only their topbar is
 // visually hidden on wide screens and retained under the mobile fallback.
 document.getElementById('search-input')?.addEventListener('focus',()=>showList('search'));

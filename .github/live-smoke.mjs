@@ -100,6 +100,62 @@ try {
       throw new Error('Showcase responsive layout regression '+JSON.stringify({viewport,state}));
   }
   await page.setViewport({width:1200,height:800});
+  // The accepted mockup is an actual now-playing state, not a permanent
+  // wave splash screen. Check track transitions and all 5 theme palettes.
+  const showcaseArtwork=await page.evaluate(async()=>{
+    const root=document.querySelector('.main-container'),title=document.getElementById('track-title'),
+      artist=document.getElementById('track-artist'),vinyl=document.getElementById('vinyl-view'),
+      landscape=document.querySelector('.showcase-sunset-art'),intro=document.querySelector('.showcase-hero-copy'),
+      wave=document.getElementById('vinyl-wave-play'),heart=document.getElementById('now-playing-heart');
+    const saved={tracks:playbackPlaylist,index:currentIndex,title:title.textContent,
+      artist:artist.textContent,theme:localStorage.getItem('dag_theme')||'brown'};
+    const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+    try{
+      const idleIntro=getComputedStyle(intro).display!=='none';
+      playbackPlaylist=[{title:'Жиганская',artist:'Jakone, Killana',
+        url:'https://example.invalid/showcase-preview.mp3'}];
+      currentIndex=0;title.textContent='Жиганская';artist.textContent='Jakone, Killana';
+      await delay(250);
+      const state={
+        artworkReady:!!landscape&&landscape.complete&&landscape.naturalWidth>0,
+        artworkLarge:vinyl.getBoundingClientRect().width>=150,
+        hasTrack:root.classList.contains('showcase-has-track'),
+        introHidden:getComputedStyle(intro).display==='none',
+        waveHidden:getComputedStyle(wave).display==='none',
+        trackTitle:getComputedStyle(title).display!=='none'&&title.textContent.includes('Жиганская'),
+        artistVisible:getComputedStyle(artist).display!=='none'&&artist.textContent.includes('Jakone'),
+        favoriteVisible:heart.getBoundingClientRect().width>=38,
+        untouchedAudio:document.querySelectorAll('audio').length===1,
+        idleIntro
+      };
+      const themes={};
+      for(const name of ['brown','red','green','blue','purple']){
+        setTheme(name,false);title.textContent='Жиганская';
+        await delay(80);
+        themes[name]={
+          tint:root.dataset.showcaseTint,
+          ring:getComputedStyle(vinyl).boxShadow,
+          action:getComputedStyle(document.querySelector('.showcase-hero-foot-btn')).backgroundImage,
+          card:getComputedStyle(document.querySelector('.showcase-card-play')).borderColor,
+          art:getComputedStyle(landscape).filter
+        };
+      }
+      state.allThemes=Object.entries(themes).every(([n,x])=>x.tint===n);
+      state.variedRings=new Set(Object.values(themes).map(x=>x.ring)).size===5;
+      state.variedActions=new Set(Object.values(themes).map(x=>x.action)).size===5;
+      state.variedCards=new Set(Object.values(themes).map(x=>x.card)).size===5;
+      state.variedArt=new Set(Object.values(themes).map(x=>x.art)).size>=4;
+      return state;
+    }finally{
+      playbackPlaylist=saved.tracks;currentIndex=saved.index;
+      setTheme(saved.theme,false);
+      title.textContent=saved.title;artist.textContent=saved.artist;
+    }
+  });
+  console.log('SHOWCASE_NOW_PLAYING_ARTWORK_AND_THEMES',JSON.stringify(showcaseArtwork));
+  if(Object.values(showcaseArtwork).some(x=>!x))
+    throw new Error('Showcase playback artwork/theme regression '+JSON.stringify(showcaseArtwork));
+
   const likes=await page.evaluate(()=>{
     const existing=playlists.slice(),audio=document.getElementById('main-audio');
     const play=audio.play;let started=0;
