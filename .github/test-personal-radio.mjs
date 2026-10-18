@@ -11,7 +11,7 @@ const localStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v
 const ctx={currentUser:'listener',localStorage,document:{getElementById:()=>null},
  normalizeTrackIdentity:v=>String(v||'').toLowerCase().trim(),
  playlists:[],playbackPlaylist:[],smartRadioQueryArtists:()=>[],showConfirm:()=>{},
- navigator:{},};
+ navigator:{},window:{dispatchEvent:()=>{}},CustomEvent:class {constructor(type){this.type=type;}},};
 runInNewContext(src.slice(begin,end),ctx);
 const a={artist:'Баста',title:'Сансара'},b={artist:'Miyagi',title:'Captain'};
 ctx.tasteRecord('finish',a);
