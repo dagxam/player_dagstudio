@@ -358,7 +358,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2297" defer></script>
+<script src="script.js?v=2298" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=9" defer></script>
 <script src="studio-center.js?v=2" defer></script>

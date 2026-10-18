@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2297';
+const WEB_BUILD_LABEL = '2298';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -4027,8 +4027,8 @@ async function findWaveNextTrack(){
     // as a playable result. Old preference data from excluded playlists must
     // not leak into the queries either.
     const names=[...new Set([
-       ...library.map(t=>String(t.genre||'').trim()),
-       ...library.map(t=>String(t.artist||'').trim())
+       ...library.map(t=>String(t.artist||'').trim()),
+       ...library.map(t=>String(t.genre||'').trim())
     ])].filter(Boolean).slice(0,90);
     if(!names.length)return null;
     const net=getNetworkProfile();

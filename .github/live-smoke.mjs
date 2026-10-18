@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2297', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2298', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -228,9 +228,10 @@ try {
        {...t,title:'Old track',release_date:'2012-01-01'},
        {...t,title:'Unknown date',release_date:''}
       ],QUICK_MIXES.charts);
-      const newestOnly=dated.length===2&&dated[0].title===t.title &&
-        dated[0]._releaseVerified===true&&dated[1].title==='Unknown date'&&
-        dated[1]._releaseVerified===false;
+      const newestOnly=dated.length===3&&dated[0].title===t.title &&
+        dated[0]._releaseVerified===true&&dated[1].title==='Old track'&&
+        dated[1]._releaseVerified===true&&dated[2].title==='Unknown date'&&
+        dated[2]._releaseVerified===false;
       const back=document.querySelector('.showcase-center-back');
       back?.click();
       const backWorks=document.querySelector('.right-col').classList.contains('showcase-curated');
@@ -408,6 +409,9 @@ try {
       const side=nav.getBoundingClientRect();
       const theme=modal.querySelector('.theme-selector-wrapper');
       const expectedLeft=innerWidth>768?side.right:0;
+      const header=modal.querySelector('.menu-modal-heading').getBoundingClientRect();
+      const closeButton=modal.querySelector('.showcase-settings-close').getBoundingClientRect();
+      const cards=[...modal.querySelectorAll('.menu-account-column,.menu-action-column')];
       return {
         diagnostics:{left:rect.left,expectedLeft,right:rect.right,top:rect.top,bottom:rect.bottom,innerWidth,innerHeight,sideRight:side.right},
         within:Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
@@ -417,7 +421,11 @@ try {
           !!modal.querySelector('.menu-action-column')&&!!modal.querySelector('#app-update-btn'),
         colors:!!theme&&theme.parentElement.classList.contains('menu-action-column')&&
           theme.querySelectorAll('.theme-dot').length===5,
-        noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+2,
+        headerAligned:closeButton.right<=header.right+2&&closeButton.left>=header.left&&
+          closeButton.top>=header.top-2&&closeButton.bottom<=header.bottom+2,
+        panelScroll:innerWidth<=768||cards.every(card=>getComputedStyle(card).overflowY==='auto'),
+        noPageScroll:innerWidth<=768||getComputedStyle(document.body).overflowY==='hidden'};
     });
     console.log('SETTINGS_STAGE',JSON.stringify(vp),'measured');
     await page.evaluate(()=>document.querySelector('.showcase-settings-back').click());
@@ -670,7 +678,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2297',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2298',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -681,10 +689,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2297', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2298', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2297'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2298'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -768,7 +776,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2297', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2298', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -1243,7 +1251,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2297', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2298', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -1287,7 +1295,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2297','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2298','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});
