@@ -273,6 +273,48 @@ try {
      topShuffle.opened!==0||!topShuffle.again||!topShuffle.stillNoPopup)
     throw new Error('Smart button should shuffle without popup '+JSON.stringify(topShuffle));
 
+  const cachedSwitch=await page.evaluate(async()=>{
+    const original={view:playlist,list:playbackPlaylist,index:currentIndex,tab:currentTab,
+       playing:playbackWanted,playbackTab,isShuffle};
+    const lookup=getDeviceCachedAudio,play=playTrack;
+    const originalPlaylists=playlists;
+    const a={title:'Кэш 1',artist:'Тест',url:'https://example.invalid/cached-a.mp3'};
+    const b={title:'Нет в памяти',artist:'Тест',url:'https://example.invalid/uncached.mp3'};
+    const c={title:'Кэш 2',artist:'Тест',url:'https://example.invalid/cached-c.mp3'};
+    const actions=[];
+    try{
+      playlists=[{id:67890,name:'Cached test',tracks:[a,b,c]}];
+      playlist=[a,b,c];playbackPlaylist=[];currentIndex=-1;
+      currentTab='search';playbackTab='search';playbackWanted=false;isShuffle=false;
+      getDeviceCachedAudio=async track=>({url:track.url,isBlob:false,
+          inCache:track.url===a.url||track.url===c.url});
+      playTrack=async(i,options={})=>{
+        actions.push({i,fromPlayback:!!options.fromPlayback});
+        if(!options.fromPlayback){playbackPlaylist=[...playlist];playbackTab=currentTab;}
+        currentIndex=i;playbackWanted=true;
+      };
+      const accepted=await startOfflineListening({autoplay:true});
+      const first=playlist.map(t=>t.url);
+      const hasOnlyCached=first.length===2&&first.includes(a.url)&&first.includes(c.url)&&!first.includes(b.url);
+      const labels=[...document.querySelectorAll('#playlist-container .t-title')]
+            .map(t=>t.textContent.trim());
+      const displayed=labels.length===2&&labels[0]==='Кэш 1'&&labels[1]==='Кэш 2';
+      playNext();
+      return {accepted,hasOnlyCached,displayed,
+        switchToOffline:currentTab==='offline'&&playbackTab==='offline',
+        initialStarted:actions.length>=1&&actions[0].i===0,
+        nextWorks:actions.length===2&&actions[1].i===1&&actions[1].fromPlayback};
+    }finally{
+      getDeviceCachedAudio=lookup;playTrack=play;
+      playlists=originalPlaylists;playlist=original.view;playbackPlaylist=original.list;
+      currentIndex=original.index;currentTab=original.tab;playbackTab=original.playbackTab;
+      playbackWanted=original.playing;isShuffle=original.isShuffle;renderPlaylist();
+    }
+  });
+  console.log('OFFLINE_CACHE_ONLY_SWITCH_AND_NEXT',JSON.stringify(cachedSwitch));
+  if(Object.values(cachedSwitch).some(v=>!v))
+    throw new Error('Offline playback order regression '+JSON.stringify(cachedSwitch));
+
   // One tap rearranges the visible playlist without calling play().
   const shuffleResult=await page.evaluate(()=>{
     const old={playlist,playbackPlaylist,currentIndex,currentTab,isShuffle};
