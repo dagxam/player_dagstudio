@@ -321,6 +321,28 @@ try {
   if(Object.values(waveDiscovery).some(x=>!x))
     throw new Error('Wave playback selection regression '+JSON.stringify(waveDiscovery));
 
+  const waveQueuedNext=await page.evaluate(()=>{
+    const saved={list:playbackPlaylist,index:currentIndex,tab:playbackTab,
+      playing:playbackWanted,queue:playbackQueue.slice(),play:playTrack,prefetch:smartRadioPrefetch};
+    try{
+      const current={artist:'Test A',title:'Current',url:'https://example.invalid/w-current.mp3'};
+      const next={artist:'Test B',title:'NEW online',url:'https://example.invalid/w-next.mp3',_waveRadio:true};
+      playbackPlaylist=[current,next];currentIndex=0;playbackTab='mix:wave';
+      playbackWanted=false;playbackQueue.length=0;
+      let played=-1;
+      playTrack=async(index)=>{played=index;};
+      playNext();
+      return {queued:played===1,streamOnly:next._waveRadio===true};
+    }finally{
+      playbackPlaylist=saved.list;currentIndex=saved.index;playbackTab=saved.tab;
+      playbackWanted=saved.playing;playbackQueue.splice(0,playbackQueue.length,...saved.queue);
+      playTrack=saved.play;smartRadioPrefetch=saved.prefetch;
+    }
+  });
+  console.log('WAVE_QUEUED_NEXT_ON_SKIP',JSON.stringify(waveQueuedNext));
+  if(Object.values(waveQueuedNext).some(x=>!x))
+    throw new Error('Wave next-track queue regression '+JSON.stringify(waveQueuedNext));
+
   for(const vp of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720}]){
     await page.setViewport(vp);
     const fit=await page.evaluate(()=>{
