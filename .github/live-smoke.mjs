@@ -70,55 +70,6 @@ try {
     if (!basics[name]) throw new Error('Missing/incorrect UI state: ' + name);
   }
 
-  // Проверяем знакомую двухколоночную компоновку после обновления оформления.
-  for (const viewport of [{width:1024,height:600}, {width:1280,height:720}, {width:390,height:844}, {width:320,height:640}, {width:375,height:667}]) {
-    await page.setViewport(viewport);
-    const layout = await page.evaluate(() => {
-      const root = document.querySelector('.main-container');
-      const left = document.querySelector('.left-col').getBoundingClientRect();
-      const right = document.querySelector('.right-col').getBoundingClientRect();
-      const eq = document.querySelector('.header-eq-btn').getBoundingClientRect();
-      const sheet = !!document.querySelector('link[href^="modern.css"]');
-      return {
-        modern: sheet, oldSidebarRemoved: !document.querySelector('.app-sidebar'),
-        noOrnamentalStrip: !document.querySelector('.ornament-footer'),
-        leftX:left.x, rightX:right.x, leftWidth:left.width,
-        eqVisible:eq.width>=28,
-        mixesVisible:(()=>{const btn=document.getElementById('header-mixes-btn');const r=btn.getBoundingClientRect();return r.width>=(innerWidth<=768?34:38)&&r.left>=0&&r.right<=innerWidth;})(),
-        mixesBesidePlaylists:(()=>{const r=document.getElementById('header-mixes-btn').getBoundingClientRect();const p=document.getElementById('btn-pl-select').getBoundingClientRect();return r.left>=p.right-2&&r.left-p.right<=24;})(),
-        oldMixStripeAbsent:!document.querySelector('.right-col > .quick-mixes'),
-        eqWidth:eq.width,
-        eqStyle:getComputedStyle(document.querySelector('.header-eq-btn')).display,
-        eqParentWidth:document.querySelector('.header-right').getBoundingClientRect().width,
-        eqParentDisplay:getComputedStyle(document.querySelector('.header-right')).display,
-        pageOverflow:document.documentElement.scrollWidth > innerWidth + 2,
-        width:root.getBoundingClientRect().width
-      };
-    });
-    console.log('MODERN_CLASSIC_LAYOUT', JSON.stringify({viewport,layout}));
-    if (!layout.modern || !layout.oldSidebarRemoved || !layout.noOrnamentalStrip || !layout.eqVisible || !layout.mixesVisible || !layout.mixesBesidePlaylists || !layout.oldMixStripeAbsent ||
-        layout.pageOverflow || layout.width > viewport.width + 2 ||
-        (viewport.width > 768 && layout.rightX < layout.leftX + layout.leftWidth - 5))
-      throw new Error('Classic modern layout invalid: ' + JSON.stringify({viewport,layout}));
-  }
-  await page.setViewport({width:1200,height:800});
-
-  for(const viewport of [{width:320,height:640},{width:375,height:667},{width:390,height:844}]) {
-    await page.setViewport(viewport);
-    const layout=await page.evaluate(()=>{
-      const rect=s=>document.querySelector(s).getBoundingClientRect();
-      const artwork=rect('.visual-container'),title=rect('.track-info-display'),buttons=rect('.main-btns'),
-          right=rect('.right-col'),list=rect('.playlist-area');
-      return {artworkVisible:artwork.width>=50&&artwork.height>=50,
-          besideArt:title.left>=artwork.right-3,controlsFit:buttons.right<=innerWidth+2,
-          scrollableList:list.height>=85,compactPlayer:right.top<395,
-          noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
-    });
-    console.log('PHONE_MINI_PLAYER',JSON.stringify({viewport,layout}));
-    if(Object.values(layout).some(x=>!x))throw new Error('Phone layout regression '+JSON.stringify({viewport,layout}));
-  }
-  await page.setViewport({width:1200,height:800});
-
   // 2026 approved design: real three-zone layout and car touch targets.
   for(const viewport of [{width:800,height:480},{width:1024,height:600},
       {width:1280,height:720},{width:390,height:844},{width:320,height:640}]){
