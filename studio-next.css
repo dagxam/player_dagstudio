@@ -1490,3 +1490,16 @@
  .studio-showcase .showcase-curation-card,.studio-showcase .showcase-card-art i,
  #menu-modal .theme-options .theme-choice{transition:none!important}
 }
+
+/* Balance player actions and app actions in the settings workspace. */
+#menu-modal .menu-playback-group{
+ margin-top:18px;padding-top:15px;
+ border-top:1px solid rgba(var(--theme-rgb,192,108,66),.22);
+}
+#menu-modal .menu-playback-group .menu-column-label{margin-bottom:12px}
+#menu-modal .menu-playback-group .menu-list-btn{margin-bottom:8px}
+@media(min-width:769px) and (max-height:720px){
+ #menu-modal .menu-playback-group{margin-top:11px;padding-top:11px}
+ #menu-modal .menu-playback-group .menu-column-label{margin-bottom:8px}
+ #menu-modal .menu-playback-group .menu-list-btn{margin-bottom:6px}
+}

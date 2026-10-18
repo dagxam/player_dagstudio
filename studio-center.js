@@ -174,9 +174,6 @@ document.addEventListener('click',event=>{
 function openSettingsInPane(){
  const settings=document.getElementById('menu-modal');
  if(!settings)return;
- const themes=settings.querySelector('.theme-selector-wrapper');
- const action=settings.querySelector('.menu-action-column');
- if(themes&&action&&!action.contains(themes))action.prepend(themes);
  root.classList.remove('showcase-wave-only');
  root.classList.add('showcase-settings-open');
  settings.classList.add('showcase-settings-page','show');

@@ -487,6 +487,10 @@ try {
       const themeBounds=theme?.getBoundingClientRect();
       const themeChoices=[...theme.querySelectorAll('.theme-choice')];
       const themeTileBounds=themeChoices.map(button=>button.getBoundingClientRect());
+      const playback=modal.querySelector('.menu-playback-group');
+      const leftActions=[...playback.querySelectorAll('.menu-list-btn')];
+      const appActions=[...modal.querySelectorAll('.menu-action-column > .menu-list-btn')]
+        .filter(button=>!button.hidden);
       return {
         diagnostics:{left:rect.left,expectedLeft,right:rect.right,top:rect.top,bottom:rect.bottom,innerWidth,innerHeight,sideRight:side.right},
         within:Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
@@ -496,6 +500,9 @@ try {
           !!modal.querySelector('.menu-action-column')&&!!modal.querySelector('#app-update-btn'),
         colors:!!theme&&theme.parentElement.classList.contains('menu-action-column')&&
           theme.querySelectorAll('.theme-dot').length===5,
+        balancedSettings:playback.parentElement.classList.contains('menu-account-column')&&
+          leftActions.length===3&&appActions.length===6&&
+          Math.abs((leftActions.length+3)-appActions.length)===0,
         themeTilesFit:getComputedStyle(theme.querySelector('.theme-options')).display==='grid'&&
           themeTileBounds.length===5&&themeTileBounds.every(box=>box.width>=35&&
             box.left>=themeBounds.left-1&&box.right<=themeBounds.right+1),
@@ -756,7 +763,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2300',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2301',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -767,10 +774,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2300', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2301', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2300'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2301'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -854,7 +861,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2300', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2301', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")

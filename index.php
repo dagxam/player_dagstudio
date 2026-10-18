@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=17">
+    <link rel="stylesheet" href="studio-next.css?v=18">
 </head>
 <body>
 
@@ -212,20 +212,30 @@
             <button class="menu-list-btn" onclick="openManagePlaylists()"><i class="fas fa-list"></i> Управление плейлистами</button>
             <button id="playlist-sync-btn" class="menu-list-btn" onclick="manualSyncPlaylists()" type="button"><i class="fas fa-arrows-rotate"></i><span>Синхронизировать плейлисты</span></button>
             <div id="playlist-sync-status" class="playlist-sync-status" role="status" aria-live="polite">Плейлисты сохранены на устройстве</div>
-            <div class="theme-selector-wrapper">
-                <div class="theme-lbl">ОФОРМЛЕНИЕ ПЛЕЕРА <span>Все плитки и значки меняют оттенок</span></div>
-                <div class="theme-options" role="group" aria-label="Цветовая тема плеера">
-                    <button type="button" class="theme-dot theme-choice theme-choice-brown" data-theme="brown" onclick="setTheme('brown')" aria-label="Медная тема" aria-pressed="false"><i class="fas fa-sun" aria-hidden="true"></i><span>Медь</span></button>
-                    <button type="button" class="theme-dot theme-choice theme-choice-red" data-theme="red" onclick="setTheme('red')" aria-label="Алая тема" aria-pressed="false"><i class="fas fa-fire-flame-curved" aria-hidden="true"></i><span>Алый</span></button>
-                    <button type="button" class="theme-dot theme-choice theme-choice-green" data-theme="green" onclick="setTheme('green')" aria-label="Зелёная тема" aria-pressed="false"><i class="fas fa-leaf" aria-hidden="true"></i><span>Лес</span></button>
-                    <button type="button" class="theme-dot theme-choice theme-choice-blue" data-theme="blue" onclick="setTheme('blue')" aria-label="Синяя тема" aria-pressed="false"><i class="fas fa-water" aria-hidden="true"></i><span>Океан</span></button>
-                    <button type="button" class="theme-dot theme-choice theme-choice-purple" data-theme="purple" onclick="setTheme('purple')" aria-label="Фиолетовая тема" aria-pressed="false"><i class="fas fa-gem" aria-hidden="true"></i><span>Неон</span></button>
-                </div>
-            </div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
+                <div class="menu-playback-group" aria-label="Музыкальные предпочтения">
+                    <div class="menu-column-label">Музыкальные предпочтения</div>
+                    <button type="button" class="menu-list-btn" onclick="dislikeCurrentTrack()"><i class="fas fa-thumbs-down"></i> Не нравится текущая песня</button>
+                    <button type="button" class="menu-list-btn" onclick="tasteReset()"><i class="fas fa-eraser"></i> Сбросить музыкальные предпочтения</button>
+                    <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-menu-btn"
+                            onclick="toggleSmartRadio()" aria-pressed="true" title="Автоматически подбирать похожие песни после плейлиста">
+                        <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-menu-label">Умное продолжение: включено</span>
+                    </button>
+                </div>
             </section>
-            <section class="menu-action-column" aria-label="Приложение"><div class="menu-column-label">Приложение</div>
+            <section class="menu-action-column" aria-label="Оформление и приложение">
+                <div class="theme-selector-wrapper">
+                    <div class="theme-lbl">ОФОРМЛЕНИЕ ПЛЕЕРА <span>Все плитки и значки меняют оттенок</span></div>
+                    <div class="theme-options" role="group" aria-label="Цветовая тема плеера">
+                        <button type="button" class="theme-dot theme-choice theme-choice-brown" data-theme="brown" onclick="setTheme('brown')" aria-label="Медная тема" aria-pressed="false"><i class="fas fa-sun" aria-hidden="true"></i><span>Медь</span></button>
+                        <button type="button" class="theme-dot theme-choice theme-choice-red" data-theme="red" onclick="setTheme('red')" aria-label="Алая тема" aria-pressed="false"><i class="fas fa-fire-flame-curved" aria-hidden="true"></i><span>Алый</span></button>
+                        <button type="button" class="theme-dot theme-choice theme-choice-green" data-theme="green" onclick="setTheme('green')" aria-label="Зелёная тема" aria-pressed="false"><i class="fas fa-leaf" aria-hidden="true"></i><span>Лес</span></button>
+                        <button type="button" class="theme-dot theme-choice theme-choice-blue" data-theme="blue" onclick="setTheme('blue')" aria-label="Синяя тема" aria-pressed="false"><i class="fas fa-water" aria-hidden="true"></i><span>Океан</span></button>
+                        <button type="button" class="theme-dot theme-choice theme-choice-purple" data-theme="purple" onclick="setTheme('purple')" aria-label="Фиолетовая тема" aria-pressed="false"><i class="fas fa-gem" aria-hidden="true"></i><span>Неон</span></button>
+                    </div>
+                </div>
+                <div class="menu-column-label">Приложение</div>
                 <button id="app-update-btn" class="menu-list-btn app-update-btn app-update-btn-top" onclick="manualUpdateApplication()" type="button">
             <i class="fas fa-rotate"></i>
             <span>Обновить приложение</span>
@@ -235,12 +245,6 @@
         <button type="button" class="menu-list-btn" onclick="openCacheDashboard()"><i class="fas fa-hard-drive"></i> Кэш и офлайн-хранилище</button>
         <button type="button" class="menu-list-btn" onclick="openPlayerDiagnostics()"><i class="fas fa-chart-line"></i> Проверка звука и сети</button>
         <button type="button" class="menu-list-btn" id="queue-menu-btn" onclick="openPlaybackQueue()"><i class="fas fa-list-ol"></i> Очередь воспроизведения <span id="queue-count"></span></button>
-        <button type="button" class="menu-list-btn" onclick="dislikeCurrentTrack()"><i class="fas fa-thumbs-down"></i> Не нравится текущая песня</button>
-        <button type="button" class="menu-list-btn" onclick="tasteReset()"><i class="fas fa-eraser"></i> Сбросить музыкальные предпочтения</button>
-        <button type="button" class="menu-list-btn smart-radio-toggle" id="smart-radio-menu-btn"
-                onclick="toggleSmartRadio()" aria-pressed="true" title="Автоматически подбирать похожие песни после плейлиста">
-            <i class="fas fa-wand-magic-sparkles"></i> <span id="smart-radio-menu-label">Умное продолжение: включено</span>
-        </button>
         <button type="button" class="menu-list-btn" onclick="openSleepTimer()"><i class="fas fa-moon"></i> Таймер сна</button>
         <div id="device-cache-status" class="playlist-sync-status" role="status" aria-live="polite">Кэш сохраняется отдельно на каждом устройстве.</div>
         <div class="app-version-footer" id="app-version-footer">
@@ -358,10 +362,10 @@
     </div>
 </div>
 
-<script src="script.js?v=2300" defer></script>
+<script src="script.js?v=2301" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=9" defer></script>
-<script src="studio-center.js?v=2" defer></script>
+<script src="studio-center.js?v=3" defer></script>
 
 </body>
 </html>
