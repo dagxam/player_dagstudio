@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2293', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2294', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -228,7 +228,9 @@ try {
        {...t,title:'Old track',release_date:'2012-01-01'},
        {...t,title:'Unknown date',release_date:''}
       ],QUICK_MIXES.charts);
-      const newestOnly=dated.length===1&&dated[0].title===t.title;
+      const newestOnly=dated.length===2&&dated[0].title===t.title &&
+        dated[0]._releaseVerified===true&&dated[1].title==='Unknown date'&&
+        dated[1]._releaseVerified===false;
       const back=document.querySelector('.showcase-center-back');
       back?.click();
       const backWorks=document.querySelector('.right-col').classList.contains('showcase-curated');
@@ -267,6 +269,78 @@ try {
     console.log('CC3_FIXED_SCREEN',JSON.stringify({size,state}));
     if(Object.values(state).some(v=>!v))
       throw new Error('CC3 screen overflow '+JSON.stringify({size,state}));
+  }
+  await page.setViewport({width:1200,height:800});
+
+  // A personal wave must discover NEW online music from included
+  // playlists rather than playing a saved playlist item. Excluded playlists
+  // cannot affect its seeds. The first recommendation queues next early.
+  const waveDiscovery=await page.evaluate(async()=>{
+    const old={user:currentUser,library:playlists,tab:currentTab,list:playlist,
+      playback:playbackPlaylist,index:currentIndex,playing:playbackWanted,
+      quick:quickMixCurrent,api,playTrack,findWaveNextTrack,
+      radio:smartRadioEnabled,serial:smartRadioRequestSerial,queue:playbackQueue.slice(),
+      prefetched:smartRadioPrefetch};
+    const key=LIKES_EXCLUSIONS_PREFIX+'test-wave-offline';
+    const previous=localStorage.getItem(key);
+    const own={artist:'DAGSTUDIO A',title:'Saved song',url:'https://example.invalid/own-a.mp3'};
+    const blocked={artist:'DAGSTUDIO B',title:'Blocked song',url:'https://example.invalid/own-b.mp3'};
+    const discovered={artist:'DAGSTUDIO C',title:'Remote new',url:'https://example.invalid/new-c.mp3',
+      release_date:new Date().toISOString().slice(0,10)};
+    const calls=[];let started=null;
+    try{
+      currentUser='test-wave-offline';
+      playlists=[{id:701,tracks:[own]},{id:702,tracks:[blocked]}];
+      localStorage.setItem(key,JSON.stringify({'702':true}));
+      playbackPlaylist=[];playlist=[];currentIndex=-1;smartRadioEnabled=true;
+      playbackWanted=false;playbackQueue.length=0;smartRadioPrefetch=null;
+      const seeds=waveLibrarySeeds();
+      const validSeeds=seeds.length===1&&seeds[0].url===own.url;
+      api=async(action)=>({success:true,data:[own,blocked,discovered]});
+      const remote=await findWaveNextTrack();
+      const excludesOwn=remote?.title===discovered.title&&remote?._waveRadio;
+      findWaveNextTrack=async()=>discovered;
+      playTrack=async i=>{started=playlist[i];playbackPlaylist=[...playlist];
+        playbackTab='mix:wave';currentIndex=i;playbackWanted=true;calls.push('play');};
+      await startQuickMix('wave');
+      const firstRemote=started?.url===discovered.url&&quickMixCurrent.tracks.length===1&&
+        quickMixCurrent.tracks[0].url===discovered.url;
+      return {validSeeds,excludesOwn,firstRemote};
+    }finally{
+      currentUser=old.user;playlists=old.library;currentTab=old.tab;
+      playlist=old.list;playbackPlaylist=old.playback;currentIndex=old.index;
+      playbackWanted=old.playing;quickMixCurrent=old.quick;
+      api=old.api;playTrack=old.playTrack;findWaveNextTrack=old.findWaveNextTrack;
+      smartRadioEnabled=old.radio;smartRadioRequestSerial=old.serial;
+      smartRadioPrefetch=old.prefetched;playbackQueue.splice(0,playbackQueue.length,...old.queue);
+      if(previous===null)localStorage.removeItem(key);else localStorage.setItem(key,previous);
+      renderPlaylist();window.studioCenterRender('home');
+    }
+  });
+  console.log('WAVE_DISCOVER_NEW_NETWORK_NOT_OWN',JSON.stringify(waveDiscovery));
+  if(Object.values(waveDiscovery).some(x=>!x))
+    throw new Error('Wave playback selection regression '+JSON.stringify(waveDiscovery));
+
+  for(const vp of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720}]){
+    await page.setViewport(vp);
+    const fit=await page.evaluate(()=>{
+      const root=document.querySelector('.main-container'),sidebar=document.getElementById('studio-navigation');
+      root.classList.add('showcase-wave-only');
+      const col=document.querySelector('.left-col'),disc=document.getElementById('vinyl-view');
+      const r=col.getBoundingClientRect(),v=disc.getBoundingClientRect(),n=sidebar.getBoundingClientRect();
+      const desiredCenter=(n.right+innerWidth)/2;
+      const result={noBlankColumn:getComputedStyle(document.querySelector('.right-col')).display==='none',
+        heroFills:Math.abs(r.left-n.right)<4&&Math.abs(r.right-innerWidth)<4,
+        centerAligned:Math.abs(v.left+v.width/2-desiredCenter)<Math.max(22,innerWidth*.055),
+        noScroll:document.documentElement.scrollWidth<=innerWidth+2&&
+          document.documentElement.scrollHeight<=innerHeight+2,
+        sidebarOffline:!!sidebar.querySelector('.showcase-sidebar-bottom .showcase-cache-action')};
+      root.classList.remove('showcase-wave-only');
+      return result;
+    });
+    console.log('WAVE_FULLSCREEN_CC3',JSON.stringify({vp,fit}));
+    if(Object.values(fit).some(x=>!x))
+      throw new Error('Wave full screen layout regression '+JSON.stringify({vp,fit}));
   }
   await page.setViewport({width:1200,height:800});
 
@@ -508,7 +582,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2293',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2294',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -519,10 +593,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2293', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2294', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2293'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2294'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -606,7 +680,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2293', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2294', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -1081,7 +1155,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2293', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2294', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -1125,7 +1199,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2293','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2294','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});

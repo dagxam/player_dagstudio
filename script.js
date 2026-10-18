@@ -3973,8 +3973,8 @@ function tastePositiveTracks() {
     return result;
 }
 
-// Source material for Wave includes EVERY playlist (including playlists excluded
-// only from "Мне нравится") and the locally learned full listens/likes.
+// The Wave learns from explicitly included playlists and listening history.
+// Excluded playlists are deliberately not used as recommendation seeds.
 function waveLibrarySeeds(){
     const learned=tasteLoad(),seeds=[],ids=new Set();
     const append=track=>{
@@ -3983,15 +3983,23 @@ function waveLibrarySeeds(){
         if(!key||ids.has(key)||learned.tracks?.[key]?.positive===false)return;
         ids.add(key);seeds.push(track);
     };
-    for(const pl of playlists||[])for(const track of pl.tracks||[])append(track);
-    for(const track of tastePositiveTracks())append(track);
+    const excludedIds=new Set();
+    for(const pl of playlists||[])if(playlistExcludedFromLikes(pl.id))
+        for(const t of pl.tracks||[])excludedIds.add(tasteTrackId(t));
+    for(const pl of playlists||[])if(!playlistExcludedFromLikes(pl.id))
+        for(const track of pl.tracks||[])append(track);
+    for(const track of tastePositiveTracks())
+        if(!excludedIds.has(tasteTrackId(track)))append(track);
     return seeds;
 }
 let waveSearchCursor=0;
 async function findWaveNextTrack(){
     if(navigator.onLine===false)return null;
     const library=waveLibrarySeeds();
-    const known=[...playbackPlaylist,...playbackQueue];
+    // Never play a song already saved in any playlist, including excluded
+    // collections. Exclusions also keep their performers out of wave seeds.
+    const own=(playlists||[]).flatMap(pl=>pl.tracks||[]);
+    const known=[...playbackPlaylist,...playbackQueue,...own];
     const titles=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
     const urls=new Set(known.map(t=>String(t.url||'')));
     const seen=track=>!track?.url||urls.has(String(track.url))||
@@ -4023,7 +4031,7 @@ async function findWaveNextTrack(){
     const net=getNetworkProfile();
     // Rotate artists and pages so a finished song advances discovery instead of
     // replaying the first search page or repeating only one singer.
-    for(let i=0;i<Math.min(4,names.length);i++){
+    for(let i=0;i<Math.min(net.weak?2:3,names.length);i++){
         const count=waveSearchCursor++;
         const query=names[count%names.length];
         const page=1+Math.floor(count/names.length)%6;
@@ -4230,7 +4238,7 @@ async function findSmartRadioTrack() {
     return null;
 }
 function maybePrefetchSmartRadio() {
-    if (trafficSaverEnabled() ||
+    if ((trafficSaverEnabled()&&playbackTab!=='mix:wave') ||
         (!smartRadioEnabled && playbackTab!=='mix:wave') ||
         smartRadioBusy || isRepeat || playbackQueue.length ||
         playbackTab==='search' || navigator.onLine===false || !playbackWanted ||
@@ -4238,10 +4246,10 @@ function maybePrefetchSmartRadio() {
     if (isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
     const duration = Number(mainAudio.duration);
     const position = Number(mainAudio.currentTime);
-    if (!Number.isFinite(duration) || duration <= 0 ||
-        !Number.isFinite(position) || position < 8) return;
-    const remaining = duration-position;
-    if (remaining > 95 || remaining < 0) return;
+    if (!Number.isFinite(position) || position < (playbackTab==='mix:wave'?0:8))return;
+    const remaining=duration-position;
+    if(playbackTab!=='mix:wave'&&(!Number.isFinite(duration)||duration<=0||
+        remaining>95||remaining<0))return;
     // Only search/download when enough of the current song is buffered; on
     // mobile radio we must not trade reliable sound for recommendations.
     if (!playbackPlaylist[currentIndex]._playingFromCache &&
@@ -4258,6 +4266,11 @@ function maybePrefetchSmartRadio() {
             (!smartRadioEnabled&&playbackTab!=='mix:wave')) return null;
         state.candidate=candidate;
         if (candidate) {
+            if(playbackTab==='mix:wave'&&currentIndex===playbackPlaylist.length-1){
+                playbackPlaylist.push(candidate);
+                state.queued=true;
+                renderPlaybackQueue();
+            }
             if (info) info.textContent='Следующий из сети: '+candidate.artist+' — '+candidate.title;
             if (isCurrentTrackFullyReady() ||
                 (!getNetworkProfile().weak && bufferedSecondsAhead()>=25)) {
@@ -4287,6 +4300,13 @@ async function playSmartRadioNext() {
         // network request is still in flight, wait briefly rather than start
         // several competing provider searches on TEYES mobile radio.
         let candidate=prefetched?.candidate || null;
+        if(playbackTab==='mix:wave'&&prefetched?.queued&&candidate){
+            const idx=playbackPlaylist.indexOf(candidate);
+            if(idx>currentIndex){
+                smartRadioPrefetch=null;playTrack(idx,{fromPlayback:true,fromSmartRadio:true});
+                return true;
+            }
+        }
         if (!candidate && prefetched?.promise && prefetched.token===token) {
             candidate=await Promise.race([
                 prefetched.promise,
@@ -4323,6 +4343,13 @@ async function playSmartRadioNext() {
             recordPlayerEvent('smart-radio-search-failed');
     } finally {
         smartRadioBusy=false;
+    }
+    // A personal wave must never fall back to replaying the first library
+    // song; let the listener retry after the providers recover.
+    if(playbackTab==='mix:wave'){
+        const label=document.getElementById('smart-radio-next-info');
+        if(label)label.textContent='Пока нет новых рекомендаций. Повторите попытку.';
+        showLoader(false);return true;
     }
     if (serial===smartRadioRequestSerial && token===currentPlaybackToken &&
         playbackWanted && playbackPlaylist.length) {
@@ -4450,7 +4477,11 @@ function playNext() {
     // "Моя волна" discovers a different, preferably recent recommendation
     // at every transition, regardless of the generic smart-radio toggle.
     if (playbackTab==='mix:wave' && navigator.onLine!==false) {
-        playSmartRadioNext();
+        const queued=playbackPlaylist[currentIndex+1];
+        if(queued?._waveRadio){
+            smartRadioPrefetch=null;
+            playTrack(currentIndex+1,{fromPlayback:true,fromSmartRadio:true});
+        }else playSmartRadioNext();
         return;
     }
     if (isShuffle && playbackPlaylist.length>1) {
@@ -4700,9 +4731,9 @@ if(mainSearchInput) {
 
 const QUICK_MIXES={
     charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
-        artists:[`новинки музыки ${new Date().getFullYear()}`,'новые песни','новинки России',
-          'Кавказские новинки','new music releases','latest songs','new pop music',
-          'новая музыка','new hip hop','new rock music']},
+        artists:[`новинки ${new Date().getFullYear()}`,'new music releases',
+          'новые песни','latest songs','новинки России','new pop music',
+          'Кавказские новинки','новая музыка','new hip hop','new rock music']},
     russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
     caucasus:{title:'Кавказские',mode:'popular',regions:[
         // Region labels are search directions, not verified audio-language tags.
@@ -4771,11 +4802,14 @@ function quickMixRankTracks(tracks,config) {
         fresh:!!quickMixReleaseTimestamp(track)&&now-quickMixReleaseTimestamp(track)<=365*86400000
     })).sort((a,b)=>b.score-a.score||a.index-b.index);
     if(config?.mode==='recent'){
-        // A track without a trustworthy provider-supplied release date is
-        // not presented to listeners as one of the newest releases.
-        return ranked.filter(e=>e.fresh)
+        // Show verified releases first. Unknown-date songs can still appear,
+        // clearly marked as unverified instead of an indefinitely empty chart.
+        const verified=ranked.filter(e=>e.fresh)
             .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track) ||
-                  b.score-a.score).map(e=>e.track);
+                  b.score-a.score).map(e=>({...e.track,_releaseVerified:true}));
+        const unknown=ranked.filter(e=>!quickMixReleaseTimestamp(e.track))
+            .map(e=>({...e.track,_releaseVerified:false}));
+        return [...quickMixDiversify(verified),...quickMixDiversify(unknown)];
     }
     if(config?.mode==='classic')return quickMixDiversify(ranked.map(e=>e.track));
     // New releases first; other songs follow only when dated releases end.
@@ -4930,8 +4964,8 @@ function renderQuickMixView() {
 }
 async function startQuickMix(key) {
     const seeds=key==='wave'?waveLibrarySeeds():[];
-    // Begin with one known song while the next personalized release is searched.
-    const waveTracks=key==='wave'?seeds.slice(0,1):[];
+    // Wave is ONLINE discovery, not a replay of the user's own playlists.
+    const waveTracks=[];
     if(key==='wave'){
         const preferred=tastePreferredArtists(seeds);
         const genres=tastePreferredGenres();
@@ -4954,6 +4988,24 @@ async function startQuickMix(key) {
     quickMixCurrent={key,title:config.title,tracks:waveTracks.slice(),loading:true,
         loadingMore:false, pageNumbers:new Map(), exhaustedQueries:new Set(),
         checkedSources:new Set(),activeSources:new Set(),searchedRegions:new Set()};
+    if(key==='wave'){
+        // Playback starts with the first NEW suggestion from the network.
+        // Hide the browser; the giant player remains the only wave UI.
+        currentTab='mix:wave';playlist=[];renderQuickMixView();
+        setQuickMixStatus('Ищем похожую музыку в сети…');
+        const first=await findWaveNextTrack();
+        if(requestId!==quickMixRequestId || quickMixCurrent?.key!=='wave')return;
+        quickMixCurrent.loading=false;
+        if(!first){setQuickMixStatus('Новые похожие композиции пока не найдены. Попробуйте ещё раз.');return;}
+        quickMixCurrent.tracks=[first];
+        playlist=[first];
+        currentTab='mix:wave';
+        renderQuickMixView();
+        await playTrack(0);
+        // Subsequent discoveries populate the next slot as soon as media is
+        // playing and buffered; pressing Next then consumes that new slot.
+        return;
+    }
     // Immediately display this collection instead of keeping the previous
     // playlist on screen while the first remote search is in progress.
     currentTab='mix:'+key;
@@ -4977,7 +5029,7 @@ async function startQuickMix(key) {
         setQuickMixStatus('Локальная «Моя волна» · '+waveTracks.length+' сохранённых песен');
         return;
     }
-    const batchSize=getNetworkProfile().weak?1:2;
+    const batchSize=key==='charts'?3:(getNetworkProfile().weak?1:2);
     const plan=quickMixSearchPlan(config);
     for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;
@@ -5059,11 +5111,15 @@ async function startQuickMix(key) {
     quickMixCurrent.loading=false;
     renderQuickMixButtons();
     if(!started)setQuickMixStatus(config.mode==='recent'
-        ?'Источники пока не предоставили песни с подтверждённой свежей датой выпуска.'
+        ?'Источники не ответили. Проверьте подключение или попробуйте ещё раз.'
         :'Нет доступных песен. Попробуйте другую подборку.'+
         quickMixSourcesCaption(quickMixCurrent));
-    else setQuickMixStatus('Подборка · '+quickMixCurrent.tracks.length+
-        ' треков · прокрутите ниже для новых'+quickMixSourcesCaption(quickMixCurrent));
+    else setQuickMixStatus(key==='charts'
+        ?'Найдено '+quickMixCurrent.tracks.length+' треков · с датой выпуска: '+
+          quickMixCurrent.tracks.filter(t=>t._releaseVerified).length+
+          ' · остальные без даты · прокрутите для новых'+quickMixSourcesCaption(quickMixCurrent)
+        :'Подборка · '+quickMixCurrent.tracks.length+
+          ' треков · прокрутите ниже для новых'+quickMixSourcesCaption(quickMixCurrent));
 }
 // Background pages advance by query and are merged by both URL and
 // artist/title. Never recycle the first-page results on repeated scrolls.
