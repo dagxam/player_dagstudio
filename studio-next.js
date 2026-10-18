@@ -65,8 +65,17 @@ add('offline','Офлайн','circle-down',()=>{
 add('charts','Чарты','chart-simple',()=>window.studioCenterMix?.('charts'));
 add('collections','Подборки','layer-group',()=>window.studioCenterRender?.('collections'));
 add('equalizer','Эквалайзер','sliders',()=>{if(typeof openEqualizer==='function')openEqualizer();});
-add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();});
+add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();window.studioSettingsPage?.();});
 nav.appendChild(menu);
+menu.addEventListener('click',event=>{
+ const chosen=event.target.closest('.showcase-nav-btn');
+ if(!chosen || chosen.id==='showcase-settings')return;
+ const pane=document.getElementById('menu-modal');
+ if(pane?.classList.contains('showcase-settings-page')){
+   pane.classList.remove('showcase-settings-page','show');
+   root.classList.remove('showcase-settings-open');
+ }
+});
 const sidebarBottom=node('div','showcase-sidebar-bottom');
 sidebarBottom.appendChild(node('span','showcase-sidebar-kicker','В ДОРОГУ С МУЗЫКОЙ'));
 sidebarBottom.appendChild(node('strong','', 'Всегда с тобой'));

@@ -171,5 +171,30 @@ document.addEventListener('click',event=>{
    root.classList.remove('showcase-wave-only');view='tracks';bar.hidden=true;
  }
 },false);
+function openSettingsInPane(){
+ const settings=document.getElementById('menu-modal');
+ if(!settings)return;
+ const themes=settings.querySelector('.theme-selector-wrapper');
+ const action=settings.querySelector('.menu-action-column');
+ if(themes&&action&&!action.contains(themes))action.prepend(themes);
+ root.classList.remove('showcase-wave-only');
+ root.classList.add('showcase-settings-open');
+ settings.classList.add('showcase-settings-page','show');
+ const box=settings.querySelector('.menu-modal-box');
+ if(box)box.scrollTop=0;
+ view='settings';
+ selectNav('settings');
+}
+window.studioSettingsPage=openSettingsInPane;
+const settingsModal=document.getElementById('menu-modal');
+if(settingsModal){
+ const watch=new MutationObserver(()=>{
+  if(!settingsModal.classList.contains('show')){
+   settingsModal.classList.remove('showcase-settings-page');
+   root.classList.remove('showcase-settings-open');
+  }
+ });
+ watch.observe(settingsModal,{attributes:true,attributeFilter:['class']});
+}
 render('home');
 })();

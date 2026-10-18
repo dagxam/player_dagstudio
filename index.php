@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=10">
+    <link rel="stylesheet" href="studio-next.css?v=11">
 </head>
 <body>
 
@@ -191,7 +191,7 @@
 <div id="menu-modal" class="modal-overlay">
     <div class="modal-box menu-modal-box">
         <span class="modal-close" onclick="closeModal('menu-modal')" aria-label="Закрыть меню">&times;</span>
-        <div class="menu-modal-heading"><i class="fas fa-sliders"></i> МЕНЮ DAGSTUDIO PLAYER</div>
+        <div class="menu-modal-heading"><button type="button" class="showcase-settings-back" onclick="closeModal('menu-modal')" aria-label="Вернуться к плееру"><i class="fas fa-arrow-left"></i> Назад</button><span><i class="fas fa-sliders"></i> НАСТРОЙКИ DAGSTUDIO PLAYER</span></div>
         <div class="menu-layout">
             <section class="menu-account-column" aria-label="Профиль"><div class="menu-column-label">Профиль и плейлисты</div>
                 <div id="auth-section">
@@ -357,7 +357,7 @@
 
 <script src="script.js?v=2294" defer></script>
 <script src="studio.js?v=4" defer></script>
-<script src="studio-next.js?v=7" defer></script>
+<script src="studio-next.js?v=8" defer></script>
 <script src="studio-center.js?v=2" defer></script>
 
 </body>

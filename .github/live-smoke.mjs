@@ -366,6 +366,42 @@ try {
   }
   await page.setViewport({width:1200,height:800});
 
+  // Settings are a full workspace to the RIGHT of the persistent sidebar,
+  // not a centered popup; both panels remain available on TEYES.
+  for(const vp of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]){
+    await page.setViewport(vp);
+    const state=await page.evaluate(()=>{
+      const nav=document.getElementById('studio-navigation');
+      const toggle=document.getElementById('showcase-menu-toggle');
+      if(innerWidth<=768&&!nav.classList.contains('open'))toggle?.click();
+      const button=document.getElementById('showcase-settings');
+      button.click();
+      const modal=document.getElementById('menu-modal');
+      const rect=modal.getBoundingClientRect();
+      const side=nav.getBoundingClientRect();
+      const theme=modal.querySelector('.theme-selector-wrapper');
+      const expectedLeft=innerWidth>768?side.right:0;
+      const within=Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
+           rect.top>=-1&&rect.bottom<=innerHeight+2;
+      const page=modal.classList.contains('showcase-settings-page')&&
+        modal.classList.contains('show');
+      const content=!!modal.querySelector('.menu-account-column')&&
+        !!modal.querySelector('.menu-action-column')&&
+        !!modal.querySelector('#app-update-btn');
+      const colors=!!theme&&theme.parentElement.classList.contains('menu-action-column')&&
+        theme.querySelectorAll('.theme-dot').length===5;
+      const back=modal.querySelector('.showcase-settings-back');
+      back.click();
+      const closed=!modal.classList.contains('show')&&
+        !modal.classList.contains('showcase-settings-page');
+      return {within,page,content,colors,closed,noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+    });
+    console.log('SETTINGS_RIGHT_WORKSPACE',JSON.stringify({vp,state}));
+    if(Object.values(state).some(x=>!x))
+      throw new Error('Settings page regression '+JSON.stringify({vp,state}));
+  }
+  await page.setViewport({width:1200,height:800});
+
   const waveChartsNav=await page.evaluate(()=>{
     const root=document.querySelector('.main-container');
     const side=document.getElementById('studio-navigation');

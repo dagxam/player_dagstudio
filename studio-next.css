@@ -928,3 +928,91 @@
  .studio-showcase .showcase-sidebar-bottom .showcase-sidebar-kicker{display:none!important}
  .studio-showcase .showcase-sidebar-bottom>strong{display:none!important}
 }
+
+/* A full-screen settings workspace to the right of DAGSTUDIO navigation. */
+@media(min-width:769px){
+ #menu-modal.showcase-settings-page.show{
+  position:fixed!important;inset:0 0 0 clamp(162px,16vw,236px)!important;
+  display:flex!important;align-items:stretch!important;justify-content:stretch!important;
+  width:calc(100vw - clamp(162px,16vw,236px))!important;
+  height:100dvh!important;margin:0!important;padding:0!important;
+  border:0!important;border-radius:0!important;
+  background:linear-gradient(140deg,var(--theme-page,#0c0c12),var(--theme-shell-a,#18121b))!important;
+  overflow:hidden!important;animation:none!important;z-index:110!important;
+ }
+ #menu-modal.showcase-settings-page.show>.menu-modal-box{
+  box-sizing:border-box!important;display:flex!important;flex-direction:column!important;
+  position:relative!important;width:100%!important;max-width:none!important;
+  height:100%!important;max-height:100%!important;margin:0!important;
+  transform:none!important;border-radius:0!important;border:0!important;
+  padding:0 clamp(12px,2.6vw,42px) 16px!important;
+  overflow-y:auto!important;overscroll-behavior:contain;
+  background:transparent!important;box-shadow:none!important;
+ }
+ #menu-modal.showcase-settings-page .menu-modal-heading{
+  position:sticky;top:0;z-index:3;display:flex!important;align-items:center;gap:18px;
+  min-height:62px;padding:10px 42px 11px 0!important;margin:0 0 14px!important;
+  color:var(--theme-bright-text,#fff);
+  background:var(--theme-page,#0b0c10);
+  border-bottom:1px solid rgba(var(--theme-rgb,192,108,66),.32);
+ }
+ #menu-modal.showcase-settings-page .menu-layout{
+  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr)!important;
+  align-items:start;gap:clamp(12px,2.3vw,30px)!important;
+  overflow:visible!important;max-height:none!important;min-height:0!important;
+ }
+ #menu-modal.showcase-settings-page .menu-account-column,
+ #menu-modal.showcase-settings-page .menu-action-column{
+  min-width:0!important;max-height:none!important;overflow:visible!important;
+  padding:clamp(12px,1.8vw,22px)!important;
+  border:1px solid rgba(var(--theme-rgb,192,108,66),.27)!important;
+  border-radius:16px!important;
+  background:rgba(var(--theme-rgb,192,108,66),.065)!important;
+ }
+ #menu-modal.showcase-settings-page .modal-close{top:16px!important;right:18px!important}
+}
+#menu-modal.showcase-settings-page .showcase-settings-back{
+ flex:0 0 auto;min-height:39px;display:inline-flex;align-items:center;gap:8px;
+ padding:7px 12px;background:rgba(var(--theme-rgb,192,108,66),.15);
+ color:var(--theme-bright,var(--accent-color));border-radius:10px;
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.4);cursor:pointer;
+ font-size:.79rem;font-weight:800;
+}
+#menu-modal.showcase-settings-page .menu-column-label{
+ color:var(--theme-bright,var(--accent-color))!important;
+}
+#menu-modal.showcase-settings-page .menu-list-btn{
+ min-height:43px!important;white-space:normal!important;text-align:left!important;
+ border-radius:12px!important;
+}
+#menu-modal.showcase-settings-page .theme-selector-wrapper{margin:5px 0 14px!important}
+#menu-modal.showcase-settings-page .theme-options{display:flex!important;flex-wrap:wrap;gap:10px}
+#menu-modal.showcase-settings-page .theme-dot{
+ border-radius:50%!important;width:31px!important;height:31px!important;
+ box-shadow:0 0 0 2px rgba(255,255,255,.15),0 4px 12px #0007;
+}
+@media(max-width:768px){
+ #menu-modal.showcase-settings-page.show{
+  position:fixed!important;inset:0!important;width:100vw!important;
+  height:100dvh!important;padding:0!important;overflow:hidden!important;
+  border-radius:0!important;
+ }
+ #menu-modal.showcase-settings-page.show>.menu-modal-box{
+  width:100%!important;height:100%!important;max-height:100%!important;
+  max-width:none!important;border-radius:0!important;overflow-y:auto!important;
+  margin:0!important;padding:10px 13px 20px!important;
+ }
+ #menu-modal.showcase-settings-page .menu-layout{
+  display:flex!important;flex-direction:column!important;
+  overflow:visible!important;max-height:none!important;gap:13px!important;
+ }
+ #menu-modal.showcase-settings-page .menu-account-column,
+ #menu-modal.showcase-settings-page .menu-action-column{
+  width:100%!important;max-height:none!important;box-sizing:border-box!important;
+  border-radius:15px!important;padding:14px!important;
+ }
+ #menu-modal.showcase-settings-page .menu-modal-heading{
+  padding-right:35px!important;display:flex!important;gap:10px!important;
+  font-size:.86rem!important;text-align:left!important;
+ }
+}
