@@ -409,6 +409,7 @@ try {
       const theme=modal.querySelector('.theme-selector-wrapper');
       const expectedLeft=innerWidth>768?side.right:0;
       return {
+        diagnostics:{left:rect.left,expectedLeft,right:rect.right,top:rect.top,bottom:rect.bottom,innerWidth,innerHeight,sideRight:side.right},
         within:Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
            rect.top>=-1&&rect.bottom<=innerHeight+2,
         page:modal.classList.contains('showcase-settings-page')&&modal.classList.contains('show'),
@@ -426,7 +427,7 @@ try {
       return !m.classList.contains('show')&&!m.classList.contains('showcase-settings-page');
     });
     console.log('SETTINGS_RIGHT_WORKSPACE',JSON.stringify({vp,state:{...state,closed}}));
-    if(Object.values({...state,closed}).some(x=>!x))
+    if(Object.entries({...state,closed}).some(([k,v])=>k!=='diagnostics'&&!v))
       throw new Error('Settings page regression '+JSON.stringify({vp,state,closed}));
   }
   await page.setViewport({width:1200,height:800});
