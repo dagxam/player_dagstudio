@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2288';
+const WEB_BUILD_LABEL = '2291';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2288', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2291', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2288') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2288', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2291') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2291', '1');
         window.location.reload();
     });
 }
@@ -996,6 +996,8 @@ function renderOfflineBatchProgress(extra='') {
         (extra?' · '+extra:(completed===offlineBatch.total?' · завершено':''));
     const label=document.getElementById('playlist-download-state');
     if(label)label.textContent=message;
+    const bottom=document.getElementById('showcase-download-progress');
+    if(bottom)bottom.textContent=message;
     const cache=document.getElementById('cache-progress-info');
     if(cache)cache.textContent=message;
 }
@@ -2570,6 +2572,8 @@ function downloadCurrentPlaylistOffline() {
         tracks:unique,cursor:0,stopped:false};
     const label=document.getElementById('playlist-download-state');
     if(label)label.textContent='Офлайн: 0 из '+unique.length+' · скачиваем по очереди';
+    const bottom=document.getElementById('showcase-download-progress');
+    if(bottom)bottom.textContent='Офлайн: 0 из '+unique.length+' · скачиваем по очереди';
     const cache=document.getElementById('cache-progress-info');
     if(cache)cache.textContent=label?.textContent||'';
     fillOfflineBatchQueue();
@@ -4613,6 +4617,10 @@ if(mainSearchInput) {
 
 
 const QUICK_MIXES={
+    charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
+        artists:[`новинки музыки ${new Date().getFullYear()}`,'новые песни','новинки России',
+          'Кавказские новинки','new music releases','latest songs','new pop music',
+          'новая музыка','new hip hop','new rock music']},
     russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
     caucasus:{title:'Кавказские',mode:'popular',regions:[
         // Region labels are search directions, not verified audio-language tags.
@@ -4680,6 +4688,13 @@ function quickMixRankTracks(tracks,config) {
         track,index,score:quickMixRank(track,config,index,now),
         fresh:!!quickMixReleaseTimestamp(track)&&now-quickMixReleaseTimestamp(track)<=365*86400000
     })).sort((a,b)=>b.score-a.score||a.index-b.index);
+    if(config?.mode==='recent'){
+        // A track without a trustworthy provider-supplied release date is
+        // not presented to listeners as one of the newest releases.
+        return ranked.filter(e=>e.fresh)
+            .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track) ||
+                  b.score-a.score).map(e=>e.track);
+    }
     if(config?.mode==='classic')return ranked.map(e=>e.track);
     // Mix popular records and verified newer releases. Only metadata-backed
     // recency can receive this boost; other sources keep relevance order.
@@ -4869,9 +4884,11 @@ async function startQuickMix(key) {
                     if(response?.success&&Array.isArray(response.data)&&response.data.length) {
                         quickMixCurrent.pageNumbers.set(query,1);
                         const usable=quickMixUnique(response.data);
-                        if(usable.length)return quickMixRankTracks(usable,config)
-                            .map(track=>({...track,_mixRegion:item.region,
-                                _mixSearchQuery:query}));
+                        if(usable.length){
+                    const ranked=quickMixRankTracks(usable,config);
+                    if(ranked.length)return ranked.map(track=>({...track,_mixRegion:item.region,
+                        _mixSearchQuery:query}));
+                }
                     }
                 } catch(error) {recordPlayerEvent('quick-mix-search-error');}
             }
@@ -4896,12 +4913,14 @@ async function startQuickMix(key) {
             continue;
         }
         quickMixCurrent.tracks.push(...next);
+        if(config.mode==='recent'&&!(playbackTab==='mix:charts'&&playbackWanted))
+            quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
         if(!started) {
             started=true;
             currentTab='mix:'+key;
             playlist=quickMixCurrent.tracks;
             renderQuickMixView();
-            playTrack(0);
+            if(config.autoPlayOnDiscover!==false)playTrack(0);
             renderQuickMixButtons();
         } else {
             if(playbackTab==='mix:'+key&&playbackWanted) {
@@ -4920,7 +4939,9 @@ async function startQuickMix(key) {
     if(requestId!==quickMixRequestId)return;
     quickMixCurrent.loading=false;
     renderQuickMixButtons();
-    if(!started)setQuickMixStatus('Нет доступных песен. Попробуйте другую подборку.'+
+    if(!started)setQuickMixStatus(config.mode==='recent'
+        ?'Источники пока не предоставили песни с подтверждённой свежей датой выпуска.'
+        :'Нет доступных песен. Попробуйте другую подборку.'+
         quickMixSourcesCaption(quickMixCurrent));
     else setQuickMixStatus('Подборка · '+quickMixCurrent.tracks.length+
         ' треков · прокрутите ниже для новых'+quickMixSourcesCaption(quickMixCurrent));
@@ -4968,7 +4989,8 @@ async function loadMoreQuickMix() {
                 }
                 const fresh=quickMixUnique(response.data,[...state.tracks,...collected])
                     .map(track=>({...track,_mixRegion:direction.region,_mixSearchQuery:query}));
-                collected.push(...quickMixRankTracks(fresh,config).slice(0,16));
+                const ranked=quickMixRankTracks(fresh,config);
+                collected.push(...ranked.slice(0,16));
                 if(response.data.length<12)state.exhaustedQueries.add(query);
             }catch(err){recordPlayerEvent('quick-mix-more-error');}
         }
@@ -4976,6 +4998,8 @@ async function loadMoreQuickMix() {
         const unique=quickMixUnique(collected,state.tracks);
         if(unique.length){
             state.tracks.push(...unique);
+            if(config.mode==='recent'&&!(playbackTab==='mix:charts'&&playbackWanted))
+                state.tracks=quickMixRankTracks(state.tracks,config);
             if(playbackTab==='mix:'+state.key&&playbackWanted){
                 const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
                 playbackPlaylist.push(...unique.filter(t=>!known.has(canonicalTrackUrl(t))));
@@ -4995,7 +5019,8 @@ async function loadMoreQuickMix() {
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
 function switchTab(id) {
     const downloadBar=document.getElementById('playlist-download-bar');
-    if(downloadBar)downloadBar.hidden=(id==='search'||String(id).startsWith('mix:'));
+    // Offline download belongs after the final playlist track, not above it.
+    if(downloadBar)downloadBar.hidden=true;
     if(id==='search'||!String(id).startsWith('mix:')){
         quickMixRequestId++;
         if(quickMixCurrent)quickMixCurrent.loading=false;
@@ -5032,6 +5057,28 @@ function switchTab(id) {
 }
 
 // --- RENDER PLAYLIST С ДИНАМИЧЕСКИМИ ЛОГОТИПАМИ ---
+function renderPlaylistOfflineFooter(){
+    const selected=playlists.find(p=>String(p.id)===String(currentTab));
+    if(!selected||!playlist.length)return;
+    const footer=document.createElement('div');
+    footer.className='showcase-download-footer';
+    footer.id='showcase-download-footer';
+    const button=document.createElement('button');
+    button.className='showcase-download-button';
+    button.type='button';
+    button.appendChild(document.createElement('i')).className='fas fa-download';
+    button.appendChild(document.createTextNode(' Скачать плейлист для офлайна'));
+    button.addEventListener('click',()=>preparePlaylistDownload());
+    const status=document.createElement('span');
+    status.className='showcase-download-progress';
+    status.id='showcase-download-progress';
+    status.setAttribute('role','status');
+    status.textContent=offlineBatch?.pending.size?
+      'Скачивание: '+offlineBatch.finished+' из '+offlineBatch.total:
+      'Для поездок без интернета';
+    footer.append(button,status);
+    listEl.appendChild(footer);
+}
 function renderPlaylist() { 
     listEl.innerHTML = ''; 
     const fragment = document.createDocumentFragment();
@@ -5119,6 +5166,7 @@ function renderPlaylist() {
         fragment.appendChild(div); 
     }); 
     listEl.appendChild(fragment);
+    renderPlaylistOfflineFooter();
     if(currentIndex !== -1) updateActiveTrackInList(currentIndex);
     updatePlayingHeart();
 }

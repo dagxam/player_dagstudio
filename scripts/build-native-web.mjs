@@ -52,6 +52,7 @@ Promise.race([
 // studio.js normally has "defer". Loading the UI too early can lose playlist state.
 html = html.replace(/\s*<script src="studio\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(/\s*<script src="studio-next\.js\?v=[^"]+" defer><\/script>/i, '');
+html = html.replace(/\s*<script src="studio-center\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(
   'document.body.appendChild(script);',
   `script.addEventListener('load', () => {
@@ -60,6 +61,11 @@ html = html.replace(
   ui.addEventListener('load', () => {
     const showcase = document.createElement('script');
     showcase.src = 'studio-next.js';
+    showcase.addEventListener('load',()=>{
+      const center=document.createElement('script');
+      center.src='studio-center.js';
+      document.body.appendChild(center);
+    });
     document.body.appendChild(showcase);
   });
   document.body.appendChild(ui);
@@ -79,6 +85,7 @@ await copyFile(join(root, 'studio.css'), join(out, 'studio.css'));
 await copyFile(join(root, 'studio.js'), join(out, 'studio.js'));
 await copyFile(join(root, 'studio-next.css'), join(out, 'studio-next.css'));
 await copyFile(join(root, 'studio-next.js'), join(out, 'studio-next.js'));
+await copyFile(join(root, 'studio-center.js'), join(out, 'studio-center.js'));
 
 await esbuild({
   entryPoints: [join(root, 'native', 'native-bridge.js')],

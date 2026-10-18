@@ -12,6 +12,7 @@ on:
       - "studio.css"
       - "studio.js"
       - "studio-next.js"
+      - "studio-center.js"
       - "studio-next.css"
       - "images/**"
       - "index.php"

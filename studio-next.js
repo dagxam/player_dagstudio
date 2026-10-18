@@ -11,7 +11,7 @@ const createButton=(text,icon,fn,id,cls='')=>{
  const i=node('i','fas fa-'+icon);i.setAttribute('aria-hidden','true');e.appendChild(i);e.appendChild(node('span','',text));
  e.addEventListener('click',()=>{
    fn();
-   if(id!=='showcase-playlists')closeMobile();
+   closeMobile();
  });return e;
 };
 const nav=node('aside','showcase-sidebar');nav.id='studio-navigation';nav.setAttribute('aria-label','Навигация DAGSTUDIO');
@@ -43,7 +43,6 @@ function showList(key){
  right.classList.add('showcase-list');activate(key);
 }
 function closeMobile(){
- closePlaylistSubmenu();
  nav.classList.remove('open');
  document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');
 }
@@ -54,131 +53,7 @@ add('search','Поиск','magnifying-glass',()=>{
 add('wave','Моя волна','wave-square',()=>{
  showList('wave');window.openStudioWave?.();activate('wave');
 });
-const playlistToggle=add('playlists','Плейлисты','music',()=>toggleSidebarPlaylists());
-playlistToggle.setAttribute('aria-expanded','false');
-playlistToggle.setAttribute('aria-controls','showcase-playlist-submenu');
-const chevron=node('i','fas fa-chevron-right showcase-playlist-chevron');
-chevron.setAttribute('aria-hidden','true');playlistToggle.appendChild(chevron);
-const playlistSubmenu=node('section','showcase-playlist-submenu');
-playlistSubmenu.id='showcase-playlist-submenu';
-playlistSubmenu.setAttribute('aria-label','Ваши плейлисты');
-playlistSubmenu.hidden=true;
-// Flyout is outside the scrollable sidebar, otherwise the sidebar clips it
-// and the rest of the navigation moves down.
-document.body.appendChild(playlistSubmenu);
-const playlistFlyoutHeader=node('div','showcase-playlist-flyout-heading');
-const playlistBack=node('button','showcase-playlist-back');
-playlistBack.type='button';playlistBack.setAttribute('aria-label','Назад к меню');
-playlistBack.appendChild(node('i','fas fa-arrow-left'));
-playlistBack.addEventListener('click',()=>{closePlaylistSubmenu();playlistToggle.focus();});
-const flyoutHeadingText=node('span','', 'Мои плейлисты');
-playlistFlyoutHeader.append(playlistBack,flyoutHeadingText);
-playlistSubmenu.appendChild(playlistFlyoutHeader);
-function positionPlaylistSubmenu(){
- if(playlistSubmenu.hidden)return;
- const sidebar=nav.getBoundingClientRect();
- const mobile=window.innerWidth<=768;
- const left=mobile?Math.max(8,sidebar.left+8):Math.min(window.innerWidth-260,sidebar.right+7);
- const width=mobile?Math.min(340,window.innerWidth-16):Math.min(344,window.innerWidth-left-12);
- playlistSubmenu.style.left=Math.max(8,left)+'px';
- playlistSubmenu.style.width=Math.max(230,width)+'px';
- playlistSubmenu.style.maxHeight=(window.innerHeight-16)+'px';
- // Measure after width and content are laid out to keep the flyout on-screen.
- const anchor=playlistToggle.getBoundingClientRect();
- const height=playlistSubmenu.getBoundingClientRect().height;
- const preferred=mobile?8:anchor.top-8;
- playlistSubmenu.style.top=Math.max(8,Math.min(preferred,window.innerHeight-height-8))+'px';
-}
-function closePlaylistSubmenu(){
- playlistToggle.setAttribute('aria-expanded','false');
- playlistToggle.classList.remove('expanded');
- playlistSubmenu.hidden=true;
-}
-function toggleSidebarPlaylists(){
- const expanded=playlistToggle.getAttribute('aria-expanded')!=='true';
- if(!expanded){closePlaylistSubmenu();return;}
- playlistToggle.setAttribute('aria-expanded','true');
- playlistToggle.classList.add('expanded');
- playlistSubmenu.hidden=false;
- activate('playlists');
- renderSidebarPlaylists();
- positionPlaylistSubmenu();
-}
-document.addEventListener('pointerdown',event=>{
- if(playlistSubmenu.hidden)return;
- if(playlistSubmenu.contains(event.target)||playlistToggle.contains(event.target))return;
- closePlaylistSubmenu();
-});
-window.addEventListener('resize',positionPlaylistSubmenu);
-nav.addEventListener('scroll',positionPlaylistSubmenu,{passive:true});
-function renderSidebarPlaylists(){
- const expanded=playlistToggle.getAttribute('aria-expanded')==='true';
- if(!expanded)return;
- playlistSubmenu.replaceChildren(playlistFlyoutHeader);
- const items=typeof playlists!=='undefined'&&Array.isArray(playlists)?playlists:[];
- if(!items.length){
-   const empty=node('p','showcase-playlist-empty',
-      typeof currentUser!=='undefined'&&currentUser
-       ?'Плейлистов пока нет. Создайте первый.'
-       :'Войдите в аккаунт, чтобы открыть свои плейлисты.');
-   playlistSubmenu.appendChild(empty);
- }else{
-   const list=node('div','showcase-playlist-rows');
-   items.forEach(pl=>{
-     if(!pl||pl.id===undefined)return;
-     const row=node('div','showcase-playlist-item');
-     const active=String(typeof currentTab!=='undefined'?currentTab:'')===String(pl.id);
-     row.classList.toggle('selected',active);
-     const btn=node('button','showcase-playlist-link');btn.type='button';
-     btn.title=String(pl.name||'Плейлист');
-     if(active)btn.setAttribute('aria-current','page');
-     const glyph=node('span','showcase-playlist-glyph');
-     const icon=node('i','fas fa-'+(
-       typeof playlistIconName==='function'?playlistIconName(pl.icon):'music'
-     ));icon.setAttribute('aria-hidden','true');glyph.appendChild(icon);
-     const label=node('span','showcase-playlist-detail');
-     label.appendChild(node('strong','',String(pl.name||'Без названия')));
-     const amount=Array.isArray(pl.tracks)?pl.tracks.length:0;
-     label.appendChild(node('small','',amount+' '+(amount===1?'трек':amount>=2&&amount<=4?'трека':'треков')));
-     btn.append(glyph,label);
-     btn.addEventListener('click',()=>{
-       showList('playlists');if(typeof switchTab==='function')switchTab(pl.id);
-       activate('playlists');renderSidebarPlaylists();closeMobile();
-     });
-     const edit=node('button','showcase-playlist-edit');
-     edit.type='button';edit.title='Настроить «'+String(pl.name||'Плейлист')+'»';
-     edit.setAttribute('aria-label',edit.title);
-     edit.appendChild(node('i','fas fa-gear'));
-     edit.addEventListener('click',()=>{
-       if(typeof openTrackManager==='function')openTrackManager(pl.id,pl.name,pl.type);
-       // Keep the desktop flyout populated so a newly chosen icon updates
-       // visibly after closing the editor. Phone panel returns to navigation.
-       if(window.innerWidth<=768)closeMobile();
-     });
-     row.append(btn,edit);list.appendChild(row);
-   });
-   playlistSubmenu.appendChild(list);
- }
- const actions=node('div','showcase-playlist-actions');
- const create=node('button','','+ Создать');create.type='button';
- create.addEventListener('click',()=>{
-   if(typeof currentUser!=='undefined'&&!currentUser){
-     if(typeof openMenu==='function')openMenu();
-   }else if(typeof openNewPlModal==='function')openNewPlModal();
-   closeMobile();
- });
- const manage=node('button','','Управление');manage.type='button';
- manage.addEventListener('click',()=>{
-   if(typeof currentUser!=='undefined'&&!currentUser){
-     if(typeof openMenu==='function')openMenu();
-   }else if(typeof openManagePlaylists==='function')openManagePlaylists();
-   closeMobile();
- });
- actions.append(create,manage);playlistSubmenu.appendChild(actions);
- positionPlaylistSubmenu();
-}
-window.addEventListener('dag-playlists-updated',renderSidebarPlaylists);
-
+add('playlists','Плейлисты','music',()=>window.studioCenterRender?.('playlists'));
 add('likes','Мне нравится','heart',()=>{
  showList('likes');
  const b=document.getElementById('studio-header-likes');
@@ -187,10 +62,8 @@ add('likes','Мне нравится','heart',()=>{
 add('offline','Офлайн','circle-down',()=>{
  showList('offline');window.openOfflineListening?.();
 });
-add('charts','Чарты','chart-simple',()=>{showList('charts');if(typeof startQuickMix==='function')startQuickMix('hits');});
-add('collections','Подборки','layer-group',()=>{
- showCurated();document.getElementById('header-mixes-btn')?.click();activate('collections');
-});
+add('charts','Чарты','chart-simple',()=>window.studioCenterMix?.('charts'));
+add('collections','Подборки','layer-group',()=>window.studioCenterRender?.('collections'));
 add('equalizer','Эквалайзер','sliders',()=>{if(typeof openEqualizer==='function')openEqualizer();});
 add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();});
 nav.appendChild(menu);
@@ -289,22 +162,12 @@ mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыт�
 mobileToggle.appendChild(node('i','fas fa-bars'));
 mobileToggle.addEventListener('click',()=>{
  const open=!nav.classList.contains('open');
- if(!open)closePlaylistSubmenu();
  nav.classList.toggle('open',open);
  mobileToggle.setAttribute('aria-expanded',String(open));
 });
 root.appendChild(mobileToggle);
 const shade=node('div','showcase-mobile-shade');shade.addEventListener('click',closeMobile);root.appendChild(shade);
-document.addEventListener('keydown',e=>{
- if(e.key!=='Escape')return;
- if(!playlistSubmenu.hidden){
-   closePlaylistSubmenu();
-   playlistToggle.focus();
-   e.preventDefault();
-   return;
- }
- closeMobile();
-});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();});
 function refreshShowcase(){
  let name='brown';try{name=localStorage.getItem('dag_theme')||'brown';}catch(e){}
  const img=typeof colorThemes!=='undefined'?colorThemes[name]?.img:null;

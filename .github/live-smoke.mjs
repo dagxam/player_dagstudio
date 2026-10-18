@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2288', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2291', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -156,163 +156,117 @@ try {
   if(Object.values(showcaseArtwork).some(x=>!x))
     throw new Error('Showcase playback artwork/theme regression '+JSON.stringify(showcaseArtwork));
 
-  // Accepted UX: wave play shows just an icon, no offline footer under
-  // the player; choosing any collection switches the CENTER to its song list.
-  const curatedSelection=await page.evaluate(()=>{
-    const root=document.querySelector('.main-container');
-    const pane=document.querySelector('.right-col');
-    const originals={start:startQuickMix,tab:currentTab,tracks:playlist,
-      mix:quickMixCurrent,playing:playbackPlaylist,index:currentIndex};
-    const calls=[];
-    const stubTracks=[{title:'Трек выбранной подборки',artist:'DAGSTUDIO',
-      url:'https://example.invalid/showcase-collection.mp3'}];
-    const checkVisible=()=>pane.classList.contains('showcase-list')&&
-       getComputedStyle(document.querySelector('#studio-curations')).display==='none'&&
-       [...document.querySelectorAll('#playlist-container .track-row .t-title')]
-         .some(e=>e.textContent.includes('Трек выбранной подборки'));
+  // TEYES navigation shares a single central workspace: playlists, region
+  // categories and their track lists must never open a submenu or popup.
+  const central=await page.evaluate(async()=>{
+    const old={pl:playlists,tab:currentTab,list:playlist,
+      playing:playbackPlaylist,index:currentIndex,user:currentUser,
+      api,quick:quickMixCurrent};
+    const oldStart=startQuickMix,oldRegion=startCaucasusRadio;
+    const oldDownload=downloadCurrentPlaylistOffline;
+    const actions=[],t={title:'Тестовый трек',artist:'DAGSTUDIO',
+      url:'https://example.invalid/one.mp3'};
+    const p={id:701,name:'Горная музыка',icon:'mountain',tracks:[t],type:'standard'};
     try{
-      startQuickMix=(key)=>{
-        calls.push(key);
-        quickMixCurrent={key,title:'Проверочная подборка',tracks:stubTracks.slice()};
-        currentTab='mix:'+key;
-        renderQuickMixView();
-      };
-      const button=document.getElementById('vinyl-wave-play');
-      const iconOnly=!button.querySelector('span') &&
-        button.querySelectorAll('i.fa-play').length===1 &&
-        button.getAttribute('aria-label')?.includes('Мою волну');
-      const noFoot=!document.querySelector('.showcase-hero-foot') &&
-        !!document.getElementById('showcase-offline') &&
-        !!document.querySelector('.showcase-cache-action');
-      const cards=document.querySelectorAll('#studio-curations .showcase-curation-card');
-      window.studioShowCurated();
-      cards[2].click(); // road mix
-      const road=checkVisible()&&calls.at(-1)==='road';
-      window.studioShowCurated();
-      cards[1].click(); // Wave
-      const wave=checkVisible()&&calls.at(-1)==='wave';
-      window.studioShowCurated();
-      cards[0].click(); // Caucasus republic chooser
-      const modal=document.getElementById('caucasus-radio-modal');
-      const republicChooser=modal.classList.contains('show') &&
-        !!document.querySelector('#caucasus-regions .caucasus-region-btn');
-      document.querySelector('#caucasus-regions .caucasus-region-btn')?.click();
-      const caucasus=checkVisible()&&calls.at(-1)==='caucasus';
-      // Selection from the original quick-mix dialog must also reveal tracks.
-      window.studioShowCurated();
-      document.querySelector('#quick-mixes [data-mix="retro"]').click();
-      const modalMix=checkVisible()&&calls.at(-1)==='retro';
-      return {iconOnly,noFoot,road,wave,republicChooser,caucasus,modalMix};
-    }finally{
-      startQuickMix=originals.start;
-      currentTab=originals.tab;playlist=originals.tracks;quickMixCurrent=originals.mix;
-      playbackPlaylist=originals.playing;currentIndex=originals.index;
-      closeModal('caucasus-radio-modal');
-      renderPlaylist();window.studioShowCurated();
-    }
-  });
-  console.log('CURATED_SELECTION_SHOWS_TRACKS',JSON.stringify(curatedSelection));
-  if(Object.values(curatedSelection).some(v=>!v))
-    throw new Error('Curated collection did not open its tracks '+JSON.stringify(curatedSelection));
-
-  // Playlist navigation expands in place. Choosing an item opens its tracks
-  // without autoplay; a saved icon is reflected in both editor and sidebar.
-  const playlistAccordion=await page.evaluate(async()=>{
-    const previous={user:currentUser,items:playlists,tab:currentTab,
-      view:playlist,api,editing:editingPlaylistId};
-    const key=playlistSnapshotKey('smoke_icon_test');
-    const stored=localStorage.getItem(key);
-    const lastUser=localStorage.getItem(LAST_DEVICE_USER_KEY);
-    const fixture=[
-      {id:701,name:'Горы и песни',type:'standard',tracks:[
-        {title:'Первый трек',artist:'DAGSTUDIO',url:'https://example.invalid/icon-song.mp3'}]},
-      {id:702,name:'Дорога',type:'standard',tracks:[]}
-    ];
-    try{
-      currentUser='smoke_icon_test';playlists=fixture.slice();
+      currentUser='smoke';playlists=[p];quickMixCurrent=null;
       api=async(action,args)=>action==='update_playlist_icon'?
-        {success:true,icon:args.icon}:{error:'Unexpected test action'};
+        {success:true,icon:args.icon}:{error:'test only'};
       window.dispatchEvent(new Event('dag-playlists-updated'));
-      const nav=document.getElementById('showcase-playlists');
-      const nextNav=document.getElementById('showcase-likes');
-      const nextBefore=nextNav.getBoundingClientRect().top;
-      nav.click();
-      const submenu=document.getElementById('showcase-playlist-submenu');
-      const popupRect=submenu.getBoundingClientRect(),sidebar=document.getElementById('studio-navigation').getBoundingClientRect();
-      const flyoutRight=popupRect.left>=sidebar.right-2&&popupRect.right<=innerWidth+2&&
-         popupRect.top>=0&&popupRect.bottom<=innerHeight+2&&popupRect.width>=240;
-      const noPush=Math.abs(nextNav.getBoundingClientRect().top-nextBefore)<=1;
-      const portalled=submenu.parentElement===document.body;
-
-      const expanded=nav.getAttribute('aria-expanded')==='true'&&!submenu.hidden;
-      const twoRows=submenu.querySelectorAll('.showcase-playlist-item').length===2;
-      const initialIcon=!!submenu.querySelector('.showcase-playlist-link i.fa-music');
-      submenu.querySelector('.showcase-playlist-edit').click();
-      const dialog=document.getElementById('track-manager-modal');
-      const editor=dialog.classList.contains('show');
-      const choices=document.querySelectorAll('#tm-playlist-icons .playlist-icon-choice');
-      const eighteen=choices.length===18;
-      const saved=await savePlaylistIcon(701,'mountain');
-      const iconUpdated=fixture[0].icon==='mountain'&&
-        !!submenu.querySelector('.showcase-playlist-link i.fa-mountain');
-      const radioChecked=document.querySelector('#tm-playlist-icons [data-icon="mountain"]')
-        ?.getAttribute('aria-pressed')==='true';
-      closeModal('track-manager-modal');
-      const oldPlaying=playbackPlaylist[currentIndex];
-      submenu.querySelector('.showcase-playlist-link').click();
-      const listOpened=String(currentTab)==='701'&&
+      document.getElementById('showcase-playlists').click();
+      const navIsCenter=!!document.querySelector('#studio-curations .showcase-center-card') &&
+        document.querySelector('.right-col').classList.contains('showcase-curated') &&
+        !document.getElementById('showcase-playlist-submenu');
+      const button=document.querySelector('.showcase-center-card-open');
+      const icon=!!button?.querySelector('i.fa-mountain');
+      const oldPlayback=playbackPlaylist[currentIndex];
+      button.click();
+      const trackVisible=String(currentTab)==='701'&&
         document.querySelector('.right-col').classList.contains('showcase-list')&&
-        [...document.querySelectorAll('#playlist-container .track-row .t-title')]
-          .some(x=>x.textContent==='Первый трек');
-      const noAutoplay=playbackPlaylist[currentIndex]===oldPlaying;
-      const closesOnSelection=submenu.hidden&&nav.getAttribute('aria-expanded')==='false';
-      nav.click();
-      const reopened=!submenu.hidden&&nav.getAttribute('aria-expanded')==='true';
-      nav.click();
-      const collapsed=nav.getAttribute('aria-expanded')==='false'&&submenu.hidden;
-      return {expanded,twoRows,initialIcon,editor,eighteen,saved,
-        iconUpdated,radioChecked,listOpened,noAutoplay,closesOnSelection,
-        reopened,collapsed,flyoutRight,noPush,portalled};
-    }finally{
-      currentUser=previous.user;playlists=previous.items;currentTab=previous.tab;
-      playlist=previous.view;api=previous.api;editingPlaylistId=previous.editing;
+        !![...document.querySelectorAll('#playlist-container .t-title')]
+          .find(x=>x.textContent==='Тестовый трек');
+      const preserved=playbackPlaylist[currentIndex]===oldPlayback;
+      const footer=document.querySelector('#playlist-container .showcase-download-footer');
+      const downloadAtBottom=!!footer&&footer===document.querySelector('#playlist-container').lastElementChild;
+      let downloads=0;
+      downloadCurrentPlaylistOffline=()=>{downloads++;};
+      footer?.querySelector('button').click();
+      const downloadWorks=downloads===1;
+      window.studioCenterRender('playlists');
+      document.querySelector('.showcase-center-card-settings').click();
+      const picker=document.querySelectorAll('#tm-playlist-icons button');
+      const iconEditor=picker.length===18;
+      const saved=await savePlaylistIcon(701,'star');
+      const update=!!document.querySelector('#studio-curations .showcase-center-card i.fa-star');
       closeModal('track-manager-modal');
-      if(stored===null)localStorage.removeItem(key);else localStorage.setItem(key,stored);
-      if(lastUser===null)localStorage.removeItem(LAST_DEVICE_USER_KEY);
-      else localStorage.setItem(LAST_DEVICE_USER_KEY,lastUser);
-      window.studioShowCurated();renderPlaylist();
+      // Collection -> republic/ethnicity -> song list all in the same center.
+      const calls=[];
+      startQuickMix=key=>{calls.push(key);currentTab='mix:'+key;
+        playlist=[t];renderPlaylist();};
+      startCaucasusRadio=id=>{calls.push('region:'+id);
+        currentTab='mix:caucasus_selected';playlist=[t];renderPlaylist();};
+      window.studioCenterRender('collections');
+      const genres=document.querySelectorAll('#studio-curations .showcase-center-card');
+      const manyGenres=genres.length>=7;
+      genres[0].querySelector('button').click();
+      const regionGrid=document.querySelectorAll('#studio-curations .showcase-center-card');
+      const regions=regionGrid.length>10&&
+        document.querySelector('.right-col').classList.contains('showcase-curated');
+      regionGrid[1].querySelector('button').click();
+      const regionList=document.querySelector('.right-col').classList.contains('showcase-list')
+        &&calls.at(-1).startsWith('region:');
+      window.studioCenterRender('collections');
+      document.querySelectorAll('#studio-curations .showcase-center-card')[1].querySelector('button').click();
+      const russianList=calls.at(-1)==='russian'&&
+         document.querySelector('.right-col').classList.contains('showcase-list');
+      // Charts is not the regular hits mix: it must use real provider dates.
+      document.getElementById('showcase-charts').click();
+      const chartsMix=calls.at(-1)==='charts'&&QUICK_MIXES.charts.mode==='recent'&&
+          QUICK_MIXES.charts.autoPlayOnDiscover===false;
+      const today=new Date().toISOString().slice(0,10);
+      const dated=quickMixRankTracks([
+       {...t,release_date:today},
+       {...t,title:'Old track',release_date:'2012-01-01'},
+       {...t,title:'Unknown date',release_date:''}
+      ],QUICK_MIXES.charts);
+      const newestOnly=dated.length===1&&dated[0].title===t.title;
+      const back=document.querySelector('.showcase-center-back');
+      back?.click();
+      const backWorks=document.querySelector('.right-col').classList.contains('showcase-curated');
+      return {navIsCenter,icon,trackVisible,preserved,downloadAtBottom,
+        downloadWorks,iconEditor,saved,update,manyGenres,regions,regionList,
+        russianList,chartsMix,newestOnly,backWorks};
+    }finally{
+      startQuickMix=oldStart;startCaucasusRadio=oldRegion;
+      downloadCurrentPlaylistOffline=oldDownload;playlists=old.pl;currentTab=old.tab;
+      playlist=old.list;playbackPlaylist=old.playing;currentIndex=old.index;
+      currentUser=old.user;api=old.api;quickMixCurrent=old.quick;
+      closeModal('track-manager-modal');renderPlaylist();window.studioCenterRender('home');
     }
   });
-  console.log('PLAYLIST_SIDEBAR_ICON_EDITOR',JSON.stringify(playlistAccordion));
-  if(Object.values(playlistAccordion).some(v=>!v))
-    throw new Error('Playlist submenu or icon settings regression '+JSON.stringify(playlistAccordion));
+  console.log('CC3_CENTER_PLAYLISTS_MIXES_CHARTS',JSON.stringify(central));
+  if(Object.values(central).some(v=>!v))
+    throw new Error('CC3 central navigation regression '+JSON.stringify(central));
 
-  // A 320px car-phone screen cannot fit a second column to the right.
-  // It opens as an overlay inside the navigation surface, without pushing
-  // the rest of the menu down or causing horizontal page overflow.
-  for(const vp of [{width:390,height:844},{width:320,height:640}]){
-    await page.setViewport(vp);
+  // Static shell never scrolls vertically on a landscape CC3. Scrolling a
+  // long playlist is local to its center panel; playback remains visible.
+  for(const size of [{width:800,height:480},{width:1024,height:600},{width:1280,height:720}]){
+    await page.setViewport(size);
     const state=await page.evaluate(()=>{
-      const toggle=document.getElementById('showcase-menu-toggle');
-      toggle.click();
-      const btn=document.getElementById('showcase-playlists'),
-        following=document.getElementById('showcase-likes');
-      const previousTop=following.getBoundingClientRect().top;
-      btn.click();
-      const menu=document.getElementById('showcase-playlist-submenu');
-      const rect=menu.getBoundingClientRect();
-      const open=!menu.hidden&&menu.querySelector('.showcase-playlist-back') &&
-         rect.left>=0&&rect.right<=innerWidth+1&&rect.bottom<=innerHeight+1;
-      const noPush=Math.abs(following.getBoundingClientRect().top-previousTop)<1;
-      const noOverflow=document.documentElement.scrollWidth<=innerWidth+2;
-      menu.querySelector('.showcase-playlist-back').click();
-      const back=menu.hidden&&document.getElementById('studio-navigation').classList.contains('open');
-      toggle.click();
-      return {open:!!open,noPush,noOverflow,back,closed:menu.hidden};
+      const container=document.querySelector('.main-container');
+      const sidebar=document.getElementById('studio-navigation');
+      const center=document.querySelector('.right-col');
+      const right=document.querySelector('.left-col');
+      return {viewport:container.getBoundingClientRect().height<=innerHeight+1,
+        noDocScroll:document.documentElement.scrollHeight<=innerHeight+2,
+        noHorizontal:document.documentElement.scrollWidth<=innerWidth+2,
+        sideNoScroll:sidebar.scrollHeight<=sidebar.clientHeight+2,
+        centerFixed:center.getBoundingClientRect().bottom<=innerHeight+2,
+        playerFixed:right.getBoundingClientRect().bottom<=innerHeight+2,
+        noFlyout:!document.getElementById('showcase-playlist-submenu')};
     });
-    console.log('PLAYLIST_FLYOUT_SMALL_SCREEN',JSON.stringify({vp,state}));
-    if(Object.values(state).some(x=>!x))
-      throw new Error('Phone playlist flyout regression '+JSON.stringify({vp,state}));
+    console.log('CC3_FIXED_SCREEN',JSON.stringify({size,state}));
+    if(Object.values(state).some(v=>!v))
+      throw new Error('CC3 screen overflow '+JSON.stringify({size,state}));
   }
   await page.setViewport({width:1200,height:800});
 
@@ -512,7 +466,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2288',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2291',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -523,10 +477,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2288', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2291', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2288'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2291'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -610,7 +564,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2288', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2291', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -1089,7 +1043,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2288', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2291', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -1133,7 +1087,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2288','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2291','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});

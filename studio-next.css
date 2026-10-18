@@ -625,3 +625,130 @@
 @media(prefers-reduced-motion:reduce) {
  .showcase-playlist-submenu{animation:none}
 }
+
+/* TEYES CC3 cockpit v7 — fixed three-zone chassis, only song lists may scroll. */
+.main-container.studio-showcase{overflow:hidden!important;overscroll-behavior:none!important}
+.showcase-playlist-submenu{display:none!important}
+.studio-showcase .showcase-curations{min-height:0!important;overscroll-behavior:contain!important}
+.showcase-center-toolbar{display:flex;align-items:center;gap:10px;flex:0 0 auto;
+ min-width:0;padding:8px 12px;
+ border-bottom:1px solid rgba(var(--theme-rgb,139,0,255),.25)}
+.showcase-center-toolbar[hidden]{display:none!important}
+.showcase-center-back,.showcase-gallery-back{display:inline-flex;align-items:center;justify-content:center;
+ gap:7px;flex:0 0 auto;min-height:40px;padding:8px 11px;
+ background:rgba(var(--theme-rgb,139,0,255),.16);
+ color:var(--showcase-accent);border:1px solid var(--showcase-stroke);
+ border-radius:11px;font-size:.79rem;font-weight:750;cursor:pointer}
+.showcase-center-toolbar-title{color:var(--theme-bright-text,#fff);font-size:.84rem;min-width:0;
+ overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.showcase-gallery-header{display:flex;align-items:center;gap:12px}
+.showcase-gallery-header>div:last-child{min-width:0}
+.showcase-gallery-header h2{margin:3px 0 0!important;line-height:1.2}
+.showcase-gallery-back{width:40px;padding:0}
+.showcase-center-card{display:flex;flex:0 0 auto;align-items:stretch;position:relative}
+.showcase-center-card-open{flex:1;min-width:0;display:flex;align-items:stretch;
+ padding:0;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
+.showcase-center-card-open:focus-visible{outline:2px solid var(--showcase-accent);outline-offset:-3px}
+.showcase-center-card .showcase-card-play{align-self:center}
+.showcase-center-card-settings{flex:0 0 36px;align-self:center;margin:0 6px 0 0;height:38px;
+ border:1px solid rgba(var(--theme-rgb,139,0,255),.28);
+ border-radius:11px;background:rgba(var(--theme-rgb,139,0,255),.11);
+ color:var(--showcase-accent);cursor:pointer}
+.showcase-center-card-settings:hover{background:rgba(var(--theme-rgb,139,0,255),.26)}
+.showcase-center-card:has(.showcase-center-card-settings) .showcase-card-play{display:none}
+.showcase-center-empty{font-size:.83rem;line-height:1.5;color:var(--theme-muted,#b0a7b5);
+ padding:19px;border:1px dashed var(--showcase-stroke);border-radius:14px}
+.showcase-center-actions{display:flex;gap:8px;margin-top:14px}
+.showcase-center-action{flex:1;display:flex;align-items:center;justify-content:center;
+ gap:7px;min-height:43px;cursor:pointer;
+ color:var(--theme-bright-text,#fff);background:rgba(var(--theme-rgb,139,0,255),.13);
+ border:1px solid var(--showcase-stroke);border-radius:12px;font-size:.77rem;font-weight:750}
+.showcase-center-action:hover{background:rgba(var(--theme-rgb,139,0,255),.26)}
+.studio-showcase .showcase-download-footer{padding:20px 8px 24px;margin:13px 2px 0;
+ display:flex;flex-direction:column;align-items:stretch;gap:8px;
+ border-top:1px solid rgba(var(--theme-rgb,139,0,255),.35)}
+.studio-showcase .showcase-download-button{display:flex;align-items:center;
+ justify-content:center;gap:9px;min-height:48px;padding:10px 12px;border-radius:13px;
+ border:1px solid var(--showcase-accent);
+ background:linear-gradient(110deg,var(--theme-bright,var(--accent-color)),var(--accent-color));
+ color:var(--theme-on-accent,#101015);cursor:pointer;font-weight:800;font-size:.83rem}
+.studio-showcase .showcase-download-button:hover{filter:brightness(1.1)}
+.studio-showcase .showcase-download-progress{display:block;text-align:center;
+ color:var(--theme-muted,#ada8b5);font-size:.73rem;line-height:1.4}
+.studio-showcase>.right-col .playlist-download-bar{display:none!important}
+.studio-showcase>.right-col.showcase-curated .showcase-center-toolbar{display:none!important}
+.studio-showcase>.right-col.showcase-list .showcase-curations{display:none!important}
+.studio-showcase>.right-col.showcase-list .playlist-area{overflow-y:auto!important;
+ min-height:0!important;overscroll-behavior:contain!important}
+@media(min-width:769px){
+ html:has(.studio-showcase),body:has(.studio-showcase){height:100%;overflow:hidden!important}
+ .main-container.studio-showcase{
+  height:100vh!important;height:100dvh!important;max-height:100dvh!important;
+  grid-template-rows:minmax(0,1fr)!important;overflow:hidden!important}
+ .studio-showcase>.right-col,.studio-showcase>.left-col,.studio-showcase>.showcase-sidebar{
+  min-height:0!important;max-height:100dvh!important}
+ .studio-showcase .showcase-sidebar{overscroll-behavior:contain;overflow-y:auto}
+ .studio-showcase .showcase-curations{height:100%!important;overflow-y:auto!important;flex:1 1 auto}
+ .studio-showcase .showcase-curation-list{gap:7px!important}
+ .studio-showcase .showcase-center-card{min-height:67px!important}
+ .studio-showcase .showcase-center-card .showcase-card-art{min-height:66px!important}
+ .studio-showcase>.right-col.showcase-list .right-col-header{flex:0 0 auto!important}
+ .studio-showcase>.right-col.showcase-list .active-pl-label{flex:0 0 auto!important}
+ .studio-showcase>.right-col.showcase-list .playlist-area{flex:1 1 auto!important;
+  height:0!important;padding-bottom:8px!important}
+ .studio-showcase>.left-col .visual-container{min-height:0!important;flex:1 1 auto!important}
+ .studio-showcase>.left-col{justify-content:flex-end!important}
+ .studio-showcase .showcase-center-toolbar{min-height:52px}
+}
+@media(min-width:769px) and (max-height:720px){
+ .studio-showcase .showcase-sidebar{padding:9px 8px!important}
+ .studio-showcase .showcase-brand{margin-bottom:4px!important}
+ .studio-showcase .showcase-nav-btn{min-height:40px!important;padding:7px 9px!important;gap:10px!important}
+ .studio-showcase .showcase-menu{gap:2px!important}
+ .studio-showcase .showcase-sidebar-bottom{padding:7px 4px 0!important;gap:3px!important}
+ .studio-showcase .showcase-sidebar-bottom p{display:none!important}
+ .studio-showcase .showcase-cache-action{min-height:36px!important}
+ .studio-showcase .showcase-curations{padding:9px 10px!important}
+ .studio-showcase .showcase-section-head{margin-bottom:9px!important}
+ .studio-showcase .showcase-section-head h2{font-size:1.2rem!important}
+ .studio-showcase .showcase-curation-list{gap:5px!important}
+ .studio-showcase .showcase-center-card{min-height:61px!important;border-radius:11px!important}
+ .studio-showcase .showcase-center-card .showcase-card-art{min-height:60px!important;
+  width:27%!important;flex-basis:27%!important}
+ .studio-showcase .showcase-center-card .showcase-card-body{gap:3px!important;padding:5px 6px!important}
+ .studio-showcase .showcase-center-card .showcase-card-body strong{font-size:.78rem!important}
+ .studio-showcase .showcase-center-card .showcase-card-body small{font-size:.67rem!important}
+ .studio-showcase .showcase-center-card .showcase-card-play{width:30px!important;height:30px!important;flex-basis:30px!important}
+ .studio-showcase>.left-col{padding:5px 13px 8px!important;gap:2px!important}
+ .studio-showcase>.left-col .progress-area{margin:0!important}
+}
+@media(min-width:769px) and (max-height:540px){
+ .studio-showcase .showcase-sidebar-bottom{display:none!important}
+ .studio-showcase .showcase-brand-icon{width:32px!important;height:32px!important;min-width:32px!important}
+ .studio-showcase .showcase-nav-btn{min-height:36px!important;padding:5px 8px!important}
+ .studio-showcase .showcase-menu{gap:0!important}
+ .studio-showcase .showcase-center-card{min-height:51px!important}
+ .studio-showcase .showcase-center-card .showcase-card-art{min-height:50px!important}
+ .studio-showcase>.left-col .vinyl-wrapper{width:min(47%,29vh,180px)!important;
+  height:min(47%,29vh,180px)!important;min-width:112px!important;min-height:112px!important}
+ .studio-showcase>.left-col .visual-container{min-height:120px!important}
+ .studio-showcase>.left-col .main-btns .play-btn{width:48px!important;height:48px!important;min-width:48px!important}
+}
+@media(min-width:1000px) and (max-height:740px){
+ .studio-showcase .showcase-curations .showcase-curation-list{
+   display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important}
+ .studio-showcase .showcase-curations .showcase-center-card{
+   min-height:58px!important}
+ .studio-showcase .showcase-curations .showcase-card-art{
+   flex-basis:38px!important;min-width:38px!important;width:38px!important;min-height:57px!important}
+ .studio-showcase .showcase-curations .showcase-card-art i{font-size:1.05rem!important}
+ .studio-showcase .showcase-curations .showcase-card-body strong{font-size:.72rem!important}
+ .studio-showcase .showcase-curations .showcase-card-body small{font-size:.61rem!important}
+ .studio-showcase .showcase-curations .showcase-card-play{display:none!important}
+ .studio-showcase .showcase-curations .showcase-center-card-settings{margin-right:2px;flex-basis:27px;width:27px;height:32px}
+}
+@media(max-width:768px){
+ .studio-showcase>.right-col .showcase-curations{height:auto!important;overflow:visible!important}
+ .studio-showcase>.right-col.showcase-list .playlist-area{height:min(62dvh,480px)!important;min-height:220px!important}
+ .studio-showcase .showcase-center-toolbar{min-height:48px}
+}
