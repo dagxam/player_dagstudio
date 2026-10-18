@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=4">
+    <link rel="stylesheet" href="studio-next.css?v=5">
 </head>
 <body>
 
@@ -251,6 +251,14 @@
 
 <div id="manage-pl-modal" class="modal-overlay"><div class="modal-box"><span class="modal-close" onclick="closeModal('manage-pl-modal')">&times;</span><h3 class="modal-title">ПЛЕЙЛИСТЫ</h3><div id="manage-pl-list" class="playlist-list"></div><button class="modal-btn btn-primary" onclick="openNewPlModal()">+ СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
 <div id="track-manager-modal" class="modal-overlay"><div class="modal-box" style="padding: 30px;"><span class="modal-close" onclick="closeModal('track-manager-modal')">&times;</span><input type="text" id="tm-rename-input" class="tm-rename-input" placeholder="Название плейлиста" onblur="savePlaylistName()">
+    <div class="playlist-icon-editor" aria-label="Оформление плейлиста">
+        <div class="playlist-icon-editor-head">
+            <span class="playlist-icon-editor-preview"><i id="tm-playlist-icon-preview" class="fas fa-music" aria-hidden="true"></i></span>
+            <span><strong>Иконка плейлиста</strong><small>Выберите символ — он появится в левом меню и сохранится в вашем аккаунте</small></span>
+        </div>
+        <div id="tm-playlist-icons" class="playlist-icon-grid" role="group" aria-label="Иконки плейлиста"></div>
+    </div>
+
     <label class="studio-likes-exclusion" for="tm-exclude-likes">
         <input type="checkbox" id="tm-exclude-likes" onchange="setPlaylistExcludedFromLikes(editingPlaylistId,this.checked)">
         <span><strong>Исключить из «Мне нравится»</strong><small>Треки останутся в плейлисте, но не появятся в общей подборке любимых песен. Выбор сохраняется на этом устройстве.</small></span>
@@ -347,9 +355,9 @@
     </div>
 </div>
 
-<script src="script.js?v=2287" defer></script>
+<script src="script.js?v=2288" defer></script>
 <script src="studio.js?v=4" defer></script>
-<script src="studio-next.js?v=3" defer></script>
+<script src="studio-next.js?v=4" defer></script>
 
 </body>
 </html>

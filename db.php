@@ -33,6 +33,16 @@ try {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )");
 
+    // Playlist symbols are stored separately; existing playlists remain intact.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS playlist_icons (
+        playlist_id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        icon TEXT NOT NULL DEFAULT 'music',
+        FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_playlist_icons_user ON playlist_icons(user_id)");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS tracks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         playlist_id INTEGER NOT NULL,

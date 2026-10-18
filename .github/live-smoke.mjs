@@ -13,7 +13,7 @@ const page = await browser.newPage();
 // Не позволяем ожидаемому controllerchange перезагружать страницу прямо посреди
 // UI-проверки. Сам Service Worker отдельно проверяется production deploy workflow.
 await page.evaluateOnNewDocument(() => {
-  try { sessionStorage.setItem('dag_sw_reloaded_2287', '1'); } catch (error) {}
+  try { sessionStorage.setItem('dag_sw_reloaded_2288', '1'); } catch (error) {}
 });
 const consoleErrors = [];
 const pageErrors = [];
@@ -215,6 +215,66 @@ try {
   if(Object.values(curatedSelection).some(v=>!v))
     throw new Error('Curated collection did not open its tracks '+JSON.stringify(curatedSelection));
 
+  // Playlist navigation expands in place. Choosing an item opens its tracks
+  // without autoplay; a saved icon is reflected in both editor and sidebar.
+  const playlistAccordion=await page.evaluate(async()=>{
+    const previous={user:currentUser,items:playlists,tab:currentTab,
+      view:playlist,api,editing:editingPlaylistId};
+    const key=playlistSnapshotKey('smoke_icon_test');
+    const stored=localStorage.getItem(key);
+    const lastUser=localStorage.getItem(LAST_DEVICE_USER_KEY);
+    const fixture=[
+      {id:701,name:'Горы и песни',type:'standard',tracks:[
+        {title:'Первый трек',artist:'DAGSTUDIO',url:'https://example.invalid/icon-song.mp3'}]},
+      {id:702,name:'Дорога',type:'standard',tracks:[]}
+    ];
+    try{
+      currentUser='smoke_icon_test';playlists=fixture.slice();
+      api=async(action,args)=>action==='update_playlist_icon'?
+        {success:true,icon:args.icon}:{error:'Unexpected test action'};
+      window.dispatchEvent(new Event('dag-playlists-updated'));
+      const nav=document.getElementById('showcase-playlists');
+      nav.click();
+      const submenu=document.getElementById('showcase-playlist-submenu');
+      const expanded=nav.getAttribute('aria-expanded')==='true'&&!submenu.hidden;
+      const twoRows=submenu.querySelectorAll('.showcase-playlist-item').length===2;
+      const initialIcon=!!submenu.querySelector('.showcase-playlist-link i.fa-music');
+      submenu.querySelector('.showcase-playlist-edit').click();
+      const dialog=document.getElementById('track-manager-modal');
+      const editor=dialog.classList.contains('show');
+      const choices=document.querySelectorAll('#tm-playlist-icons .playlist-icon-choice');
+      const eighteen=choices.length===18;
+      const saved=await savePlaylistIcon(701,'mountain');
+      const iconUpdated=fixture[0].icon==='mountain'&&
+        !!submenu.querySelector('.showcase-playlist-link i.fa-mountain');
+      const radioChecked=document.querySelector('#tm-playlist-icons [data-icon="mountain"]')
+        ?.getAttribute('aria-pressed')==='true';
+      closeModal('track-manager-modal');
+      const oldPlaying=playbackPlaylist[currentIndex];
+      submenu.querySelector('.showcase-playlist-link').click();
+      const listOpened=String(currentTab)==='701'&&
+        document.querySelector('.right-col').classList.contains('showcase-list')&&
+        [...document.querySelectorAll('#playlist-container .track-row .t-title')]
+          .some(x=>x.textContent==='Первый трек');
+      const noAutoplay=playbackPlaylist[currentIndex]===oldPlaying;
+      nav.click();
+      const collapsed=nav.getAttribute('aria-expanded')==='false'&&submenu.hidden;
+      return {expanded,twoRows,initialIcon,editor,eighteen,saved,
+        iconUpdated,radioChecked,listOpened,noAutoplay,collapsed};
+    }finally{
+      currentUser=previous.user;playlists=previous.items;currentTab=previous.tab;
+      playlist=previous.view;api=previous.api;editingPlaylistId=previous.editing;
+      closeModal('track-manager-modal');
+      if(stored===null)localStorage.removeItem(key);else localStorage.setItem(key,stored);
+      if(lastUser===null)localStorage.removeItem(LAST_DEVICE_USER_KEY);
+      else localStorage.setItem(LAST_DEVICE_USER_KEY,lastUser);
+      window.studioShowCurated();renderPlaylist();
+    }
+  });
+  console.log('PLAYLIST_SIDEBAR_ICON_EDITOR',JSON.stringify(playlistAccordion));
+  if(Object.values(playlistAccordion).some(v=>!v))
+    throw new Error('Playlist submenu or icon settings regression '+JSON.stringify(playlistAccordion));
+
   const likes=await page.evaluate(()=>{
     const existing=playlists.slice(),audio=document.getElementById('main-audio');
     const play=audio.play;let started=0;
@@ -411,7 +471,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2287',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2288',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -422,10 +482,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2287', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2288', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2287'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2288'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -509,7 +569,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2287', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2288', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
@@ -988,7 +1048,7 @@ try {
   // Browser-compatibility pass with a current Yandex Browser desktop UA.
   const yandexPage = await browser.newPage();
   await yandexPage.evaluateOnNewDocument(() => {
-    try { sessionStorage.setItem('dag_sw_reloaded_2287', '1'); } catch (error) {}
+    try { sessionStorage.setItem('dag_sw_reloaded_2288', '1'); } catch (error) {}
   });
   const yandexErrors = [];
   yandexPage.on('pageerror', err => yandexErrors.push(String(err)));
@@ -1032,7 +1092,7 @@ try {
   await iphonePage.setViewport({width:390,height:844,deviceScaleFactor:3,isMobile:true,hasTouch:true});
   await iphonePage.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1');
   await iphonePage.evaluateOnNewDocument(()=>{
-    try{sessionStorage.setItem('dag_sw_reloaded_2287','1');}catch(error){}
+    try{sessionStorage.setItem('dag_sw_reloaded_2288','1');}catch(error){}
   });
   await iphonePage.goto(url+'?ios_smoke='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await iphonePage.waitForFunction(()=>typeof showIOSInstallGuide==='function',{timeout:20000});

@@ -9,7 +9,10 @@ const node=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.classN
 const createButton=(text,icon,fn,id,cls='')=>{
  const e=node('button','showcase-nav-btn '+cls);e.type='button';if(id)e.id=id;
  const i=node('i','fas fa-'+icon);i.setAttribute('aria-hidden','true');e.appendChild(i);e.appendChild(node('span','',text));
- e.addEventListener('click',()=>{fn();closeMobile();});return e;
+ e.addEventListener('click',()=>{
+   fn();
+   if(id!=='showcase-playlists')closeMobile();
+ });return e;
 };
 const nav=node('aside','showcase-sidebar');nav.id='studio-navigation';nav.setAttribute('aria-label','Навигация DAGSTUDIO');
 const logo=node('div','showcase-brand');
@@ -47,9 +50,89 @@ add('search','Поиск','magnifying-glass',()=>{
 add('wave','Моя волна','wave-square',()=>{
  showList('wave');window.openStudioWave?.();activate('wave');
 });
-add('playlists','Плейлисты','music',()=>{
- showList('playlists');document.getElementById('btn-pl-select')?.click();
-});
+const playlistToggle=add('playlists','Плейлисты','music',()=>toggleSidebarPlaylists());
+playlistToggle.setAttribute('aria-expanded','false');
+playlistToggle.setAttribute('aria-controls','showcase-playlist-submenu');
+const chevron=node('i','fas fa-chevron-down showcase-playlist-chevron');
+chevron.setAttribute('aria-hidden','true');playlistToggle.appendChild(chevron);
+const playlistSubmenu=node('div','showcase-playlist-submenu');
+playlistSubmenu.id='showcase-playlist-submenu';playlistSubmenu.setAttribute('role','group');
+playlistSubmenu.setAttribute('aria-label','Ваши плейлисты');playlistSubmenu.hidden=true;
+menu.appendChild(playlistSubmenu);
+function toggleSidebarPlaylists(){
+ const expanded=playlistToggle.getAttribute('aria-expanded')!=='true';
+ playlistToggle.setAttribute('aria-expanded',String(expanded));
+ playlistToggle.classList.toggle('expanded',expanded);
+ playlistSubmenu.hidden=!expanded;
+ if(expanded){
+   activate('playlists');renderSidebarPlaylists();
+ }
+}
+function renderSidebarPlaylists(){
+ const expanded=playlistToggle.getAttribute('aria-expanded')==='true';
+ if(!expanded)return;
+ playlistSubmenu.replaceChildren();
+ const items=typeof playlists!=='undefined'&&Array.isArray(playlists)?playlists:[];
+ if(!items.length){
+   const empty=node('p','showcase-playlist-empty',
+      typeof currentUser!=='undefined'&&currentUser
+       ?'Плейлистов пока нет. Создайте первый.'
+       :'Войдите в аккаунт, чтобы открыть свои плейлисты.');
+   playlistSubmenu.appendChild(empty);
+ }else{
+   const list=node('div','showcase-playlist-rows');
+   items.forEach(pl=>{
+     if(!pl||pl.id===undefined)return;
+     const row=node('div','showcase-playlist-item');
+     const active=String(typeof currentTab!=='undefined'?currentTab:'')===String(pl.id);
+     row.classList.toggle('selected',active);
+     const btn=node('button','showcase-playlist-link');btn.type='button';
+     btn.title=String(pl.name||'Плейлист');
+     if(active)btn.setAttribute('aria-current','page');
+     const glyph=node('span','showcase-playlist-glyph');
+     const icon=node('i','fas fa-'+(
+       typeof playlistIconName==='function'?playlistIconName(pl.icon):'music'
+     ));icon.setAttribute('aria-hidden','true');glyph.appendChild(icon);
+     const label=node('span','showcase-playlist-detail');
+     label.appendChild(node('strong','',String(pl.name||'Без названия')));
+     const amount=Array.isArray(pl.tracks)?pl.tracks.length:0;
+     label.appendChild(node('small','',amount+' '+(amount===1?'трек':amount>=2&&amount<=4?'трека':'треков')));
+     btn.append(glyph,label);
+     btn.addEventListener('click',()=>{
+       showList('playlists');if(typeof switchTab==='function')switchTab(pl.id);
+       activate('playlists');renderSidebarPlaylists();closeMobile();
+     });
+     const edit=node('button','showcase-playlist-edit');
+     edit.type='button';edit.title='Настроить «'+String(pl.name||'Плейлист')+'»';
+     edit.setAttribute('aria-label',edit.title);
+     edit.appendChild(node('i','fas fa-gear'));
+     edit.addEventListener('click',()=>{
+       if(typeof openTrackManager==='function')openTrackManager(pl.id,pl.name,pl.type);
+       closeMobile();
+     });
+     row.append(btn,edit);list.appendChild(row);
+   });
+   playlistSubmenu.appendChild(list);
+ }
+ const actions=node('div','showcase-playlist-actions');
+ const create=node('button','','+ Создать');create.type='button';
+ create.addEventListener('click',()=>{
+   if(typeof currentUser!=='undefined'&&!currentUser){
+     if(typeof openMenu==='function')openMenu();
+   }else if(typeof openNewPlModal==='function')openNewPlModal();
+   closeMobile();
+ });
+ const manage=node('button','','Управление');manage.type='button';
+ manage.addEventListener('click',()=>{
+   if(typeof currentUser!=='undefined'&&!currentUser){
+     if(typeof openMenu==='function')openMenu();
+   }else if(typeof openManagePlaylists==='function')openManagePlaylists();
+   closeMobile();
+ });
+ actions.append(create,manage);playlistSubmenu.appendChild(actions);
+}
+window.addEventListener('dag-playlists-updated',renderSidebarPlaylists);
+
 add('likes','Мне нравится','heart',()=>{
  showList('likes');
  const b=document.getElementById('studio-header-likes');

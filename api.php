@@ -86,7 +86,7 @@ if (!$data) {
 }
 
 // Открываем сессию обратно только для действий, где она нужна
-if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'delete_playlist', 'add_track', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
+if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'delete_playlist', 'add_track', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
     @session_start();
 }
 
@@ -166,11 +166,24 @@ elseif ($action === 'get_data') {
         $stmt = $pdo->prepare("SELECT * FROM playlists WHERE user_id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Playlist icon metadata lives in a separate small table, so existing
+        // installations do not need an ALTER TABLE of the playlist library.
+        $playlistIcons = [];
+        try {
+            $iconStmt = $pdo->prepare("SELECT playlist_id, icon FROM playlist_icons WHERE user_id = ?");
+            $iconStmt->execute([$_SESSION['user_id']]);
+            foreach ($iconStmt->fetchAll(PDO::FETCH_ASSOC) as $iconRow) {
+                $playlistIcons[(string)$iconRow['playlist_id']] = $iconRow['icon'];
+            }
+        } catch (Exception $ignored) {
+            // Older installations have not chosen an icon yet.
+        }
         $trackStmt = $pdo->prepare("SELECT * FROM tracks WHERE playlist_id = ?");
         foreach ($playlists as &$pl) {
             $trackStmt->execute([$pl['id']]);
             $pl['tracks'] = $trackStmt->fetchAll(PDO::FETCH_ASSOC);
-            $pl['source'] = 'db'; 
+            $pl['source'] = 'db';
+            $pl['icon'] = $playlistIcons[(string)$pl['id']] ?? 'music'; 
         }
         echo json_encode($playlists);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка получения данных.']); }
@@ -245,6 +258,36 @@ elseif ($action === 'rename_playlist') {
         $stmt->execute([strip_tags(trim($data['name'] ?? '')), $data['id'], $_SESSION['user_id']]);
         echo json_encode(['success' => true]);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка переименования.']); }
+}
+elseif ($action === 'update_playlist_icon') {
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['error' => 'Для настройки плейлиста необходимо войти.']); exit;
+    }
+    $playlistId = filter_var($data['id'] ?? null, FILTER_VALIDATE_INT);
+    $icon = (string)($data['icon'] ?? '');
+    $allowedIcons = [
+        'music','heart','star','headphones','car-side','mountain',
+        'fire','moon','sun','bolt','compact-disc','radio','leaf',
+        'guitar','globe','drum','microphone','list'
+    ];
+    if ($playlistId === false || $playlistId <= 0 || !in_array($icon, $allowedIcons, true)) {
+        echo json_encode(['error' => 'Некорректная иконка плейлиста.']); exit;
+    }
+    try {
+        $check = $pdo->prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?");
+        $check->execute([$playlistId, $_SESSION['user_id']]);
+        if (!$check->fetchColumn()) {
+            echo json_encode(['error' => 'Плейлист не найден или доступ запрещён.']); exit;
+        }
+        $stmt = $pdo->prepare("INSERT INTO playlist_icons (playlist_id,user_id,icon)
+            VALUES (?,?,?) ON CONFLICT(playlist_id) DO UPDATE SET
+            icon = excluded.icon, user_id = excluded.user_id");
+        $stmt->execute([$playlistId,$_SESSION['user_id'],$icon]);
+        echo json_encode(['success' => true, 'icon' => $icon]);
+    } catch (Exception $e) {
+        error_log('Playlist icon save failed: ' . $e->getMessage());
+        echo json_encode(['error' => 'Не удалось сохранить иконку. Повторите позже.']);
+    }
 }
 elseif ($action === 'delete_playlist') {
     if (!isset($_SESSION['user_id'])) exit;

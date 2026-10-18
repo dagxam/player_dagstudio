@@ -70,6 +70,14 @@ jobs:
           CREATE="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"create_playlist","name":"Smoke Playlist","type":"standard"}' http://127.0.0.1:8765/api.php)"
           PL_ID="$(echo "$CREATE" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True; print(d["id"])')"
 
+          # Icon survives account reload and rejects unknown symbols.
+          ICON_SAVE="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"update_playlist_icon\",\"id\":$PL_ID,\"icon\":\"mountain\"}" http://127.0.0.1:8765/api.php)"
+          echo "$ICON_SAVE" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True and d.get("icon")=="mountain"'
+          ICON_INVALID="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"update_playlist_icon\",\"id\":$PL_ID,\"icon\":\"<script>\"}" http://127.0.0.1:8765/api.php)"
+          echo "$ICON_INVALID" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("error") and not d.get("success")'
+          ICON_DATA="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"get_data"}' http://127.0.0.1:8765/api.php)"
+          echo "$ICON_DATA" | python -c 'import sys,json; d=json.load(sys.stdin); assert d[0]["icon"]=="mountain"'
+
           ADD="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"add_track\",\"playlist_id\":$PL_ID,\"track\":{\"title\":\"Smoke Track\",\"artist\":\"DAGSTUDIO\",\"url\":\"https://example.com/smoke.mp3\",\"thumb\":\"\",\"type\":\"audio\"}}" http://127.0.0.1:8765/api.php)"
           echo "$ADD" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True'
 
@@ -185,7 +193,7 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2287'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2288'
           echo "$INDEX_HTML" | grep -q 'style.css?v=2227'
           echo "$INDEX_HTML" | grep -q 'modern.css?v=16'
           echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'

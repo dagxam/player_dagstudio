@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2287';
+const WEB_BUILD_LABEL = '2288';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2287', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2288', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2287') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2287', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2288') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2288', '1');
         window.location.reload();
     });
 }
@@ -469,6 +469,65 @@ let selectedTrackForSave = null;
 let activePlIdForUpload = null;
 let wakeLock = null;
 let editingPlaylistId = null;
+const PLAYLIST_ICON_OPTIONS = Object.freeze([
+    ['music','Музыка'],['heart','Любимые'],['star','Избранное'],
+    ['headphones','Наушники'],['car-side','В дорогу'],['mountain','Кавказ'],
+    ['fire','Энергия'],['moon','Вечер'],['sun','Лето'],
+    ['bolt','Хиты'],['compact-disc','Ретро'],['radio','Радио'],
+    ['leaf','Спокойствие'],['guitar','Гитара'],['globe','Мир'],
+    ['drum','Ритм'],['microphone','Вокал'],['list','Список']
+]);
+function playlistIconName(value) {
+    return PLAYLIST_ICON_OPTIONS.some(([name])=>name===value)?value:'music';
+}
+function renderPlaylistIconPicker(id) {
+    const container=document.getElementById('tm-playlist-icons');
+    if(!container)return;
+    const selected=playlistIconName(playlists.find(p=>String(p.id)===String(id))?.icon);
+    container.replaceChildren();
+    for(const [icon,label] of PLAYLIST_ICON_OPTIONS){
+        const button=document.createElement('button');
+        button.type='button';
+        button.className='playlist-icon-choice';
+        button.title=label;
+        button.setAttribute('aria-label',label);
+        button.setAttribute('aria-pressed',String(icon===selected));
+        button.dataset.icon=icon;
+        const image=document.createElement('i');
+        image.className='fas fa-'+icon;
+        image.setAttribute('aria-hidden','true');
+        button.appendChild(image);
+        button.addEventListener('click',()=>savePlaylistIcon(id,icon));
+        container.appendChild(button);
+    }
+    const preview=document.getElementById('tm-playlist-icon-preview');
+    if(preview)preview.className='fas fa-'+selected;
+}
+async function savePlaylistIcon(id,icon) {
+    const choice=playlistIconName(icon);
+    if(!currentUser||!playlists.some(p=>String(p.id)===String(id)))return false;
+    const picker=document.getElementById('tm-playlist-icons');
+    picker?.querySelectorAll('button').forEach(button=>button.disabled=true);
+    try {
+        const response=await api('update_playlist_icon',{id,icon:choice});
+        if(!response?.success){
+            showNotification(response?.error||'Иконка не сохранена');
+            return false;
+        }
+        const pl=playlists.find(p=>String(p.id)===String(id));
+        if(pl)pl.icon=choice;
+        saveOfflinePlaylistsSnapshot(playlists);
+        renderPlaylistIconPicker(id);
+        window.dispatchEvent(new Event('dag-playlists-updated'));
+        return true;
+    } catch(error){
+        showNotification('Не удалось сохранить иконку');
+        return false;
+    } finally {
+        picker?.querySelectorAll('button').forEach(button=>button.disabled=false);
+    }
+}
+
 
 let currentSearchQuery = '';
 let currentSearchPage = 1;
@@ -2077,6 +2136,10 @@ async function api(action, data = {}) {
 }
 
 function renderCurrentPlaylistFromAccountData() {
+    // Update the sidebar only when playlist data actually changed (including
+    // the last offline snapshot or a fresh server sync).
+    window.dispatchEvent(new Event('dag-playlists-updated'));
+
     if (currentTab !== 'search') {
         const pl = playlists.find(p => p.id == currentTab);
         if (pl) {
@@ -2668,6 +2731,13 @@ function openManagePlaylists() {
         nameWrap.className = 'pl-manage-name';
         nameWrap.textContent = pl.name || '';
         if(playlistExcludedFromLikes(pl.id))nameWrap.title='Исключён из «Мне нравится»';
+        const icon=document.createElement('span');
+        icon.className='pl-manage-icon';
+        const iconImg=document.createElement('i');
+        iconImg.className='fas fa-'+playlistIconName(pl.icon);
+        iconImg.setAttribute('aria-hidden','true');
+        icon.appendChild(iconImg);
+        div.appendChild(icon);
         const actions = document.createElement('div');
         actions.className = 'pl-manage-actions';
         const editBtn = document.createElement('button');
@@ -2715,8 +2785,9 @@ async function deletePlaylistFromManager(id) {
 
 function openTrackManager(plId, plName, plType) { 
     const pl = playlists.find(p => p.id == plId); 
-    editingPlaylistId = plId; 
+    editingPlaylistId = plId;
     document.getElementById('tm-rename-input').value = plName;
+    renderPlaylistIconPicker(plId);
     document.getElementById('tm-add-link-area').style.display = 'none';
     renderTrackManagerList(pl);
     const checkbox=document.getElementById('tm-exclude-likes');
@@ -2739,6 +2810,7 @@ async function savePlaylistName() {
         }
         pl.name = newName;
         saveOfflinePlaylistsSnapshot(playlists);
+        window.dispatchEvent(new Event('dag-playlists-updated'));
         await loadUserData(true);
         if(currentTab == editingPlaylistId) {
              const label = document.getElementById('active-tab-name');
