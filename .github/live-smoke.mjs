@@ -201,6 +201,9 @@ try {
           icon:getComputedStyle(cardArt.querySelector('i')).backgroundImage,
           iconColor:getComputedStyle(cardArt.querySelector('i')).color,
           navIcon:getComputedStyle(navIcon).backgroundImage,
+          backdrop:getComputedStyle(document.querySelector('.studio-showcase>.left-col')).backgroundImage,
+          ornament:getComputedStyle(document.querySelector('.studio-showcase>.left-col'),'::after').backgroundImage,
+          logoMask:getComputedStyle(document.querySelector('.studio-showcase>.left-col'),'::after').webkitMaskImage,
           selectedTheme:[...document.querySelectorAll('.theme-choice[aria-pressed="true"]')]
             .map(button=>button.dataset.theme).join(',')
         };
@@ -215,6 +218,9 @@ try {
       state.variedTileIcons=new Set(Object.values(themes).map(x=>x.icon)).size===5;
       state.variedTileIconColors=new Set(Object.values(themes).map(x=>x.iconColor)).size===5;
       state.variedMenuIcons=new Set(Object.values(themes).map(x=>x.navIcon)).size===5;
+      state.variedBackdrops=new Set(Object.values(themes).map(x=>x.backdrop)).size===5;
+      state.variedOrnaments=new Set(Object.values(themes).map(x=>x.ornament)).size===5;
+      state.logoWatermark=Object.values(themes).every(x=>x.logoMask.includes('cover.png'));
       state.selectedThemes=Object.entries(themes).every(([n,x])=>x.selectedTheme===n);
       return state;
     }finally{
@@ -763,7 +769,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2301',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2302',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -774,10 +780,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2301', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2302', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2301'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2302'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -861,7 +867,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2301', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2302', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")

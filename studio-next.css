@@ -1503,3 +1503,60 @@
  #menu-modal .menu-playback-group .menu-column-label{margin-bottom:8px}
  #menu-modal .menu-playback-group .menu-list-btn{margin-bottom:6px}
 }
+
+/* DAGSTUDIO signature backdrop: the actual ornament from the player logo,
+   kept behind the music controls and tinted by whichever theme is selected.
+   It reuses the cached transparent 512px logo, avoiding a large new bitmap. */
+.studio-showcase>.left-col{
+ background:
+  radial-gradient(ellipse 62% 45% at 50% 26%,
+    rgba(var(--theme-rgb,192,108,66),.27),transparent 83%),
+  radial-gradient(ellipse 100% 72% at 50% -18%,
+    rgba(var(--theme-bright-rgb,223,170,140),.13),transparent 77%),
+  linear-gradient(180deg,var(--theme-shell-a,#12141b) 0%,
+    var(--theme-page,#090b10) 65%,#05070b 100%)!important;
+}
+.studio-showcase>.left-col::before{
+ display:block!important;content:"";position:absolute;inset:0;z-index:-1;
+ pointer-events:none;
+ background:
+  radial-gradient(ellipse at 50% 23%,
+    transparent 0 35%,rgba(var(--theme-rgb,192,108,66),.075) 56%,transparent 71%),
+  repeating-linear-gradient(90deg,transparent 0 99px,
+    rgba(var(--theme-rgb,192,108,66),.055) 100px,transparent 101px),
+  repeating-linear-gradient(0deg,transparent 0 99px,
+    rgba(var(--theme-rgb,192,108,66),.035) 100px,transparent 101px);
+ -webkit-mask-image:linear-gradient(to bottom,transparent,black 12%,black 63%,transparent 93%);
+ mask-image:linear-gradient(to bottom,transparent,black 12%,black 63%,transparent 93%);
+}
+.studio-showcase>.left-col::after{
+ display:block;content:"";position:absolute;inset:0;z-index:-1;
+ pointer-events:none;opacity:.32;
+ background:radial-gradient(circle at 50% 26%,
+   rgba(var(--theme-bright-rgb,223,170,140),.77),
+   rgba(var(--theme-rgb,192,108,66),.37) 65%,transparent 90%);
+ -webkit-mask-image:url('/images/cover.png');
+ mask-image:url('/images/cover.png');
+ -webkit-mask-size:min(86vh,760px) auto;
+ mask-size:min(86vh,760px) auto;
+ -webkit-mask-position:center 21%;
+ mask-position:center 21%;
+ -webkit-mask-repeat:no-repeat;
+ mask-repeat:no-repeat;
+}
+@media(min-width:769px) and (max-height:720px){
+ .studio-showcase>.left-col::after{
+  -webkit-mask-size:min(91vh,610px) auto;mask-size:min(91vh,610px) auto;
+  opacity:.29;
+ }
+}
+@media(max-width:768px){
+ .studio-showcase>.left-col::after{
+  -webkit-mask-size:min(86vw,460px) auto;mask-size:min(86vw,460px) auto;
+  -webkit-mask-position:center 14%;mask-position:center 14%;opacity:.20;
+ }
+ .studio-showcase>.left-col::before{
+  background:radial-gradient(ellipse at 50% 23%,
+    rgba(var(--theme-rgb,192,108,66),.12),transparent 75%);
+ }
+}

@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="style.css?v=2227">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=18">
+    <link rel="stylesheet" href="studio-next.css?v=19">
 </head>
 <body>
 
@@ -362,7 +362,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2301" defer></script>
+<script src="script.js?v=2302" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=9" defer></script>
 <script src="studio-center.js?v=3" defer></script>
