@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2291';
+const WEB_BUILD_LABEL = '2293';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -427,7 +427,7 @@ window.manualUpdateApplication = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2291', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2293', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -439,8 +439,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2291') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2291', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2293') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2293', '1');
         window.location.reload();
     });
 }
@@ -3972,6 +3972,75 @@ function tastePositiveTracks() {
         if((record?.positive||record?.listen)&&record.track)add(record.track);
     return result;
 }
+
+// Source material for Wave includes EVERY playlist (including playlists excluded
+// only from "Мне нравится") and the locally learned full listens/likes.
+function waveLibrarySeeds(){
+    const learned=tasteLoad(),seeds=[],ids=new Set();
+    const append=track=>{
+        if(!track?.url||!track?.artist||!track?.title)return;
+        const key=tasteTrackId(track);
+        if(!key||ids.has(key)||learned.tracks?.[key]?.positive===false)return;
+        ids.add(key);seeds.push(track);
+    };
+    for(const pl of playlists||[])for(const track of pl.tracks||[])append(track);
+    for(const track of tastePositiveTracks())append(track);
+    return seeds;
+}
+let waveSearchCursor=0;
+async function findWaveNextTrack(){
+    if(navigator.onLine===false)return null;
+    const library=waveLibrarySeeds();
+    const known=[...playbackPlaylist,...playbackQueue];
+    const titles=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
+    const urls=new Set(known.map(t=>String(t.url||'')));
+    const seen=track=>!track?.url||urls.has(String(track.url))||
+        titles.has(normalizeTrackIdentity(track.artist)+'|'+normalizeTrackIdentity(track.title));
+    const prior=playbackPlaylist[currentIndex]?.artist||'';
+    // Prefer verified recent tracks and other singers; the user shouldn't hear
+    // the same performer repeatedly just because a server ranked them first.
+    function choose(pool){
+        const eligible=quickMixRankTracks(quickMixUnique(pool).filter(t=>!seen(t)),
+             {mode:'popular'});
+        if(!eligible.length)return null;
+        const fresh=eligible.filter(t=>{
+            const date=quickMixReleaseTimestamp(t);
+            return date&&Date.now()-date<=365*86400000;
+        });
+        const candidates=fresh.length?fresh:eligible;
+        const other=candidates.filter(t=>
+            normalizeTrackIdentity(t.artist)!==normalizeTrackIdentity(prior));
+        return (other.length?other:candidates)[0]||null;
+    }
+    const discovered=quickMixCurrent?.key==='wave'?quickMixCurrent.tracks||[]:[];
+    let found=choose(discovered);
+    if(found)return {...found,_smartRadio:true,_waveRadio:true};
+    const names=[...new Set([
+       ...tastePreferredGenres(), ...tastePreferredArtists(library),
+       ...library.map(t=>String(t.artist||'').trim())
+    ])].filter(Boolean).slice(0,90);
+    if(!names.length)return null;
+    const net=getNetworkProfile();
+    // Rotate artists and pages so a finished song advances discovery instead of
+    // replaying the first search page or repeating only one singer.
+    for(let i=0;i<Math.min(4,names.length);i++){
+        const count=waveSearchCursor++;
+        const query=names[count%names.length];
+        const page=1+Math.floor(count/names.length)%6;
+        try{
+            const response=await api('search_global',{
+                query,page,network:net.weak?'weak':'normal',
+                save_data:net.saveData?1:0
+            });
+            if(response?.success&&Array.isArray(response.data)){
+                found=choose(response.data);
+                if(found)return {...found,_smartRadio:true,_waveRadio:true};
+            }
+        }catch(e){recordPlayerEvent('wave-discovery-error');}
+    }
+    return null;
+}
+
 // Explicit library favourites are different from listening-derived Wave.
 const LIKES_EXCLUSIONS_PREFIX='dag_likes_exclusions_v1:';
 function playlistLikesExclusions(){
@@ -4161,7 +4230,9 @@ async function findSmartRadioTrack() {
     return null;
 }
 function maybePrefetchSmartRadio() {
-    if (trafficSaverEnabled() || !smartRadioEnabled || smartRadioBusy || isRepeat || playbackQueue.length ||
+    if (trafficSaverEnabled() ||
+        (!smartRadioEnabled && playbackTab!=='mix:wave') ||
+        smartRadioBusy || isRepeat || playbackQueue.length ||
         playbackTab==='search' || navigator.onLine===false || !playbackWanted ||
         currentIndex!==playbackPlaylist.length-1 || !playbackPlaylist[currentIndex]) return;
     if (isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
@@ -4181,9 +4252,10 @@ function maybePrefetchSmartRadio() {
     smartRadioPrefetch=state;
     const info=document.getElementById('smart-radio-next-info');
     if (info) info.textContent='Следующий из сети: подбираем…';
-    state.promise=findSmartRadioTrack().then(candidate=>{
+    state.promise=(playbackTab==='mix:wave'?findWaveNextTrack():findSmartRadioTrack()).then(candidate=>{
         if (smartRadioPrefetch !== state || token!==currentPlaybackToken ||
-            serial!==smartRadioRequestSerial || !smartRadioEnabled) return null;
+            serial!==smartRadioRequestSerial ||
+            (!smartRadioEnabled&&playbackTab!=='mix:wave')) return null;
         state.candidate=candidate;
         if (candidate) {
             if (info) info.textContent='Следующий из сети: '+candidate.artist+' — '+candidate.title;
@@ -4201,7 +4273,7 @@ function maybePrefetchSmartRadio() {
 }
 async function playSmartRadioNext() {
     if (smartRadioBusy) return true;
-    if (!smartRadioEnabled || navigator.onLine===false) return false;
+    if ((!smartRadioEnabled && playbackTab!=='mix:wave') || navigator.onLine===false) return false;
     if (playbackTab==='search' || !playbackPlaylist.length) return false;
     smartRadioBusy=true;
     const prefetched=smartRadioPrefetch;
@@ -4223,12 +4295,16 @@ async function playSmartRadioNext() {
         }
         if (smartRadioPrefetch===prefetched) smartRadioPrefetch=null;
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
-            !smartRadioEnabled || !playbackWanted) return true;
-        if (!candidate) candidate=await findSmartRadioTrack();
+            (!smartRadioEnabled&&playbackTab!=='mix:wave') || !playbackWanted) return true;
+        if (!candidate || (playbackTab==='mix:wave'&&!candidate._waveRadio))
+            candidate=playbackTab==='mix:wave'?
+                await findWaveNextTrack():await findSmartRadioTrack();
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
-            !smartRadioEnabled || !playbackWanted) return true;
+            (!smartRadioEnabled&&playbackTab!=='mix:wave') || !playbackWanted) return true;
         if (candidate) {
             // Keep the current and original list; don't overwrite the browsed playlist.
+            // Wave is a continuous radio. Queue the new discovery directly
+            // behind the current song and never display the track list.
             playbackPlaylist.push(candidate);
             if (playbackPlaylist.length > 150) {
                 const old=playbackPlaylist.findIndex((t,i)=>t._smartRadio && i<currentIndex);
@@ -4371,6 +4447,12 @@ function playNext() {
         return;
     }
     if (!playbackPlaylist.length) return;
+    // "Моя волна" discovers a different, preferably recent recommendation
+    // at every transition, regardless of the generic smart-radio toggle.
+    if (playbackTab==='mix:wave' && navigator.onLine!==false) {
+        playSmartRadioNext();
+        return;
+    }
     if (isShuffle && playbackPlaylist.length>1) {
         let remaining=playbackPlaylist.map((t,i)=>i).filter(i=>!smartShufflePlayed.has(i));
         if (!remaining.length) {
@@ -4695,17 +4777,36 @@ function quickMixRankTracks(tracks,config) {
             .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track) ||
                   b.score-a.score).map(e=>e.track);
     }
-    if(config?.mode==='classic')return ranked.map(e=>e.track);
-    // Mix popular records and verified newer releases. Only metadata-backed
-    // recency can receive this boost; other sources keep relevance order.
-    const popular=ranked.filter(e=>!e.fresh),recent=ranked.filter(e=>e.fresh),ordered=[];
-    let i=0,j=0;
-    while(i<popular.length||j<recent.length){
-        for(let n=0;n<3&&i<popular.length;n++)ordered.push(popular[i++].track);
-        if(j<recent.length)ordered.push(recent[j++].track);
-        if(i>=popular.length&&j<recent.length)ordered.push(recent[j++].track);
+    if(config?.mode==='classic')return quickMixDiversify(ranked.map(e=>e.track));
+    // New releases first; other songs follow only when dated releases end.
+    const fresh=ranked.filter(e=>e.fresh)
+        .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track)||
+            b.score-a.score).map(e=>e.track);
+    const other=ranked.filter(e=>!e.fresh).map(e=>e.track);
+    return [...quickMixDiversify(fresh),...quickMixDiversify(other)];
+}
+function quickMixDiversify(ordered){
+    const buckets=new Map(),result=[];
+    for(const track of ordered){
+        const artist=normalizeTrackIdentity(track?.artist)||'unknown';
+        if(!buckets.has(artist))buckets.set(artist,[]);
+        buckets.get(artist).push(track);
     }
-    return ordered;
+    let previous='',safety=0;
+    while(result.length<ordered.length && safety++<ordered.length+1){
+        let picked=null,score=-1;
+        for(const [artist,tracks] of buckets){
+            if(!tracks.length)continue;
+            const available=artist!==previous?2:0;
+            const rank=-ordered.indexOf(tracks[0])/Math.max(1,ordered.length);
+            const value=available+rank;
+            if(value>score){score=value;picked=artist;}
+        }
+        if(picked===null)break;
+        result.push(buckets.get(picked).shift());
+        previous=picked;
+    }
+    return result;
 }
 function openQuickMixes() {
     const dialog=document.getElementById('quick-mixes-modal');
@@ -4784,6 +4885,16 @@ function quickMixSourcesCaption(state) {
 function setQuickMixStatus(message) {
     const el=document.getElementById('quick-mix-status');
     if(el){el.textContent=message;el.hidden=!message;}
+    const list=document.getElementById('playlist-container');
+    if(list && String(currentTab).startsWith('mix:')){
+        let state=list.querySelector('.showcase-search-status');
+        if(!state){state=document.createElement('div');
+            state.className='showcase-search-status';state.setAttribute('role','status');
+            list.appendChild(state);
+        }
+        state.textContent=message||'';
+        state.hidden=!message;
+    }
 }
 function renderQuickMixButtons() {
     document.querySelectorAll('.quick-mix-btn').forEach(btn=>{
@@ -4813,18 +4924,25 @@ function renderQuickMixView() {
     document.getElementById('btn-pl-select')?.classList.remove('active');
     playlist=quickMixCurrent.tracks;
     renderPlaylist();
+    if(quickMixCurrent.key==='charts' && !playlist.length)
+        setQuickMixStatus(quickMixCurrent.loading?'Ищем новые релизы по всем музыкальным источникам…':
+            'Нет подтверждённых новинок. Прокрутите вниз для продолжения поиска.');
 }
 async function startQuickMix(key) {
-    const waveTracks=key==='wave'?tastePositiveTracks():[];
+    const seeds=key==='wave'?waveLibrarySeeds():[];
+    // Begin with one known song while the next personalized release is searched.
+    const waveTracks=key==='wave'?seeds.slice(0,1):[];
     if(key==='wave'){
-        const preferred=tastePreferredArtists(waveTracks);
+        const preferred=tastePreferredArtists(seeds);
         const genres=tastePreferredGenres();
-        if(!waveTracks.length&&!preferred.length&&!genres.length){
-            setQuickMixStatus('Послушайте песню до конца или сохраните понравившуюся — она войдёт в «Мою волну».');
+        if(!seeds.length&&!preferred.length&&!genres.length){
+            setQuickMixStatus('Добавьте песни в плейлист или послушайте их до конца — так «Моя волна» изучит вкусы.');
             closeModal('quick-mixes-modal');return;
         }
         QUICK_MIXES.wave={title:'Моя волна',mode:'popular',
-            artists:[...new Set([...preferred,...genres])].slice(0,24)};
+            artists:[...new Set([...genres,...preferred,...seeds.map(t=>t.artist)])]
+                .filter(Boolean).slice(0,18)};
+        waveSearchCursor=0;
     }
     const config=QUICK_MIXES[key];
     if(!config)return;
@@ -4843,7 +4961,9 @@ async function startQuickMix(key) {
     renderQuickMixView();
     renderQuickMixButtons();
     setQuickMixStatus(config.regions?'Ищем песни народов Кавказа…':
-        config.mode==='classic'?'Ищем любимую классику…':'Ищем популярные песни и новинки…');
+        config.mode==='classic'?'Ищем любимую классику…':
+        config.mode==='recent'?'Проверяем даты новых релизов на всех музыкальных источниках…':
+        'Ищем свежие песни разных исполнителей…');
     let started=waveTracks.length>0;
     if(started){
         currentTab='mix:'+key;
@@ -4901,7 +5021,7 @@ async function startQuickMix(key) {
         for(let i=0;i<batch.length;i++){
             const item=batch[i];
             const fresh=quickMixUnique(results[i],[...quickMixCurrent.tracks,...next]);
-            const spread=quickMixSpreadSources(fresh,config.regions?5:12);
+            const spread=quickMixSpreadSources(fresh,config.regions?4:3);
             if(spread.length){
                 next.push(...spread);
                 if(item.region)quickMixCurrent.searchedRegions.add(item.region);
@@ -4913,8 +5033,7 @@ async function startQuickMix(key) {
             continue;
         }
         quickMixCurrent.tracks.push(...next);
-        if(config.mode==='recent'&&!(playbackTab==='mix:charts'&&playbackWanted))
-            quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
+        quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
         if(!started) {
             started=true;
             currentTab='mix:'+key;
@@ -4923,7 +5042,7 @@ async function startQuickMix(key) {
             if(config.autoPlayOnDiscover!==false)playTrack(0);
             renderQuickMixButtons();
         } else {
-            if(playbackTab==='mix:'+key&&playbackWanted) {
+            if(key!=='wave' && playbackTab==='mix:'+key&&playbackWanted) {
                 const urls=new Set(playbackPlaylist.map(t=>t.url));
                 playbackPlaylist.push(...next.filter(t=>!urls.has(t.url)));
             }
@@ -4972,9 +5091,9 @@ async function loadMoreQuickMix() {
     try {
         for(const {direction,query} of picks){
             if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
-            const page=Math.min(6,(state.pageNumbers.get(query)||1)+1);
+            const page=Math.min(16,(state.pageNumbers.get(query)||1)+1);
             state.pageNumbers.set(query,page);
-            if(page>=6)state.exhaustedQueries.add(query);
+            if(page>=16)state.exhaustedQueries.add(query);
             try{
                 const net=getNetworkProfile();
                 const response=await api('search_global',{query,page,
@@ -4990,7 +5109,7 @@ async function loadMoreQuickMix() {
                 const fresh=quickMixUnique(response.data,[...state.tracks,...collected])
                     .map(track=>({...track,_mixRegion:direction.region,_mixSearchQuery:query}));
                 const ranked=quickMixRankTracks(fresh,config);
-                collected.push(...ranked.slice(0,16));
+                collected.push(...ranked.slice(0,4));
                 if(response.data.length<12)state.exhaustedQueries.add(query);
             }catch(err){recordPlayerEvent('quick-mix-more-error');}
         }
@@ -4998,9 +5117,8 @@ async function loadMoreQuickMix() {
         const unique=quickMixUnique(collected,state.tracks);
         if(unique.length){
             state.tracks.push(...unique);
-            if(config.mode==='recent'&&!(playbackTab==='mix:charts'&&playbackWanted))
-                state.tracks=quickMixRankTracks(state.tracks,config);
-            if(playbackTab==='mix:'+state.key&&playbackWanted){
+            state.tracks=quickMixRankTracks(state.tracks,config);
+            if(state.key!=='wave'&&playbackTab==='mix:'+state.key&&playbackWanted){
                 const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
                 playbackPlaylist.push(...unique.filter(t=>!known.has(canonicalTrackUrl(t))));
             }

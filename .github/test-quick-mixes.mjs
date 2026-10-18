@@ -36,6 +36,28 @@ assert.equal(ctx.quickMixReleaseTimestamp({release_date:'not-a-date'}),0);
 assert.ok(source.includes('QUICK_MIXES={'));
 assert.ok(source.includes('caucasus:')&&source.includes('foreign:'));
 assert.ok(source.includes("String(currentTab).startsWith('mix:')"));
+const singerA=[
+ {artist:'Only A',title:'A1',url:'https://x.example/a1'},
+ {artist:'Only A',title:'A2',url:'https://x.example/a2'},
+ {artist:'Only A',title:'A3',url:'https://x.example/a3'}
+];
+const singerB=[
+ {artist:'Different B',title:'B1',url:'https://x.example/b1'},
+ {artist:'Different B',title:'B2',url:'https://x.example/b2'}
+];
+const diverse=ctx.quickMixRankTracks([...singerA,...singerB],{mode:'popular'});
+assert.equal(diverse.length,5);
+assert.notEqual(diverse[0].artist,diverse[1].artist,
+    'A collection with multiple artists must not start with consecutive songs by one singer');
+const freshOne={artist:'Recent A',title:'Now',url:'https://x.example/recent',
+ release_date:new Date(Date.now()-2*86400000).toISOString().slice(0,10)};
+const olderOne={artist:'Legacy B',title:'Past',url:'https://x.example/older'};
+const datedFirst=ctx.quickMixRankTracks([olderOne,freshOne],{mode:'popular'});
+assert.equal(datedFirst[0].title,'Now','verified recent records should start playlists');
+const recentOnly=ctx.quickMixRankTracks([olderOne,freshOne],{mode:'recent'});
+assert.equal(recentOnly.length,1);
+assert.equal(recentOnly[0].title,'Now');
+console.log('DIVERSE_ARTISTS_FRESH_FIRST_AND_VERIFIED_CHARTS_OK');
 console.log('POPULARITY_AND_RELEASE_RANKING_OK');
 
 // Caucasus: cover every North Caucasus republic plus South Caucasus;

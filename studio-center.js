@@ -74,6 +74,7 @@ function card(info,action,edit){
  return shell;
 }
 function showTracks(context,label,backTo){
+ root.classList.remove('showcase-wave-only');
  view='tracks';returnView=backTo||'collections';
  window.studioShowList?.(context);bar.hidden=false;
  backCaption.textContent=label||'Песни';
@@ -94,6 +95,7 @@ function region(id,label){
  if(typeof startCaucasusRadio==='function')startCaucasusRadio(id);
 }
 function render(mode='home'){
+ root.classList.remove('showcase-wave-only');
  view=mode;lastMode=mode;
  window.studioShowCurated?.();
  bar.hidden=true;gallery.replaceChildren(galleryHead(mode));
@@ -150,10 +152,23 @@ window.studioCenterRender=render;
 window.studioCenterMix=(key)=>showMix(key,key==='charts'?'Новые релизы':
  defs.find(x=>x.key===key)?.title||'Подборка','collections');
 window.addEventListener('dag-playlists-updated',()=>{if(view==='playlists')render('playlists');});
-document.getElementById('showcase-wave')?.addEventListener('click',()=>{bar.hidden=false;backCaption.textContent='Моя волна';returnView='home';});
+function openWaveScreen(){
+ view='wave';returnView='home';
+ bar.hidden=true;
+ root.classList.add('showcase-wave-only');
+ selectNav('wave');
+}
+window.studioWaveScreen=openWaveScreen;
+document.getElementById('showcase-wave')?.addEventListener('click',openWaveScreen);
+document.getElementById('vinyl-wave-play')?.addEventListener('click',openWaveScreen);
+document.querySelectorAll('#studio-navigation .showcase-nav-btn').forEach(button=>{
+ if(button.id!=='showcase-wave')button.addEventListener('click',()=>{
+     root.classList.remove('showcase-wave-only');
+ });
+});
 document.addEventListener('click',event=>{
  if(event.target.closest?.('#showcase-search,#showcase-likes,#showcase-offline')){
-   view='tracks';bar.hidden=true;
+   root.classList.remove('showcase-wave-only');view='tracks';bar.hidden=true;
  }
 },false);
 render('home');

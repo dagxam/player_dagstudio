@@ -44,4 +44,12 @@ assert.ok(ctx.tastePositiveTracks().some(t=>t.title==='Услышанная'),'S
 ctx.playlists.push({id:2,tracks:[{artist:'А',title:'Другое',url:'https://example.org/other.mp3'}]});
 ctx.setPlaylistExcludedFromLikes(2,true);
 assert.equal(ctx.likedPlaylistTracks().length,1,'Excluded playlist does not contribute to Мне нравится');
+const wave=ctx.waveLibrarySeeds();
+assert.ok(wave.some(t=>t.url===saved.url),
+ 'Wave recommendations learn from ALL playlists, not only completed listens');
+assert.ok(wave.some(t=>t.title==='Другое'),
+ 'A playlist excluded from Мне нравится still informs My Wave');
+assert.ok(wave.some(t=>t.title==='Услышанная'),
+ 'Wave retains learned listening history alongside library tracks');
+
 console.log('WAVE_HISTORY_AND_PLAYLIST_LIKES_OK');

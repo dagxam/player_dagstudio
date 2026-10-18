@@ -40,6 +40,8 @@ jobs:
           node .github/test-offline-batch.mjs
           node .github/test-ios-preparation.mjs
           node .github/test-native-media.mjs
+          node .github/test-quick-mixes.mjs
+          node .github/test-personal-radio.mjs
           test -s modern.css
           test -s studio.css
           test -s studio-next.css
@@ -195,7 +197,7 @@ jobs:
           echo "Production verified at commit $EXPECTED"
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
-          echo "$INDEX_HTML" | grep -q 'script.js?v=2291'
+          echo "$INDEX_HTML" | grep -q 'script.js?v=2293'
           echo "$INDEX_HTML" | grep -q 'style.css?v=2227'
           echo "$INDEX_HTML" | grep -q 'modern.css?v=16'
           echo "$INDEX_HTML" | grep -q 'id="android-apk-download-btn"'

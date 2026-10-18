@@ -466,7 +466,7 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2291',{cache:'no-store'});
+    const response=await fetch('/script.js?v=2293',{cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
@@ -477,7 +477,7 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2291', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2293', { cache: 'no-store' });
     const code = await response.text();
     return {
       isCurrent: code.includes("const WEB_BUILD_LABEL = '2291'"),
@@ -564,7 +564,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2291', {cache:'no-store'})).text();
+    const js = await (await fetch('/script.js?v=2293', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
