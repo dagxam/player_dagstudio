@@ -190,8 +190,10 @@ const settingsModal=document.getElementById('menu-modal');
 if(settingsModal){
  const watch=new MutationObserver(()=>{
   if(!settingsModal.classList.contains('show')){
-   settingsModal.classList.remove('showcase-settings-page');
-   root.classList.remove('showcase-settings-open');
+   if(settingsModal.classList.contains('showcase-settings-page'))
+     settingsModal.classList.remove('showcase-settings-page');
+   if(root.classList.contains('showcase-settings-open'))
+     root.classList.remove('showcase-settings-open');
   }
  });
  watch.observe(settingsModal,{attributes:true,attributeFilter:['class']});
