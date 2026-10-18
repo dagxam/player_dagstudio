@@ -370,35 +370,41 @@ try {
   // not a centered popup; both panels remain available on TEYES.
   for(const vp of [{width:1024,height:600},{width:1280,height:720},{width:390,height:844}]){
     await page.setViewport(vp);
-    const state=await page.evaluate(()=>{
+    console.log('SETTINGS_STAGE',JSON.stringify(vp),'before click');
+    await page.evaluate(()=>{
       const nav=document.getElementById('studio-navigation');
       const toggle=document.getElementById('showcase-menu-toggle');
       if(innerWidth<=768&&!nav.classList.contains('open'))toggle?.click();
-      const button=document.getElementById('showcase-settings');
-      button.click();
+      document.getElementById('showcase-settings').click();
+    });
+    console.log('SETTINGS_STAGE',JSON.stringify(vp),'after click');
+    const state=await page.evaluate(()=>{
+      const nav=document.getElementById('studio-navigation');
       const modal=document.getElementById('menu-modal');
       const rect=modal.getBoundingClientRect();
       const side=nav.getBoundingClientRect();
       const theme=modal.querySelector('.theme-selector-wrapper');
       const expectedLeft=innerWidth>768?side.right:0;
-      const within=Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
-           rect.top>=-1&&rect.bottom<=innerHeight+2;
-      const page=modal.classList.contains('showcase-settings-page')&&
-        modal.classList.contains('show');
-      const content=!!modal.querySelector('.menu-account-column')&&
-        !!modal.querySelector('.menu-action-column')&&
-        !!modal.querySelector('#app-update-btn');
-      const colors=!!theme&&theme.parentElement.classList.contains('menu-action-column')&&
-        theme.querySelectorAll('.theme-dot').length===5;
-      const back=modal.querySelector('.showcase-settings-back');
-      back.click();
-      const closed=!modal.classList.contains('show')&&
-        !modal.classList.contains('showcase-settings-page');
-      return {within,page,content,colors,closed,noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
+      return {
+        within:Math.abs(rect.left-expectedLeft)<4&&rect.right<=innerWidth+2&&
+           rect.top>=-1&&rect.bottom<=innerHeight+2,
+        page:modal.classList.contains('showcase-settings-page')&&modal.classList.contains('show'),
+        content:!!modal.querySelector('.menu-account-column')&&
+          !!modal.querySelector('.menu-action-column')&&!!modal.querySelector('#app-update-btn'),
+        colors:!!theme&&theme.parentElement.classList.contains('menu-action-column')&&
+          theme.querySelectorAll('.theme-dot').length===5,
+        noOverflow:document.documentElement.scrollWidth<=innerWidth+2};
     });
-    console.log('SETTINGS_RIGHT_WORKSPACE',JSON.stringify({vp,state}));
-    if(Object.values(state).some(x=>!x))
-      throw new Error('Settings page regression '+JSON.stringify({vp,state}));
+    console.log('SETTINGS_STAGE',JSON.stringify(vp),'measured');
+    await page.evaluate(()=>document.querySelector('.showcase-settings-back').click());
+    console.log('SETTINGS_STAGE',JSON.stringify(vp),'after back');
+    const closed=await page.evaluate(()=>{
+      const m=document.getElementById('menu-modal');
+      return !m.classList.contains('show')&&!m.classList.contains('showcase-settings-page');
+    });
+    console.log('SETTINGS_RIGHT_WORKSPACE',JSON.stringify({vp,state:{...state,closed}}));
+    if(Object.values({...state,closed}).some(x=>!x))
+      throw new Error('Settings page regression '+JSON.stringify({vp,state,closed}));
   }
   await page.setViewport({width:1200,height:800});
 
