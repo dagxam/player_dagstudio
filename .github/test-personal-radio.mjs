@@ -47,8 +47,8 @@ assert.equal(ctx.likedPlaylistTracks().length,1,'Excluded playlist does not cont
 const wave=ctx.waveLibrarySeeds();
 assert.ok(wave.some(t=>t.url===saved.url),
  'Wave recommendations learn from ALL playlists, not only completed listens');
-assert.ok(wave.some(t=>t.title==='Другое'),
- 'A playlist excluded from Мне нравится still informs My Wave');
+assert.ok(!wave.some(t=>t.title==='Другое'),
+ 'A playlist excluded from Мне нравится is also excluded from Wave seeds');
 assert.ok(wave.some(t=>t.title==='Услышанная'),
  'Wave retains learned listening history alongside library tracks');
 

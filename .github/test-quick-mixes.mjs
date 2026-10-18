@@ -55,8 +55,11 @@ const olderOne={artist:'Legacy B',title:'Past',url:'https://x.example/older'};
 const datedFirst=ctx.quickMixRankTracks([olderOne,freshOne],{mode:'popular'});
 assert.equal(datedFirst[0].title,'Now','verified recent records should start playlists');
 const recentOnly=ctx.quickMixRankTracks([olderOne,freshOne],{mode:'recent'});
-assert.equal(recentOnly.length,1);
+assert.equal(recentOnly.length,2);
 assert.equal(recentOnly[0].title,'Now');
+assert.equal(recentOnly[0]._releaseVerified,true);
+assert.equal(recentOnly[1].title,'Past');
+assert.equal(recentOnly[1]._releaseVerified,false);
 console.log('DIVERSE_ARTISTS_FRESH_FIRST_AND_VERIFIED_CHARTS_OK');
 console.log('POPULARITY_AND_RELEASE_RANKING_OK');
 
