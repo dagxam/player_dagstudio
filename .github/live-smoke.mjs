@@ -183,6 +183,42 @@ try {
         untouchedAudio:document.querySelectorAll('audio').length===1,
         idleIntro
       };
+      // Artwork is shown only when the source provides a real, loadable cover.
+      // The default provider logo and art-free songs preserve the mountains.
+      const album=vinyl.querySelector('.showcase-album-art');
+      const waitForCover=async()=>{
+        for(let i=0;i<25;i++){
+          if(root.classList.contains('showcase-has-cover')&&album?.naturalWidth>0)return true;
+          await delay(80);
+        }
+        return false;
+      };
+      state.noCoverInitially=!!album&&!album.hasAttribute('src')&&
+        !root.classList.contains('showcase-has-cover');
+      playbackPlaylist[0].thumb='images/studio-wave.svg';
+      title.textContent='Жиганская — с обложкой';
+      state.realCoverShown=await waitForCover();
+      state.coverWithinCircle=state.realCoverShown&&
+        getComputedStyle(album).borderRadius==='50%'&&
+        getComputedStyle(album).objectFit==='cover'&&
+        getComputedStyle(album).filter==='none';
+      playbackPlaylist[0].thumb='images/cover.png';
+      title.textContent='Жиганская — без обложки';
+      await delay(130);
+      state.logoKeepsMountains=!root.classList.contains('showcase-has-cover')&&
+        !album.hasAttribute('src')&&getComputedStyle(landscape).display!=='none';
+      playbackPlaylist[0].thumb='';
+      title.textContent='Жиганская — без картинки';
+      await delay(130);
+      state.missingCoverKeepsMountains=!root.classList.contains('showcase-has-cover')&&
+        !album.hasAttribute('src');
+      playbackPlaylist[0].thumb='javascript:alert(1)';
+      title.textContent='Жиганская — неподдерживаемая ссылка';
+      await delay(130);
+      state.unsafeCoverIgnored=!root.classList.contains('showcase-has-cover')&&
+        !album.hasAttribute('src');
+      playbackPlaylist[0].thumb='';
+      title.textContent='Жиганская';
       const themes={};
       const cardArt=document.querySelector('#studio-curations .showcase-card-art');
       const navIcon=document.querySelector('#showcase-search i');
@@ -780,10 +816,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2302', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2303', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2302'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2303'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),

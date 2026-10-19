@@ -148,10 +148,15 @@ const visual=player.querySelector('.visual-container');if(visual)visual.appendCh
 // The scenic artwork belongs to the player, not to an inert screenshot.
 // Its decorative layers are styled by the active DAGSTUDIO color theme.
 const vinyl=player.querySelector('#vinyl-view');
+let albumArt=null;
 if(vinyl){
  const landscape=node('img','showcase-sunset-art');landscape.src='images/studio-sunset.svg';
  landscape.alt='';landscape.setAttribute('aria-hidden','true');
  vinyl.insertBefore(landscape,vinyl.firstChild);
+ albumArt=node('img','showcase-album-art');
+ albumArt.alt='';albumArt.setAttribute('aria-hidden','true');
+ albumArt.decoding='async';
+ landscape.insertAdjacentElement('afterend',albumArt);
  vinyl.setAttribute('aria-label','Оформление текущей композиции');
 }
 if(visual){
@@ -185,6 +190,39 @@ mobileToggle.addEventListener('click',()=>{
 root.appendChild(mobileToggle);
 const shade=node('div','showcase-mobile-shade');shade.addEventListener('click',closeMobile);root.appendChild(shade);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();});
+// A provider may supply real cover art, or just our default DAGSTUDIO logo.
+// Never replace the mountain illustration with a placeholder or broken image.
+const placeholderArtwork=/^\/images\/(?:cover|faviconch|icon(?:-192)?|r|f|s|z)\.png$/i;
+function trackArtworkSource(track){
+ const raw=String(track?.thumb||'').trim();
+ if(!raw)return '';
+ try{
+  const url=new URL(raw,document.baseURI);
+  if(url.protocol!=='https:'&&url.protocol!=='http:')return '';
+  if(url.origin===location.origin&&placeholderArtwork.test(url.pathname))return '';
+  return url.href;
+ }catch(error){return '';}
+}
+let currentArtworkSource=null,artworkRevision=0;
+function refreshAlbumArt(track){
+ if(!albumArt)return;
+ const source=trackArtworkSource(track);
+ if(source===currentArtworkSource)return;
+ currentArtworkSource=source;
+ const revision=++artworkRevision;
+ root.classList.remove('showcase-has-cover');
+ albumArt.onload=null;albumArt.onerror=null;
+ albumArt.removeAttribute('src');
+ if(!source)return;
+ albumArt.onload=()=>{
+  if(revision===artworkRevision&&albumArt.naturalWidth>0)
+   root.classList.add('showcase-has-cover');
+ };
+ albumArt.onerror=()=>{
+  if(revision===artworkRevision)root.classList.remove('showcase-has-cover');
+ };
+ albumArt.src=source;
+}
 function refreshShowcase(){
  let name='brown';try{name=localStorage.getItem('dag_theme')||'brown';}catch(e){}
  const img=typeof colorThemes!=='undefined'?colorThemes[name]?.img:null;
@@ -196,6 +234,7 @@ function refreshShowcase(){
  try{track=playbackPlaylist[currentIndex]||null;}catch(e){}
  const hasTrack=Boolean(track?.url);
  root.classList.toggle('showcase-has-track',hasTrack);
+ refreshAlbumArt(hasTrack?track:null);
  const title=document.getElementById('track-title')?.textContent?.trim()||'';
  current.textContent=hasTrack?'ИГРАЕТ СЕЙЧАС':'Ваша музыка';
  if(hasTrack){
