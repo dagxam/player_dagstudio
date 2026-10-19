@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2303';
+const WEB_BUILD_LABEL = '2304';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -2178,6 +2178,7 @@ async function checkAuth() {
     if (lastKnownUser) {
         hydrateCachedAccount(lastKnownUser);
         restoreNativePlaybackSnapshot();
+        scheduleWaveWarmup();
     }
 
     if (navigator.onLine === false && lastKnownUser) {
@@ -2255,6 +2256,7 @@ async function loadUserData(force = false) {
         updatePlaylistSyncStatus('ok', 'Плейлисты синхронизированы · есть локальная копия');
         syncPlaylistOfflineCache();
         showDeviceCacheStatus();
+        scheduleWaveWarmup();
         return true;
     })();
     playlistSyncPromise = promise;
@@ -3601,6 +3603,12 @@ window.addEventListener('online', function() {
     recordPlayerEvent('network-online');
     nativeApiReachable = true;
     scheduleNativeCacheWorker(500);
+    scheduleWaveWarmup();
+    if(radioRetryTimer&&isContinuousRadio()&&playbackWanted){
+        clearTimeout(radioRetryTimer);
+        radioRetryTimer=null;
+        playSmartRadioNext().catch(()=>{});
+    }
     if (playbackWanted && networkRetryPending && currentIndex >= 0 &&
         (mainAudio.paused || mainAudio.readyState < 2)) {
         recoverCurrentStream('network-online');
@@ -3639,12 +3647,23 @@ async function playTrack(index, options = {}) {
         if (label) label.textContent='Подбор начнётся ближе к концу плейлиста.';
     }
     playbackWanted = true;
+    cancelContinuousRadioRetry();
     currentIndex = index;
     if (isShuffle) smartShufflePlayed.add(index);
+    // The radio has no song limit, but TEYES must not keep thousands of old
+    // audio objects in RAM during a long drive. Retain recent back history.
+    if(isContinuousRadio()&&playbackPlaylist.length>150&&currentIndex>100){
+        const drop=currentIndex-75;
+        playbackPlaylist.splice(0,drop);
+        currentIndex-=drop;
+        smartShufflePlayed.clear();
+    }
     nextTrackPrefetchKey = '';
     streamRecoveryInFlight = false;
-    const track = playbackPlaylist[index];
+    const track = playbackPlaylist[currentIndex];
     offlineCatalogRemember(track);
+    if(playbackTab==='mix:wave'&&track?._waveRadio)radioRememberPlayed('wave',track);
+    if(playbackTab==='mix:charts')radioRememberPlayed('charts',track);
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 
@@ -3822,6 +3841,7 @@ function notifyPausedCacheReady(track) {
 function pausePlayback() {
     if (!playbackWanted) return;
     playbackWanted = false;
+    cancelContinuousRadioRetry();
     lastManualPauseAt = Date.now();
     lastMediaAdvanceAt = 0;
     currentPlaybackToken++; // ignore delayed cache responses / retry callbacks
@@ -3992,7 +4012,52 @@ function waveLibrarySeeds(){
         if(!excludedIds.has(tasteTrackId(track)))append(track);
     return seeds;
 }
-let waveSearchCursor=0;
+// Persist a bounded play history so reopening a radio station does not keep
+// choosing the same first search result. Old entries eventually age out.
+const RADIO_RECENT_PREFIX='dag_radio_recent_v2:';
+function radioHistoryKey(kind){return RADIO_RECENT_PREFIX+tasteOwnerKey()+':'+kind;}
+function radioTrackIdentity(track){return tasteTrackId(track)||canonicalTrackUrl(track);}
+function radioRecentTracks(kind){
+    try{
+        const stored=JSON.parse(localStorage.getItem(radioHistoryKey(kind))||'[]');
+        return Array.isArray(stored)?stored.filter(x=>typeof x==='string').slice(0,180):[];
+    }catch(e){return [];}
+}
+function radioRememberPlayed(kind,track){
+    const key=radioTrackIdentity(track);
+    if(!key)return;
+    try{localStorage.setItem(radioHistoryKey(kind),JSON.stringify(
+        [key,...radioRecentTracks(kind).filter(item=>item!==key)].slice(0,180)));
+    }catch(e){}
+}
+const WAVE_CURSOR_PREFIX='dag_wave_cursor_v2:';
+let waveSearchCursor=0,waveSearchOwner='';
+function nextWaveSearchCursor(){
+    const owner=tasteOwnerKey();
+    if(owner!==waveSearchOwner){
+        waveSearchOwner=owner;
+        let saved=0;
+        try{saved=Number(localStorage.getItem(WAVE_CURSOR_PREFIX+owner));}catch(e){}
+        waveSearchCursor=Number.isSafeInteger(saved)&&saved>0?saved:
+            Math.floor(Math.random()*59)+1;
+    }
+    const index=waveSearchCursor++;
+    try{localStorage.setItem(WAVE_CURSOR_PREFIX+owner,String(waveSearchCursor));}catch(e){}
+    return index;
+}
+async function radioSearchPage(query,page,net){
+    const options={query,page,network:net.weak?'weak':'normal',
+        save_data:net.saveData?1:0};
+    let response=null;
+    try{response=await api('search_global',options);}catch(e){
+        if(page===1)throw e;
+    }
+    // Some providers have only one page. Always try their main page before
+    // declaring an idle Wave/Charts station out of music.
+    if(page>1&&(!response?.success||!Array.isArray(response.data)||!response.data.length))
+        response=await api('search_global',{...options,page:1});
+    return response;
+}
 async function findWaveNextTrack(){
     if(navigator.onLine===false)return null;
     const library=waveLibrarySeeds();
@@ -4008,6 +4073,8 @@ async function findWaveNextTrack(){
     const seen=track=>!track?.url||excluded.has(tasteTrackId(track))||urls.has(String(track.url))||
         titles.has(normalizeTrackIdentity(track.artist)+'|'+normalizeTrackIdentity(track.title));
     const prior=playbackPlaylist[currentIndex]?.artist||'';
+    const history=new Set(radioRecentTracks('wave'));
+    let previouslyPlayed=null;
     // Prefer verified recent tracks and other singers; the user shouldn't hear
     // the same performer repeatedly just because a server ranked them first.
     function choose(pool){
@@ -4021,7 +4088,15 @@ async function findWaveNextTrack(){
         const candidates=fresh.length?fresh:eligible;
         const other=candidates.filter(t=>
             normalizeTrackIdentity(t.artist)!==normalizeTrackIdentity(prior));
-        return (other.length?other:candidates)[0]||null;
+        const choices=other.length?other:candidates;
+        const unheard=choices.filter(t=>!history.has(radioTrackIdentity(t)));
+        if(!unheard.length){
+            if(!previouslyPlayed)previouslyPlayed=choices[0];
+            return null;
+        }
+        // Take one of the leading recommendations, not always result #1.
+        const shortlist=unheard.slice(0,Math.min(6,unheard.length));
+        return shortlist[Math.floor(Math.random()*shortlist.length)]||null;
     }
     // The library supplies search directions only: NEVER use its saved audio
     // as a playable result. Old preference data from excluded playlists must
@@ -4035,22 +4110,63 @@ async function findWaveNextTrack(){
     // Rotate artists and pages so a finished song advances discovery instead of
     // replaying the first search page or repeating only one singer.
     for(let i=0;i<Math.min(net.weak?2:3,names.length);i++){
-        const count=waveSearchCursor++;
+        const count=nextWaveSearchCursor();
         const query=names[count%names.length];
-        const page=1+Math.floor(count/names.length)%6;
+        const page=1+Math.floor(count/names.length)%12;
         try{
-            const response=await api('search_global',{
-                query,page,network:net.weak?'weak':'normal',
-                save_data:net.saveData?1:0
-            });
+            const response=await radioSearchPage(query,page,net);
             if(response?.success&&Array.isArray(response.data)){
                 const found=choose(response.data);
                 if(found)return {...found,_smartRadio:true,_waveRadio:true};
             }
         }catch(e){recordPlayerEvent('wave-discovery-error');}
     }
-    return null;
+    // Only relax the rotating history after trying other search directions.
+    // Without this, a small provider catalog could leave radio permanently idle.
+    return previouslyPlayed?{...previouslyPlayed,_smartRadio:true,_waveRadio:true}:null;
 }
+// Prepare the first recommendation while the player is idle. This is only a
+// background discovery/cache hint: audio never starts without a user action.
+let waveWarmState=null,waveWarmTimer=null;
+function waveWarmCandidateAllowed(track){
+    if(!track?._waveRadio||!track.url)return false;
+    if(radioRecentTracks('wave').includes(radioTrackIdentity(track)))return false;
+    return !(playlists||[]).some(pl=>(pl.tracks||[]).some(saved=>
+        canonicalTrackUrl(saved)===canonicalTrackUrl(track)||
+        radioTrackIdentity(saved)===radioTrackIdentity(track)));
+}
+function warmWaveFirstTrack(){
+    if(navigator.onLine===false||playbackWanted||!waveLibrarySeeds().length)
+        return Promise.resolve(null);
+    const owner=tasteOwnerKey();
+    if(waveWarmState?.owner===owner){
+        if(waveWarmState.candidate&&Date.now()-waveWarmState.at<15*60*1000&&
+            waveWarmCandidateAllowed(waveWarmState.candidate))
+            return Promise.resolve(waveWarmState.candidate);
+        if(waveWarmState.promise)return waveWarmState.promise;
+    }
+    const state={owner,at:Date.now(),candidate:null,promise:null};
+    waveWarmState=state;
+    state.promise=findWaveNextTrack().then(candidate=>{
+        if(waveWarmState!==state||owner!==tasteOwnerKey())return null;
+        state.candidate=waveWarmCandidateAllowed(candidate)?candidate:null;
+        if(state.candidate&&!playbackWanted&&navigator.onLine!==false&&
+            !getNetworkProfile().weak&&!trafficSaverEnabled())
+            cacheTrackSilently(state.candidate,{reason:'next'});
+        return state.candidate;
+    }).catch(()=>null).finally(()=>{state.promise=null;});
+    return state.promise;
+}
+function scheduleWaveWarmup(){
+    clearTimeout(waveWarmTimer);
+    waveWarmTimer=setTimeout(()=>{
+        if(!document.hidden)warmWaveFirstTrack().catch(()=>{});
+    },800);
+}
+window.addEventListener('dag-library-changed',()=>{
+    waveWarmState=null;
+    scheduleWaveWarmup();
+});
 
 // Explicit library favourites are different from listening-derived Wave.
 const LIKES_EXCLUSIONS_PREFIX='dag_likes_exclusions_v1:';
@@ -4240,18 +4356,69 @@ async function findSmartRadioTrack() {
     }
     return null;
 }
+let chartSearchCursor=0,chartSearchOwner='';
+function nextChartSearchCursor(){
+    const owner=tasteOwnerKey();
+    if(owner!==chartSearchOwner){
+        chartSearchOwner=owner;
+        let saved=0;
+        try{saved=Number(localStorage.getItem('dag_chart_cursor_v1:'+owner));}catch(e){}
+        chartSearchCursor=Number.isSafeInteger(saved)&&saved>0?saved:
+            Math.floor(Math.random()*43)+1;
+    }
+    const next=chartSearchCursor++;
+    try{localStorage.setItem('dag_chart_cursor_v1:'+owner,String(chartSearchCursor));}catch(e){}
+    return next;
+}
+async function findChartNextTrack(){
+    if(navigator.onLine===false)return null;
+    const config=QUICK_MIXES.charts;
+    const queries=[...new Set([`новинки ${new Date().getFullYear()}`,...config.artists])];
+    const net=getNetworkProfile();
+    const known=[...playbackPlaylist,...playbackQueue];
+    const history=new Set(radioRecentTracks('charts'));
+    const prior=normalizeTrackIdentity(playbackPlaylist[currentIndex]?.artist);
+    let fallback=null;
+    for(let i=0;i<Math.min(4,queries.length);i++){
+        const cursor=nextChartSearchCursor();
+        const query=queries[cursor%queries.length];
+        const page=1+Math.floor(cursor/queries.length)%12;
+        try{
+            const response=await radioSearchPage(query,page,net);
+            if(!response?.success||!Array.isArray(response.data))continue;
+            const available=quickMixRankTracks(quickMixUnique(response.data,known),config);
+            const newToListener=available.filter(t=>!history.has(radioTrackIdentity(t)));
+            const distinctArtist=newToListener.filter(t=>normalizeTrackIdentity(t.artist)!==prior);
+            const choices=distinctArtist.length?distinctArtist:newToListener;
+            const verified=choices.filter(t=>{
+                const date=quickMixReleaseTimestamp(t);
+                return date&&Date.now()-date<=365*86400000;
+            });
+            const ranked=verified.length?verified:choices;
+            if(ranked.length){
+                const shortlist=ranked.slice(0,Math.min(6,ranked.length));
+                const picked=shortlist[Math.floor(Math.random()*shortlist.length)];
+                return {...picked,_quickMix:true,_smartRadio:true,_chartRadio:true};
+            }
+            if(!fallback&&available.length)fallback=available[0];
+        }catch(e){recordPlayerEvent('charts-discovery-error');}
+    }
+    // Relax only the rolling history, not the current queue's identities.
+    return fallback?{...fallback,_quickMix:true,_smartRadio:true,_chartRadio:true}:null;
+}
+function isContinuousRadio(){return playbackTab==='mix:wave'||playbackTab==='mix:charts';}
 function maybePrefetchSmartRadio() {
-    if ((trafficSaverEnabled()&&playbackTab!=='mix:wave') ||
-        (!smartRadioEnabled && playbackTab!=='mix:wave') ||
+    if ((trafficSaverEnabled()&&!isContinuousRadio()) ||
+        (!smartRadioEnabled && !isContinuousRadio()) ||
         smartRadioBusy || isRepeat || playbackQueue.length ||
         playbackTab==='search' || navigator.onLine===false || !playbackWanted ||
         currentIndex!==playbackPlaylist.length-1 || !playbackPlaylist[currentIndex]) return;
     if (isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
     const duration = Number(mainAudio.duration);
     const position = Number(mainAudio.currentTime);
-    if (!Number.isFinite(position) || position < (playbackTab==='mix:wave'?0:8))return;
+    if (!Number.isFinite(position) || position < (isContinuousRadio()?0:8))return;
     const remaining=duration-position;
-    if(playbackTab!=='mix:wave'&&(!Number.isFinite(duration)||duration<=0||
+    if(!isContinuousRadio()&&(!Number.isFinite(duration)||duration<=0||
         remaining>95||remaining<0))return;
     // Only search/download when enough of the current song is buffered; on
     // mobile radio we must not trade reliable sound for recommendations.
@@ -4263,15 +4430,17 @@ function maybePrefetchSmartRadio() {
     smartRadioPrefetch=state;
     const info=document.getElementById('smart-radio-next-info');
     if (info) info.textContent='Следующий из сети: подбираем…';
-    state.promise=(playbackTab==='mix:wave'?findWaveNextTrack():findSmartRadioTrack()).then(candidate=>{
+    state.promise=(playbackTab==='mix:wave'?findWaveNextTrack():
+        playbackTab==='mix:charts'?findChartNextTrack():findSmartRadioTrack()).then(candidate=>{
         if (smartRadioPrefetch !== state || token!==currentPlaybackToken ||
             serial!==smartRadioRequestSerial ||
-            (!smartRadioEnabled&&playbackTab!=='mix:wave')) return null;
+            (!smartRadioEnabled&&!isContinuousRadio())) return null;
         state.candidate=candidate;
         if (candidate) {
-            if(playbackTab==='mix:wave'&&currentIndex===playbackPlaylist.length-1){
+            if(isContinuousRadio()&&currentIndex===playbackPlaylist.length-1){
                 playbackPlaylist.push(candidate);
                 state.queued=true;
+                if(playbackTab==='mix:charts')addChartRadioTrack(candidate);
                 renderPlaybackQueue();
             }
             if (info) info.textContent='Следующий из сети: '+candidate.artist+' — '+candidate.title;
@@ -4287,10 +4456,36 @@ function maybePrefetchSmartRadio() {
         return null;
     });
 }
+let radioRetryTimer=null,radioRetryAttempts=0;
+function cancelContinuousRadioRetry(){
+    clearTimeout(radioRetryTimer);
+    radioRetryTimer=null;
+    radioRetryAttempts=0;
+}
+function scheduleContinuousRadioRetry(){
+    if(!isContinuousRadio()||!playbackWanted||radioRetryTimer)return;
+    const token=currentPlaybackToken,serial=smartRadioRequestSerial;
+    const mode=playbackTab;
+    const delay=Math.min(45000,3500+radioRetryAttempts++*4500);
+    radioRetryTimer=setTimeout(()=>{
+        radioRetryTimer=null;
+        if(playbackWanted&&playbackTab===mode&&
+            token===currentPlaybackToken&&serial===smartRadioRequestSerial)
+            playSmartRadioNext().catch(()=>{});
+    },delay);
+}
 async function playSmartRadioNext() {
     if (smartRadioBusy) return true;
-    if ((!smartRadioEnabled && playbackTab!=='mix:wave') || navigator.onLine===false) return false;
+    if (!smartRadioEnabled&&!isContinuousRadio()) return false;
     if (playbackTab==='search' || !playbackPlaylist.length) return false;
+    if(navigator.onLine===false){
+        if(!isContinuousRadio())return false;
+        showLoader(false);
+        const hint=document.getElementById('smart-radio-next-info');
+        if(hint)hint.textContent='Ждём интернет для новых песен…';
+        scheduleContinuousRadioRetry();
+        return true;
+    }
     smartRadioBusy=true;
     const prefetched=smartRadioPrefetch;
     // Keep the in-flight search valid until its result is consumed.
@@ -4303,10 +4498,11 @@ async function playSmartRadioNext() {
         // network request is still in flight, wait briefly rather than start
         // several competing provider searches on TEYES mobile radio.
         let candidate=prefetched?.candidate || null;
-        if(playbackTab==='mix:wave'&&prefetched?.queued&&candidate){
+        if(isContinuousRadio()&&prefetched?.queued&&candidate){
             const idx=playbackPlaylist.indexOf(candidate);
             if(idx>currentIndex){
-                smartRadioPrefetch=null;playTrack(idx,{fromPlayback:true,fromSmartRadio:true});
+                smartRadioPrefetch=null;cancelContinuousRadioRetry();
+                playTrack(idx,{fromPlayback:true,fromSmartRadio:true});
                 return true;
             }
         }
@@ -4318,22 +4514,24 @@ async function playSmartRadioNext() {
         }
         // A search can finish and enqueue its result while Next is awaiting
         // that same promise. Consume it once, without duplicating the song.
-        if(playbackTab==='mix:wave'&&prefetched?.queued&&candidate){
+        if(isContinuousRadio()&&prefetched?.queued&&candidate){
             const queuedIndex=playbackPlaylist.indexOf(candidate);
             if(queuedIndex>currentIndex){
-                smartRadioPrefetch=null;
+                smartRadioPrefetch=null;cancelContinuousRadioRetry();
                 playTrack(queuedIndex,{fromPlayback:true,fromSmartRadio:true});
                 return true;
             }
         }
         if (smartRadioPrefetch===prefetched) smartRadioPrefetch=null;
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
-            (!smartRadioEnabled&&playbackTab!=='mix:wave') || !playbackWanted) return true;
-        if (!candidate || (playbackTab==='mix:wave'&&!candidate._waveRadio))
+            (!smartRadioEnabled&&!isContinuousRadio()) || !playbackWanted) return true;
+        if (!candidate || (playbackTab==='mix:wave'&&!candidate._waveRadio)||
+            (playbackTab==='mix:charts'&&!candidate._chartRadio))
             candidate=playbackTab==='mix:wave'?
-                await findWaveNextTrack():await findSmartRadioTrack();
+                await findWaveNextTrack():playbackTab==='mix:charts'?
+                await findChartNextTrack():await findSmartRadioTrack();
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
-            (!smartRadioEnabled&&playbackTab!=='mix:wave') || !playbackWanted) return true;
+            (!smartRadioEnabled&&!isContinuousRadio()) || !playbackWanted) return true;
         if (candidate) {
             // Keep the current and original list; don't overwrite the browsed playlist.
             // Wave is a continuous radio. Queue the new discovery directly
@@ -4345,7 +4543,9 @@ async function playSmartRadioNext() {
             }
             const next=document.getElementById('smart-radio-next-info');
             if (next) next.textContent='Сейчас из сети: '+candidate.artist+' — '+candidate.title;
+            if(playbackTab==='mix:charts')addChartRadioTrack(candidate);
             recordPlayerEvent('smart-radio-next');
+            cancelContinuousRadioRetry();
             playTrack(playbackPlaylist.length-1,{fromPlayback:true,fromSmartRadio:true});
             return true;
         }
@@ -4359,10 +4559,12 @@ async function playSmartRadioNext() {
     }
     // A personal wave must never fall back to replaying the first library
     // song; let the listener retry after the providers recover.
-    if(playbackTab==='mix:wave'){
+    if(isContinuousRadio()){
         const label=document.getElementById('smart-radio-next-info');
-        if(label)label.textContent='Пока нет новых рекомендаций. Повторите попытку.';
-        showLoader(false);return true;
+        if(label)label.textContent='Ищем дальше — новые песни появятся автоматически.';
+        showLoader(false);
+        scheduleContinuousRadioRetry();
+        return true;
     }
     if (serial===smartRadioRequestSerial && token===currentPlaybackToken &&
         playbackWanted && playbackPlaylist.length) {
@@ -4487,12 +4689,13 @@ function playNext() {
         return;
     }
     if (!playbackPlaylist.length) return;
-    // "Моя волна" discovers a different, preferably recent recommendation
-    // at every transition, regardless of the generic smart-radio toggle.
-    if (playbackTab==='mix:wave' && navigator.onLine!==false) {
+    // Continuous stations never wrap to the first song. A buffered result is
+    // used immediately; otherwise discovery keeps trying in the background.
+    if (isContinuousRadio()) {
         const queued=playbackPlaylist[currentIndex+1];
-        if(queued?._waveRadio){
+        if(queued&&(playbackTab==='mix:charts'||queued._waveRadio)){
             smartRadioPrefetch=null;
+            cancelContinuousRadioRetry();
             playTrack(currentIndex+1,{fromPlayback:true,fromSmartRadio:true});
         }else playSmartRadioNext();
         return;
@@ -4947,6 +5150,19 @@ function setQuickMixStatus(message) {
         state.hidden=!message;
     }
 }
+function addChartRadioTrack(track){
+    const state=quickMixCurrent;
+    if(!track?.url||state?.key!=='charts')return;
+    if(!quickMixUnique([track],state.tracks).length)return;
+    state.tracks.push(track);
+    if(currentTab==='mix:charts'){
+        playlist=state.tracks;
+        const pane=document.querySelector('.playlist-area');
+        const scroll=pane?.scrollTop||0;
+        renderPlaylist();
+        if(pane)pane.scrollTop=scroll;
+    }
+}
 function renderQuickMixButtons() {
     document.querySelectorAll('.quick-mix-btn').forEach(btn=>{
         btn.classList.toggle('active',currentTab==='mix:'+btn.dataset.mix);
@@ -4996,7 +5212,6 @@ async function startQuickMix(key) {
         QUICK_MIXES.wave={title:'Моя волна',mode:'popular',
             artists:[...new Set([...seeds.map(t=>t.genre),...seeds.map(t=>t.artist)])]
                 .filter(Boolean).slice(0,18)};
-        waveSearchCursor=0;
     }
     const config=QUICK_MIXES[key];
     if(!config)return;
@@ -5013,7 +5228,14 @@ async function startQuickMix(key) {
         // Hide the browser; the giant player remains the only wave UI.
         currentTab='mix:wave';playlist=[];renderQuickMixView();
         setQuickMixStatus('Ищем похожую музыку в сети…');
-        const first=await findWaveNextTrack();
+        const warm=waveWarmState?.owner===tasteOwnerKey()?waveWarmState:null;
+        let first=warm?.candidate||null;
+        if(!first&&warm?.promise)first=await warm.promise;
+        if(first&&!waveWarmCandidateAllowed(first))first=null;
+        // Every launch consumes its prepared selection; the next opening
+        // searches from the advanced cursor and excludes recent plays.
+        waveWarmState=null;
+        if(!first)first=await findWaveNextTrack();
         if(requestId!==quickMixRequestId || quickMixCurrent?.key!=='wave')return;
         quickMixCurrent.loading=false;
         if(!first){setQuickMixStatus('Новые похожие композиции пока не найдены. Попробуйте ещё раз.');return;}
@@ -5060,6 +5282,10 @@ async function startQuickMix(key) {
         if(!newTracks.length)return;
         quickMixCurrent.tracks.push(...newTracks);
         quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
+        if(playbackTab==='mix:charts'&&playbackWanted){
+            const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
+            playbackPlaylist.push(...newTracks.filter(t=>!known.has(canonicalTrackUrl(t))));
+        }
         started=true;
         if(currentTab==='mix:charts'){
             playlist=quickMixCurrent.tracks;renderPlaylist();
@@ -5166,8 +5392,19 @@ async function startQuickMix(key) {
 // artist/title. Never recycle the first-page results on repeated scrolls.
 async function loadMoreQuickMix() {
     const state=quickMixCurrent;
-    if(!state||state.loading||state.loadingMore||state.exhausted||
+    if(!state||state.loading||state.loadingMore||
         currentTab!=='mix:'+state.key||navigator.onLine===false)return;
+    if(state.exhausted){
+        if(state.key!=='charts')return;
+        // Chart providers refresh their catalogues. Once all old pages have
+        // been visited, start a fresh rotated pass after a small cooldown.
+        if(Date.now()-Number(state.lastRefreshAt||0)<30000)return;
+        state.lastRefreshAt=Date.now();
+        state.exhausted=false;
+        state.exhaustedQueries.clear();
+        state.pageNumbers.clear();
+        state.nextDirection=Number(state.nextDirection||0)+3;
+    }
     state.loadingMore=true;
     const requestId=quickMixRequestId;
     const config=QUICK_MIXES[state.key];
@@ -5181,7 +5418,10 @@ async function loadMoreQuickMix() {
     }
     state.nextDirection=(offset+Math.max(1,picks.length))%Math.max(1,directions.length);
     if(!picks.length){state.exhausted=true;state.loadingMore=false;
-        setQuickMixStatus('Все доступные треки проверены. Можно выбрать другую подборку.');
+        if(state.key==='charts')state.lastRefreshAt=Date.now();
+        setQuickMixStatus(state.key==='charts'
+            ?'Все страницы проверены. Обновим чарты при следующем поиске.'
+            :'Все доступные треки проверены. Можно выбрать другую подборку.');
         return;}
     setQuickMixStatus('Ищем новые песни…');
     const collected=[];
@@ -5226,9 +5466,13 @@ async function loadMoreQuickMix() {
             if(scroller)scroller.scrollTop=oldScroll;
         }
         state.exhausted=state.exhaustedQueries.size>=directions.reduce((n,d)=>n+d.queries.length,0);
+        if(state.exhausted&&state.key==='charts')state.lastRefreshAt=Date.now();
         setQuickMixStatus(unique.length
             ?'Добавлено '+unique.length+' новых треков · всего '+state.tracks.length
-            :state.exhausted?'Новых песен больше не найдено.':'Продолжите прокрутку — ищем другие релизы.');
+            :state.exhausted&&state.key==='charts'
+                ?'Пока нет новых релизов. Продолжим поиск при следующем обновлении.'
+                :state.exhausted?'Новых песен больше не найдено.'
+                :'Продолжите прокрутку — ищем другие релизы.');
     }finally{state.loadingMore=false;}
 }
 // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---

@@ -10,8 +10,10 @@ const memory=new Map();
 const localStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
 const ctx={currentUser:'listener',localStorage,document:{getElementById:()=>null},
  normalizeTrackIdentity:v=>String(v||'').toLowerCase().trim(),
+ canonicalTrackUrl:track=>String(track?.url||''),
  playlists:[],playbackPlaylist:[],smartRadioQueryArtists:()=>[],showConfirm:()=>{},
- navigator:{},window:{dispatchEvent:()=>{}},CustomEvent:class {constructor(type){this.type=type;}},};
+ navigator:{},window:{dispatchEvent:()=>{},addEventListener:()=>{}},
+ CustomEvent:class {constructor(type){this.type=type;}},};
 runInNewContext(src.slice(begin,end),ctx);
 const a={artist:'Баста',title:'Сансара'},b={artist:'Miyagi',title:'Captain'};
 ctx.tasteRecord('finish',a);
@@ -59,6 +61,7 @@ console.log('WAVE_HISTORY_AND_PLAYLIST_LIKES_OK');
 const allowed={artist:'Разрешённый артист',title:'Моя песня',url:'https://example.org/allowed.mp3'};
 const excluded={artist:'Исключённый артист',title:'Скрытая',url:'https://example.org/excluded.mp3'};
 const discovered={artist:'Новый артист',title:'Открытие',url:'https://example.org/discovered.mp3'};
+const another={artist:'Другой артист',title:'Новый хит',url:'https://example.org/another.mp3'};
 ctx.playlists=[{id:10,tracks:[allowed]},{id:11,tracks:[excluded]}];
 ctx.setPlaylistExcludedFromLikes(11,true);
 ctx.tasteRecord('like',excluded);
@@ -73,10 +76,25 @@ const queries=[];
 ctx.api=async (action,params)=>{
     assert.equal(action,'search_global');
     queries.push(params.query);
-    return {success:true,data:[allowed,excluded,discovered]};
+    return {success:true,data:[allowed,excluded,discovered,another]};
 };
 const recommendation=await ctx.findWaveNextTrack();
-assert.equal(recommendation.url,discovered.url,'saved songs are seeds, not Wave playback');
+assert.ok([discovered.url,another.url].includes(recommendation.url),'saved songs are seeds, not Wave playback');
 assert.equal(recommendation._waveRadio,true);
 assert.ok(!queries.includes(excluded.artist),'excluded playlist artists must not seed discovery');
 console.log('WAVE_ONLINE_DISCOVERY_EXCLUDES_SAVED_AND_DISABLED_OK');
+
+// A fresh opening of Wave must not replay the previous first discovery, even
+// if all server searches return the same ranked catalogue.
+ctx.radioRememberPlayed('wave',recommendation);
+const reopened=await ctx.findWaveNextTrack();
+assert.notEqual(reopened.url,recommendation.url,'reopening Wave chooses another recommendation');
+assert.equal(ctx.radioRecentTracks('wave').length,1);
+assert.ok(Number(localStorage.getItem('dag_wave_cursor_v2:listener'))>=2,
+ 'Wave search positions advance across plays and browser restarts');
+ctx.playbackWanted=false;
+ctx.trafficSaverEnabled=()=>true;
+const prepared=await ctx.warmWaveFirstTrack();
+assert.equal(prepared?.url,reopened.url,'the first track can be prepared before play starts');
+assert.equal(ctx.playbackWanted,false,'preparing Wave must never start playback');
+console.log('WAVE_ROTATING_HISTORY_AND_IDLE_PREPARATION_OK');

@@ -42,6 +42,7 @@ jobs:
           node .github/test-native-media.mjs
           node .github/test-quick-mixes.mjs
           node .github/test-personal-radio.mjs
+          node .github/test-continuous-radio.mjs
           test -s modern.css
           test -s studio.css
           test -s studio-next.css
