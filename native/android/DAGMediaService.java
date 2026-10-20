@@ -186,7 +186,7 @@ public final class DAGMediaService extends Service {
             String url = intent.getStringExtra("url");
             if (url != null && !url.isEmpty()) audioEngine.load(
                 url, intent.getStringExtra("cacheKey"),
-                intent.getLongExtra("positionMs", 0L));
+                intent.getLongExtra("positionMs", 0L), intent.getStringExtra("requestId"));
             return START_STICKY;
         }
         if (ACTION_AUDIO_RESUME.equals(action)) {

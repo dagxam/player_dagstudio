@@ -30,9 +30,14 @@ assert.equal(early.isPrematureTrackEnd(2,180),true);
 assert.equal(early.isPrematureTrackEnd(45,180),true);
 assert.equal(early.isPrematureTrackEnd(180,180),false);
 assert.equal(early.isPrematureTrackEnd(90,92),false);
+assert.equal(early.isPrematureTrackEnd(45,NaN),true,'unknown duration must not skip');
+assert.equal(early.isPrematureTrackEnd(45,Infinity),true,'unbounded stream must not auto skip');
 assert.ok(text.includes('function maybePrefetchSmartRadio()'));
 assert.ok(text.includes('smartRadioPrefetch===prefetched'));
 assert.ok(text.includes("mainAudio.addEventListener('prematureend',()=>handlePrematureTrackEnd(true))"));
+assert.ok(!text.includes("if(playbackWanted)startOfflineListening({auto:true,autoplay:true})"));
+assert.ok(text.includes('if (!options.recovery) {'));
+assert.ok(text.includes('playTrack(currentIndex,{fromPlayback:true,recovery:true,resumeAt:resumeAt})'));
 console.log('SMART_RADIO_EARLY_PREFETCH_AND_END_GUARDS_OK');
 
 assert.ok(text.includes('function tasteRecord(kind,track)'));

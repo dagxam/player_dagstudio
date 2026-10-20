@@ -38,6 +38,7 @@ public final class DAGAudioEngine {
     private boolean eqEnabled;
     private boolean hasSource;
     private String lastError = "";
+    private String playbackRequestId = "";
     private final Runnable statusListener;
 
     public DAGAudioEngine(Context context, Runnable statusListener) {
@@ -47,7 +48,7 @@ public final class DAGAudioEngine {
             new StandaloneDatabaseProvider(context));
         DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(30000)
-            .setReadTimeoutMs(45000)
+            .setReadTimeoutMs(60000)
             .setAllowCrossProtocolRedirects(false)
             .setUserAgent("DAGSTUDIO-PLAYER/Media3");
         DefaultDataSource.Factory upstream = new DefaultDataSource.Factory(context, http);
@@ -56,7 +57,7 @@ public final class DAGAudioEngine {
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(45000, 150000, 7000, 15000)
+            .setBufferDurationsMs(30000, 150000, 3000, 6000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
             .build();
@@ -84,8 +85,9 @@ public final class DAGAudioEngine {
         publish();
     }
 
-    public void load(String url, String cacheKey, long startMs) {
+    public void load(String url, String cacheKey, long startMs, String requestId) {
         lastError = "";
+        playbackRequestId = requestId == null ? "" : requestId;
         hasSource = true;
         MediaItem.Builder item = new MediaItem.Builder().setUri(Uri.parse(url));
         if (url.startsWith("https://") && cacheKey != null && !cacheKey.isEmpty()) {
@@ -110,6 +112,7 @@ public final class DAGAudioEngine {
         player.clearMediaItems();
         hasSource = false;
         lastError = "";
+        playbackRequestId = "";
         publish();
     }
 
@@ -166,6 +169,7 @@ public final class DAGAudioEngine {
         int mode = player.getPlaybackState();
         state.put("engine", "media3");
         state.put("hasSource", hasSource);
+        state.put("requestId", playbackRequestId);
         state.put("playing", player.isPlaying());
         state.put("playWhenReady", player.getPlayWhenReady());
         state.put("state", mode == Player.STATE_BUFFERING ? "buffering" :

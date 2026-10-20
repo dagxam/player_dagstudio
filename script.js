@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2305';
+const WEB_BUILD_LABEL = '2306';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -632,7 +632,7 @@ function armPlaybackWatchdog(token, reason) {
     if (AUDIO_COMPAT_PROFILE.fullFileFallback) {
         // На действительно старой магнитоле не крутим загрузку десятки секунд:
         // быстро переходим на совместимый no-Range поток.
-        timeout = net.weak ? 18000 : 12000;
+        timeout = net.veryWeak ? 60000 : (net.weak ? 45000 : 22000);
     }
 
     playWatchdog = setTimeout(function() {
@@ -3216,7 +3216,11 @@ function scheduleStreamRecovery(reason, delay) {
     if (NATIVE_MEDIA3_ACTIVE && (reason === 'waiting' || reason === 'stalled')) return;
     const track = playbackPlaylist[currentIndex];
     if (!track || !track.url || mainAudio.ended || !playbackWanted) return;
-    clearStreamRecoveryTimer();
+    // Repeated waiting events must not indefinitely postpone the retry.
+    if (streamRecoveryTimer) {
+        if (reason === 'waiting' || reason === 'stalled') return;
+        clearStreamRecoveryTimer();
+    }
 
     const token = currentPlaybackToken;
     const net = getNetworkProfile();
@@ -3326,7 +3330,8 @@ async function recoverCurrentStreamInternal(reason, track) {
             track._streamRetries = 0;
             pendingResumeTime = 0;
             setTimeout(function() {
-                if (playbackPlaylist[currentIndex] === track) playTrack(currentIndex, {fromPlayback:true,resumeAt:resumeAt});
+                if (playbackWanted && playbackPlaylist[currentIndex] === track)
+                    playTrack(currentIndex, {fromPlayback:true,recovery:true,resumeAt:resumeAt});
             }, 150);
             return;
         }
@@ -3349,7 +3354,7 @@ async function recoverCurrentStreamInternal(reason, track) {
         if(!playbackWanted||token!==currentPlaybackToken||playbackPlaylist[currentIndex]!==track)return;
         if(changed){
             artistEl.textContent='Другой сервер найден — продолжаем…';
-            playTrack(currentIndex,{fromPlayback:true,resumeAt:resumeAt});
+            playTrack(currentIndex,{fromPlayback:true,recovery:true,resumeAt:resumeAt});
             return;
         }
     }
@@ -3441,7 +3446,9 @@ function isPrematureTrackEnd(position,duration) {
     const elapsed=Number(position);
     const total=Number(duration);
     if (!Number.isFinite(elapsed) || elapsed < 12) return true;
-    return Number.isFinite(total) && total>0 && elapsed+4<total;
+    // A truncated stream with an unknown duration is not a completed song.
+    if (!Number.isFinite(total) || total <= 0) return true;
+    return elapsed + 4 < total;
 }
 function handlePrematureTrackEnd(force=false) {
     const track=playbackPlaylist[currentIndex];
@@ -3450,21 +3457,25 @@ function handlePrematureTrackEnd(force=false) {
     const duration=Number(mainAudio.duration);
     if (!force && !isPrematureTrackEnd(elapsed,duration)) return false;
     recordPlayerEvent('premature-end');
-    if ((track._earlyEndRetries || 0)<2 && navigator.onLine!==false) {
+    if (navigator.onLine===false) {
+        networkRetryPending=true;
+        artistEl.textContent='Нет сети — ждём восстановления этой песни';
+        showLoader(false);
+    } else if ((track._earlyEndRetries || 0)<5) {
         track._earlyEndRetries=(track._earlyEndRetries||0)+1;
-        artistEl.textContent='Поток завершился слишком рано — восстанавливаем…';
+        artistEl.textContent='Поток прервался — продолжаем эту же песню…';
         const token=currentPlaybackToken;
         setTimeout(()=>{
             if (currentPlaybackToken===token && playbackWanted && playbackPlaylist[currentIndex]===track)
                 recoverCurrentStream('premature-end').catch(()=>{});
-        },900);
+        },Math.min(12000,1200*track._earlyEndRetries));
     } else {
         playbackWanted=false;
         clearStreamRecoveryTimer();
         clearPlaybackWatchdog();
         showLoader(false);
         updateState(false);
-        artistEl.textContent='Нестабильный источник. Нажмите ▶ для повтора.';
+        artistEl.textContent='Источник временно недоступен. Нажмите ▶ для повтора.';
         recordPlayerEvent('premature-end-limit');
     }
     return true;
@@ -3579,8 +3590,7 @@ mainAudio.addEventListener('error', function() {
     recordPlayerEvent('media-error',mediaCode);
     if(!track._playingFromCache)sourceHealthUpdate(track,'error');
     showLoader(false);
-    if(navigator.onLine===false&&playbackTab!=='offline')
-        startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
+    // Do not skip this song to a different offline track on media errors.
     if (mediaCode === 4 && (track._streamRetries || 0) >= MAX_STREAM_RETRIES) {
         artistEl.textContent = 'Источник не поддерживается на устройстве';
         updateState(false);
@@ -3683,7 +3693,7 @@ window.openOfflineListening=function(){return startOfflineListening({autoplay:tr
 window.addEventListener('offline', function() {
     recordPlayerEvent('network-offline');
     if (currentIndex < 0 || mainAudio.ended) return;
-    if(playbackWanted)startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
+    // Keep the selected song and attempt recovery from its own cache.
 
     const track = playbackPlaylist[currentIndex];
     if (track && track._playingFromCache) return;
@@ -3766,11 +3776,13 @@ async function playTrack(index, options = {}) {
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 
-    track._streamRetries = 0;
+    if (!options.recovery) {
+        track._streamRetries = 0;
+        track._earlyEndRetries = 0;
+        track._cachedRecoveryAttempts = 0;
+        track._refreshAttempted = false;
+    }
     track._serverRecordedForUrl='';
-    track._earlyEndRetries = 0;
-    track._cachedRecoveryAttempts = 0;
-    track._refreshAttempted = false;
     resetMediaAdvanceClock();
     const nativeResume = Number(options.resumeAt) > 0 ? Number(options.resumeAt) :
         (IS_NATIVE_APP && dagRestorePosition && dagRestorePosition.url === track.url ? dagRestorePosition.position : 0);

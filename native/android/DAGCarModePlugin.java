@@ -82,6 +82,7 @@ public class DAGCarModePlugin extends Plugin {
         intent.setAction(DAGMediaService.ACTION_AUDIO_LOAD);
         intent.putExtra("url", url);
         intent.putExtra("cacheKey", call.getString("cacheKey", ""));
+        intent.putExtra("requestId", call.getString("requestId", ""));
         intent.putExtra("positionMs", Math.max(0L, (long)(double)call.getDouble("positionMs", 0.0)));
         intent.putExtra("title", call.getString("title", "DAGSTUDIO PLAYER"));
         intent.putExtra("artist", call.getString("artist", ""));

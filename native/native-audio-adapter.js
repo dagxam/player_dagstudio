@@ -5,6 +5,7 @@
    * The real Android decoder, buffering and disk cache live in Media3.
    * Browsers never load this file and continue using their native <audio>.
    */
+  let audioRequestSequence = 0;
   class DAGNativeAudioAdapter extends EventTarget {
     constructor() {
       super();
@@ -24,6 +25,8 @@
       this.loop = false;
       this._lastSeek = 0;
       this._loadedAt = 0;
+      this._requestId = '';
+      this._lastReportedError = '';
       window.addEventListener('dag-native-audio-status', e => this._update(e.detail || {}));
       this._poll = setInterval(() => {
         if (!this._loaded) return;
@@ -40,6 +43,8 @@
       this._ended = false;
       this._prematureEndNotified = false;
       this._error = null;
+      this._lastReportedError = '';
+      this._requestId = 'dag-' + Date.now().toString(36) + '-' + (++audioRequestSequence);
       this._position = 0;
       this._duration = 0;
       this._buffered = 0;
@@ -73,6 +78,8 @@
       if (name !== 'src') return;
       this._src = '';
       this._loaded = '';
+      this._requestId = '';
+      this._lastReportedError = '';
       this._wanted = false;
       this._playing = false;
       this._state = 'idle';
@@ -97,7 +104,8 @@
             cacheKey: window.DAG_ACTIVE_MEDIA_CACHE_KEY || '',
             title: window.DAG_ACTIVE_MEDIA_TITLE || 'DAGSTUDIO PLAYER',
             artist: window.DAG_ACTIVE_MEDIA_ARTIST || '',
-            positionMs: this._position * 1000
+            positionMs: this._position * 1000,
+            requestId: this._requestId
           });
         } catch (error) {
           this._loaded = '';
@@ -119,6 +127,7 @@
     _update(data) {
       if (!this._loaded) return;
       if (!data.hasSource) return;
+      if (data.requestId && data.requestId !== this._requestId) return;
       const oldState = this._state;
       const wasPlaying = this._playing;
       const state = String(data.state || 'idle');
@@ -142,10 +151,16 @@
         if (Math.abs(oldBuffered - this._buffered) > 0.5) this._emit('progress');
       }
       if (data.error) {
-        this._error = {code: 2, message: String(data.error)};
-        this._emit('error');
+        const message=String(data.error);
+        this._error = {code: 2, message};
+        if (this._lastReportedError !== message) {
+          this._lastReportedError=message;
+          this._emit('error');
+        }
         return;
       }
+      this._error = null;
+      this._lastReportedError = '';
       if (state === 'ready' && oldState !== 'ready') {
         this._emit('canplay');
         this._emit('progress');
@@ -159,8 +174,8 @@
         // source's terminal state) after only a few seconds. Let the app retry
         // the current track rather than silently skip to the next one.
         const tooEarly = Date.now()-this._loadedAt < 7000 ||
-          this._position < 12 ||
-          (this._duration > 0 && this._position + 4 < this._duration);
+          this._position < 12 || !Number.isFinite(this._duration) || this._duration <= 0 ||
+          this._position + 4 < this._duration;
         if (tooEarly) {
           this._playing = false;
           if (!this._prematureEndNotified) {
