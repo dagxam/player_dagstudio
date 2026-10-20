@@ -117,6 +117,9 @@ try {
       const buttons=[...root.querySelectorAll('.showcase-mobile-action'),
         document.getElementById('showcase-menu-toggle')];
       const dock=root.querySelector('.showcase-mobile-topbar');
+      const vinyl=root.querySelector('#vinyl-view');
+      const wavePlay=root.querySelector('#vinyl-wave-play');
+      const waveTop=getComputedStyle(wavePlay).top;
       const hits=buttons.map(b=>{
         const r=b.getBoundingClientRect();
         const e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
@@ -127,6 +130,10 @@ try {
       });
       return {
         dock:!!dock&&getComputedStyle(dock).display==='block',
+        smoothDock:getComputedStyle(dock).borderBottomWidth==='0px'&&getComputedStyle(dock).boxShadow==='none',
+        cleanWaveHero:!!root.querySelector('.showcase-hero-copy h1')&&
+          !root.querySelector('.showcase-hero-tag,.showcase-audio-glyph,.showcase-hero-copy p,.showcase-ornament-lines'),
+        centeredWavePlay:waveTop==='50%'||Math.abs(parseFloat(waveTop)-vinyl.clientHeight/2)<3,
         allActions:buttons.length===4,
         belowStatusBar:buttons.every(b=>b.getBoundingClientRect().top>=59),
         touchSized:buttons.every(b=>b.getBoundingClientRect().width>=44&&b.getBoundingClientRect().height>=44),

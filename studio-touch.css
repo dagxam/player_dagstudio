@@ -64,10 +64,10 @@
  .studio-showcase>.right-col .showcase-curations{height:auto!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch;flex:1!important;padding-bottom:calc(18px + var(--dag-safe-bottom))!important}
  .studio-showcase>.right-col.showcase-list .playlist-area{height:auto!important;min-height:0!important;flex:1!important;overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch}
  .studio-showcase>.right-col.showcase-list .right-col-header{flex:0 0 auto!important}
- .studio-showcase .showcase-mobile-topbar{display:block;position:fixed;top:var(--dag-safe-top);left:0;right:0;height:66px;z-index:165;pointer-events:none;border-bottom:1px solid rgba(var(--theme-rgb,192,108,66),.52);background:linear-gradient(115deg,rgba(var(--theme-rgb,192,108,66),.21),rgba(12,13,19,.97) 65%);box-shadow:0 9px 26px #0008;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
- .studio-showcase>.showcase-mobile-toggle{width:48px!important;height:48px!important;right:calc(env(safe-area-inset-right,0px) + 10px)!important;top:calc(var(--dag-safe-top) + 9px)!important;border:1px solid var(--theme-bright,var(--showcase-accent))!important;background:rgba(var(--theme-rgb,192,108,66),.25)!important;color:var(--theme-bright-text,#fff)!important;box-shadow:0 3px 15px #0008;z-index:180!important}
+ .studio-showcase .showcase-mobile-topbar{display:block;position:fixed;top:0;left:0;right:0;height:calc(var(--dag-safe-top) + 122px);z-index:165;pointer-events:none;border:0;box-shadow:none;background:radial-gradient(ellipse 85% 85% at 50% 0%,rgba(var(--theme-rgb,192,108,66),.15),transparent 95%),linear-gradient(180deg,var(--theme-shell-a,#111723) 0%,rgba(8,12,20,.93) 43%,rgba(8,12,20,.49) 74%,rgba(8,12,20,0) 100%)}
+ .studio-showcase>.showcase-mobile-toggle{width:48px!important;height:48px!important;right:calc(env(safe-area-inset-right,0px) + 10px)!important;top:calc(var(--dag-safe-top) + 9px)!important;border:1px solid rgba(var(--theme-rgb,192,108,66),.7)!important;background:linear-gradient(145deg,rgba(var(--theme-rgb,192,108,66),.24),rgba(11,17,28,.82))!important;color:var(--theme-bright-text,#fff)!important;box-shadow:0 8px 24px #0007,inset 0 1px 0 #ffffff22;z-index:180!important}
  .studio-showcase .showcase-mobile-tools{display:flex!important;position:fixed!important;left:calc(env(safe-area-inset-left,0px) + 10px);top:calc(var(--dag-safe-top) + 9px);gap:8px;z-index:180!important}
- .studio-showcase .showcase-mobile-action{width:48px;height:48px;display:grid;place-items:center;border:1px solid rgba(var(--theme-rgb,192,108,66),.8);border-radius:14px;background:rgba(var(--theme-rgb,192,108,66),.23);color:var(--theme-bright-text,#fff);font-size:1.17rem;box-shadow:0 3px 15px #0008}
+ .studio-showcase .showcase-mobile-action{width:48px;height:48px;display:grid;place-items:center;border:1px solid rgba(var(--theme-rgb,192,108,66),.7);border-radius:14px;background:linear-gradient(145deg,rgba(var(--theme-rgb,192,108,66),.24),rgba(11,17,28,.82));color:var(--theme-bright-text,#fff);font-size:1.17rem;box-shadow:0 8px 24px #0007,inset 0 1px 0 #ffffff22}
  .studio-showcase .showcase-mobile-action:active{background:rgba(var(--theme-rgb,192,108,66),.32)}
  .studio-showcase>.showcase-sidebar{z-index:200!important;width:min(315px,88vw)!important}
  .studio-showcase>.showcase-mobile-shade{z-index:190!important}
@@ -192,3 +192,8 @@
  .playlist-editor-page .playlist-icon-choice{height:35px;min-height:35px}
 }
 @media(prefers-reduced-motion:reduce){.studio-showcase *,.playlist-editor-page *{scroll-behavior:auto!important;transition-duration:0s!important}}
+
+/* The wave launch action belongs at the exact center of the circular artwork.
+   Keep only the section heading above it; the ornamental slogan is gone. */
+.studio-showcase>.left-col .vinyl-wave-play{top:50%!important;left:50%!important}
+.studio-showcase .showcase-hero-copy h1{margin:0!important;line-height:1.12!important;letter-spacing:-.045em!important;text-shadow:0 5px 24px #000c,0 0 26px rgba(var(--theme-rgb,192,108,66),.24)}

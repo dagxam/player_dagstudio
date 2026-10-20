@@ -155,10 +155,7 @@ right.insertBefore(home,right.firstChild);
 const openList=node('button','showcase-open-list','Показать список песен');
 openList.type='button';openList.addEventListener('click',()=>showList('wave'));
 const titleArt=node('div','showcase-hero-copy');
-titleArt.appendChild(node('span','showcase-hero-tag','DAGSTUDIO · ПЕРСОНАЛЬНОЕ РАДИО'));
 titleArt.appendChild(node('h1','', 'Моя волна'));
-titleArt.appendChild(node('div','showcase-audio-glyph','━━　▂▅▆▃▁　━━'));
-titleArt.appendChild(node('p','', 'МУЗЫКА, КОТОРАЯ БЛИЖЕ К ТЕБЕ'));
 const visual=player.querySelector('.visual-container');if(visual)visual.appendChild(titleArt);
 // The scenic artwork belongs to the player, not to an inert screenshot.
 // Its decorative layers are styled by the active DAGSTUDIO color theme.
@@ -174,14 +171,6 @@ if(vinyl){
  landscape.insertAdjacentElement('afterend',albumArt);
  vinyl.setAttribute('aria-label','Оформление текущей композиции');
 }
-if(visual){
- const ornaments=node('div','showcase-ornament-lines');
- ornaments.setAttribute('aria-hidden','true');
- ornaments.appendChild(node('span','showcase-ornament-left'));
- ornaments.appendChild(node('span','showcase-ornament-right'));
- visual.appendChild(ornaments);
-}
-
 const mini=node('div','showcase-hero-meta');
 const now=node('span','showcase-current-label','СЕЙЧАС ИГРАЕТ');
 const current=node('strong','', 'DAGSTUDIO PLAYER');
