@@ -103,6 +103,34 @@ try {
     if(Object.values(state).some(v=>!v))
       throw new Error('Showcase responsive layout regression '+JSON.stringify({viewport,state}));
   }
+
+  // Installed iPhone PWAs draw into the status-bar safe area. Simulate the
+  // iPhone 14 inset and ensure the top-row actions remain visible and tappable.
+  await page.setViewport({width:390,height:844});
+  const iphoneToolbar=await page.evaluate(()=>{
+    const root=document.querySelector('.main-container');
+    root.style.setProperty('--dag-safe-top','59px');
+    try{
+      const buttons=[...root.querySelectorAll('.showcase-mobile-action'),
+        document.getElementById('showcase-menu-toggle')];
+      const dock=root.querySelector('.showcase-mobile-topbar');
+      return {
+        dock:!!dock&&getComputedStyle(dock).display==='block',
+        allActions:buttons.length===4,
+        belowStatusBar:buttons.every(b=>b.getBoundingClientRect().top>=59),
+        touchSized:buttons.every(b=>b.getBoundingClientRect().width>=44&&b.getBoundingClientRect().height>=44),
+        clickable:buttons.every(b=>{
+          const r=b.getBoundingClientRect();
+          return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)?.closest('button')===b;
+        }),
+        noHorizontalScroll:document.documentElement.scrollWidth<=innerWidth+2
+      };
+    }finally{root.style.removeProperty('--dag-safe-top');}
+  });
+  console.log('IPHONE_14_SAFE_AREA_ACTIONS',JSON.stringify(iphoneToolbar));
+  if(Object.values(iphoneToolbar).some(v=>!v))
+    throw new Error('iPhone safe-area toolbar regression '+JSON.stringify(iphoneToolbar));
+
   await page.setViewport({width:1024,height:600});
   const sidebarCollapse=await page.evaluate(()=>{
     const root=document.querySelector('.main-container'),rail=document.querySelector('.showcase-rail-toggle');

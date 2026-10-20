@@ -198,6 +198,9 @@ listToggle.addEventListener('click',()=>{if(typeof openPlaybackQueue==='function
 player.appendChild(listToggle);
 if(typeof updatePlaybackQueueBadge==='function')updatePlaybackQueueBadge();
 const mobileTools=node('div','showcase-mobile-tools');mobileTools.setAttribute('aria-label','Быстрые действия');
+const mobileTopbar=node('div','showcase-mobile-topbar');
+mobileTopbar.setAttribute('aria-hidden','true');
+root.appendChild(mobileTopbar);
 const touchAction=(label,icon,fn)=>{
  const b=node('button','showcase-mobile-action');b.type='button';b.title=label;b.setAttribute('aria-label',label);
  b.appendChild(node('i','fas fa-'+icon));b.addEventListener('click',fn);mobileTools.appendChild(b);
