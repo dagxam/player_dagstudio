@@ -114,21 +114,27 @@ try {
       const buttons=[...root.querySelectorAll('.showcase-mobile-action'),
         document.getElementById('showcase-menu-toggle')];
       const dock=root.querySelector('.showcase-mobile-topbar');
+      const hits=buttons.map(b=>{
+        const r=b.getBoundingClientRect();
+        const e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+        return {button:b.id||b.getAttribute('aria-label'),target:e?.tagName,
+          hitId:e?.id,hitClass:typeof e?.className==='string'?e.className.slice(0,110):'',
+          center:[Math.round(r.left+r.width/2),Math.round(r.top+r.height/2)],
+          matched:e?.closest('button')===b};
+      });
       return {
         dock:!!dock&&getComputedStyle(dock).display==='block',
         allActions:buttons.length===4,
         belowStatusBar:buttons.every(b=>b.getBoundingClientRect().top>=59),
         touchSized:buttons.every(b=>b.getBoundingClientRect().width>=44&&b.getBoundingClientRect().height>=44),
-        clickable:buttons.every(b=>{
-          const r=b.getBoundingClientRect();
-          return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)?.closest('button')===b;
-        }),
+        clickable:hits.every(hit=>hit.matched),
+        hits,
         noHorizontalScroll:document.documentElement.scrollWidth<=innerWidth+2
       };
     }finally{root.style.removeProperty('--dag-safe-top');}
   });
   console.log('IPHONE_14_SAFE_AREA_ACTIONS',JSON.stringify(iphoneToolbar));
-  if(Object.values(iphoneToolbar).some(v=>!v))
+  if(Object.entries(iphoneToolbar).some(([k,v])=>k!=='hits'&&!v))
     throw new Error('iPhone safe-area toolbar regression '+JSON.stringify(iphoneToolbar));
 
   await page.setViewport({width:1024,height:600});
