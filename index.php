@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=20">
-    <link rel="stylesheet" href="studio-touch.css?v=2">
+    <link rel="stylesheet" href="studio-touch.css?v=3">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>window.addEventListener('dag-ui-ready',function(){document.documentElement.classList.remove('studio-booting');},{once:true});setTimeout(function(){document.documentElement.classList.remove('studio-booting');},12000);</script>
 </head>

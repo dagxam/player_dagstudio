@@ -82,6 +82,16 @@
  .studio-showcase>.left-col .main-btns{gap:5px!important}
  .studio-showcase>.left-col .main-btns .c-btn{width:39px!important;min-width:39px!important;height:39px!important}
 }
+/* Short CC3 screens: 46px finger targets without a scrolling sidebar. */
+@media(min-width:769px) and (max-height:540px){
+ .studio-showcase>.showcase-sidebar{padding:4px 8px!important}
+ .studio-showcase .showcase-brand{height:35px!important;min-height:35px!important;max-height:35px!important;margin:0!important;padding:0!important;gap:5px!important}
+ .studio-showcase .showcase-brand-icon{width:30px!important;height:30px!important;min-width:30px!important}
+ .studio-showcase .showcase-rail-toggle{width:32px;height:32px;min-width:32px}
+ .studio-showcase .showcase-menu{gap:0!important}
+ .studio-showcase .showcase-nav-btn{height:46px!important;min-height:46px!important;max-height:46px!important;padding:0 10px!important}
+ .studio-showcase .showcase-sidebar-bottom{display:none!important}
+}
 /* Queue: right-hand drawer with comfortable reorder controls. */
 #queue-modal .studio-queue-dialog{max-width:min(490px,100vw)!important;padding:25px 18px!important}
 #queue-modal .studio-queue-hint{color:var(--theme-muted,#bbb);font-size:.84rem;line-height:1.5;margin:8px 8px 18px}
