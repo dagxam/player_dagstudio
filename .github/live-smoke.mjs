@@ -107,6 +107,9 @@ try {
   // Installed iPhone PWAs draw into the status-bar safe area. Simulate the
   // iPhone 14 inset and ensure the top-row actions remain visible and tappable.
   await page.setViewport({width:390,height:844});
+  // Desktop-to-phone resize starts the sidebar's 190ms exit transition.
+  // Check hit targets after it is fully offscreen, like a real phone startup.
+  await new Promise(resolve=>setTimeout(resolve,260));
   const iphoneToolbar=await page.evaluate(()=>{
     const root=document.querySelector('.main-container');
     root.style.setProperty('--dag-safe-top','59px');
