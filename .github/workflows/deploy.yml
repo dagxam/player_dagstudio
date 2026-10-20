@@ -43,9 +43,11 @@ jobs:
           node .github/test-quick-mixes.mjs
           node .github/test-personal-radio.mjs
           node .github/test-continuous-radio.mjs
+          node .github/test-playlist-covers.mjs
           test -s modern.css
           test -s studio.css
           test -s studio-next.css
+          test -s studio-touch.css
           test -s studio-center.js
           python -m json.tool manifest.json > /dev/null
 
@@ -82,6 +84,18 @@ jobs:
           echo "$ICON_INVALID" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("error") and not d.get("success")'
           ICON_DATA="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"get_data"}' http://127.0.0.1:8765/api.php)"
           echo "$ICON_DATA" | python -c 'import sys,json; d=json.load(sys.stdin); assert d[0]["icon"]=="mountain"'
+
+          # Upload a real 24px PNG, reload the playlist, and remove its file.
+          python -c 'import json,base64,struct,zlib,sys; w=h=24; chunk=lambda k,d: struct.pack(">I",len(d))+k+d+struct.pack(">I",zlib.crc32(k+d)); png=b"\x89PNG\r\n\x1a\n"+chunk(b"IHDR",struct.pack(">IIBBBBB",w,h,8,2,0,0,0))+chunk(b"IDAT",zlib.compress((b"\0"+b"\x80\x40\x20"*w)*h))+chunk(b"IEND",b""); json.dump({"action":"update_playlist_cover","id":int(sys.argv[1]),"image":"data:image/png;base64,"+base64.b64encode(png).decode()},open("/tmp/dag-cover-payload.json","w"))' "$PL_ID"
+          COVER_SAVE="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data-binary @/tmp/dag-cover-payload.json http://127.0.0.1:8765/api.php)"
+          COVER_PATH="$(echo "$COVER_SAVE" | python -c 'import json,sys,re; d=json.load(sys.stdin); assert d.get("success") is True; assert re.fullmatch(r"images/playlist-covers/[a-f0-9]{32}\.png",d["cover"]); print(d["cover"])')"
+          test -s "$COVER_PATH"
+          COVER_DATA="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data '{"action":"get_data"}' http://127.0.0.1:8765/api.php)"
+          echo "$COVER_DATA" | python -c 'import json,sys; d=json.load(sys.stdin); assert d[0]["cover"].startswith("images/playlist-covers/")'
+          COVER_REMOVE="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"update_playlist_cover\",\"id\":$PL_ID,\"remove\":true}" http://127.0.0.1:8765/api.php)"
+          echo "$COVER_REMOVE" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("success") is True and d.get("cover")==""'
+          test ! -e "$COVER_PATH"
+          rm -f /tmp/dag-cover-payload.json
 
           ADD="$(curl --fail --silent --show-error -b /tmp/dag-cookie.txt -H 'Content-Type: application/json' --data "{\"action\":\"add_track\",\"playlist_id\":$PL_ID,\"track\":{\"title\":\"Smoke Track\",\"artist\":\"DAGSTUDIO\",\"url\":\"https://example.com/smoke.mp3\",\"thumb\":\"\",\"type\":\"audio\"}}" http://127.0.0.1:8765/api.php)"
           echo "$ADD" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("success") is True'

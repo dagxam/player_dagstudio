@@ -19,6 +19,20 @@ const logo=node('div','showcase-brand');
 const brandIcon=node('img');brandIcon.src='images/cover.png';brandIcon.alt='';brandIcon.className='showcase-brand-icon';
 logo.appendChild(brandIcon);
 const brandText=node('div','showcase-brand-text');brandText.appendChild(node('strong','', 'DAGSTUDIO'));brandText.appendChild(node('small','', 'P L A Y E R'));logo.appendChild(brandText);nav.appendChild(logo);
+const railToggle=node('button','showcase-rail-toggle');railToggle.type='button';
+railToggle.title='Свернуть или развернуть меню';railToggle.setAttribute('aria-label',railToggle.title);
+railToggle.appendChild(node('i','fas fa-angles-left'));logo.appendChild(railToggle);
+try{if(localStorage.getItem('dag_sidebar_collapsed')==='1')root.classList.add('showcase-nav-collapsed');}catch(e){}
+function syncRailToggle(){
+ const collapsed=root.classList.contains('showcase-nav-collapsed');
+ railToggle.setAttribute('aria-expanded',String(!collapsed));
+ railToggle.querySelector('i').className=collapsed?'fas fa-angles-right':'fas fa-angles-left';
+}
+railToggle.addEventListener('click',()=>{
+ root.classList.toggle('showcase-nav-collapsed');
+ try{localStorage.setItem('dag_sidebar_collapsed',root.classList.contains('showcase-nav-collapsed')?'1':'0');}catch(e){}
+ syncRailToggle();
+});syncRailToggle();
 const menu=node('nav','showcase-menu');const buttons=new Map();
 const activate=key=>{
  menu.querySelectorAll('.showcase-nav-btn').forEach(b=>{const match=b.dataset.showcase===key;b.classList.toggle('active',match);
@@ -26,6 +40,7 @@ const activate=key=>{
 };
 const add=(key,label,icon,fn)=>{
  const b=createButton(label,icon,fn,'showcase-'+key);
+ b.title=label;b.setAttribute('aria-label',label);
  b.dataset.showcase=key;buttons.set(key,b);menu.appendChild(b);return b;
 };
 let showingCollection=true;
@@ -176,9 +191,24 @@ if(trackInfo)player.insertBefore(mini,trackInfo);
 const collection=node('div','showcase-track-collection','Музыка для тебя');
 if(trackInfo)trackInfo.insertAdjacentElement('afterend',collection);
 const listToggle=node('button','showcase-list-toggle');
-listToggle.type='button';listToggle.appendChild(node('i','fas fa-list'));listToggle.appendChild(node('span','', 'Открыть очередь'));
-listToggle.addEventListener('click',()=>{showList('wave');if(typeof quickMixCurrent!=='undefined'&&quickMixCurrent?.key)activate(quickMixCurrent.key==='wave'?'wave':'collections');});
+listToggle.type='button';listToggle.setAttribute('aria-haspopup','dialog');listToggle.setAttribute('aria-controls','queue-modal');
+listToggle.appendChild(node('i','fas fa-list-ol'));listToggle.appendChild(node('span','', 'Открыть очередь'));
+const queueCount=node('span','showcase-queue-pill');queueCount.id='showcase-queue-count';listToggle.appendChild(queueCount);
+listToggle.addEventListener('click',()=>{if(typeof openPlaybackQueue==='function')openPlaybackQueue();});
 player.appendChild(listToggle);
+if(typeof updatePlaybackQueueBadge==='function')updatePlaybackQueueBadge();
+const mobileTools=node('div','showcase-mobile-tools');mobileTools.setAttribute('aria-label','Быстрые действия');
+const touchAction=(label,icon,fn)=>{
+ const b=node('button','showcase-mobile-action');b.type='button';b.title=label;b.setAttribute('aria-label',label);
+ b.appendChild(node('i','fas fa-'+icon));b.addEventListener('click',fn);mobileTools.appendChild(b);
+};
+touchAction('Поиск музыки','magnifying-glass',()=>{
+ showList('search');if(typeof switchTab==='function')switchTab('search');
+ document.getElementById('search-input')?.focus();
+});
+touchAction('Подборки','layer-group',()=>window.studioCenterRender?.('collections'));
+touchAction('Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();window.studioSettingsPage?.();});
+root.appendChild(mobileTools);
 const mobileToggle=node('button','showcase-mobile-toggle');mobileToggle.id='showcase-menu-toggle';
 mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыть навигацию');mobileToggle.setAttribute('aria-expanded','false');
 mobileToggle.appendChild(node('i','fas fa-bars'));
@@ -194,7 +224,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();});
 // Never replace the mountain illustration with a placeholder or broken image.
 const placeholderArtwork=/^\/images\/(?:cover|faviconch|icon(?:-192)?|r|f|s|z)\.png$/i;
 function trackArtworkSource(track){
- const raw=String(track?.thumb||'').trim();
+ const tab=String(typeof playbackTab==='undefined'?'':playbackTab);
+ let playlistCover='';
+ try{playlistCover=playlistCoverUrl((playlists||[]).find(pl=>String(pl.id)===tab)?.cover);}catch(e){}
+ const raw=String(playlistCover||track?.thumb||'').trim();
  if(!raw)return '';
  try{
   const url=new URL(raw,document.baseURI);
@@ -259,6 +292,7 @@ if(trackTitle){
  observer.observe(trackTitle,{characterData:true,childList:true,subtree:true});
 }
 const refresh=setInterval(()=>{if(!document.hidden)refreshShowcase();},1200);
+window.addEventListener('dag-artwork-updated',refreshShowcase);
 window.addEventListener('pagehide',()=>{clearInterval(refresh);observer?.disconnect();},{once:true});
 refreshShowcase();showCurated();
 // All originals remain reachable via user controls; only their topbar is

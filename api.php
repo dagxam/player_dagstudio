@@ -86,7 +86,7 @@ if (!$data) {
 }
 
 // Открываем сессию обратно только для действий, где она нужна
-if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'delete_playlist', 'add_track', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
+if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'update_playlist_cover', 'delete_playlist', 'add_track', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
     @session_start();
 }
 
@@ -178,12 +178,19 @@ elseif ($action === 'get_data') {
         } catch (Exception $ignored) {
             // Older installations have not chosen an icon yet.
         }
+        $playlistCovers = [];
+        $coverStmt = $pdo->prepare("SELECT playlist_id, cover FROM playlist_covers WHERE user_id = ?");
+        $coverStmt->execute([$_SESSION['user_id']]);
+        foreach ($coverStmt->fetchAll(PDO::FETCH_ASSOC) as $coverRow) {
+            $playlistCovers[(string)$coverRow['playlist_id']] = $coverRow['cover'];
+        }
         $trackStmt = $pdo->prepare("SELECT * FROM tracks WHERE playlist_id = ?");
         foreach ($playlists as &$pl) {
             $trackStmt->execute([$pl['id']]);
             $pl['tracks'] = $trackStmt->fetchAll(PDO::FETCH_ASSOC);
             $pl['source'] = 'db';
             $pl['icon'] = $playlistIcons[(string)$pl['id']] ?? 'music'; 
+            $pl['cover'] = $playlistCovers[(string)$pl['id']] ?? '';
         }
         echo json_encode($playlists);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка получения данных.']); }
@@ -289,11 +296,74 @@ elseif ($action === 'update_playlist_icon') {
         echo json_encode(['error' => 'Не удалось сохранить иконку. Повторите позже.']);
     }
 }
+elseif ($action === 'update_playlist_cover') {
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['error' => 'Для изменения обложки войдите в аккаунт.']); exit;
+    }
+    $playlistId = filter_var($data['id'] ?? null, FILTER_VALIDATE_INT);
+    if (!$playlistId || $playlistId <= 0) {
+        echo json_encode(['error' => 'Некорректный плейлист.']); exit;
+    }
+    try {
+        $check = $pdo->prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?");
+        $check->execute([$playlistId, $_SESSION['user_id']]);
+        if (!$check->fetchColumn()) {
+            echo json_encode(['error' => 'Плейлист не найден.']); exit;
+        }
+        $previousStmt = $pdo->prepare("SELECT cover FROM playlist_covers WHERE playlist_id = ? AND user_id = ?");
+        $previousStmt->execute([$playlistId, $_SESSION['user_id']]);
+        $previous = (string)($previousStmt->fetchColumn() ?: '');
+        $cover = '';
+        if (empty($data['remove'])) {
+            $image = (string)($data['image'] ?? '');
+            if (strlen($image) > 1900000 || !preg_match('~^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$~D', $image, $match)) {
+                echo json_encode(['error' => 'Выберите JPG, PNG или WebP до 1,4 МБ после сжатия.']); exit;
+            }
+            $bytes = base64_decode($match[2], true);
+            $info = $bytes !== false ? @getimagesizefromstring($bytes) : false;
+            if (!$info || strlen($bytes) > 1400000 || $info[0] > 4096 || $info[1] > 4096 ||
+                $info[0] < 16 || $info[1] < 16 ||
+                $info['mime'] !== 'image/' . $match[1]) {
+                echo json_encode(['error' => 'Файл повреждён или не является изображением.']); exit;
+            }
+            $extension = $match[1] === 'jpeg' ? 'jpg' : $match[1];
+            $folder = __DIR__ . '/images/playlist-covers';
+            if (!is_dir($folder) && !@mkdir($folder, 0755, true) && !is_dir($folder)) {
+                echo json_encode(['error' => 'Сервер не смог создать папку обложек.']); exit;
+            }
+            $cover = 'images/playlist-covers/' . bin2hex(random_bytes(16)) . '.' . $extension;
+            if (@file_put_contents(__DIR__ . '/' . $cover, $bytes, LOCK_EX) !== strlen($bytes)) {
+                echo json_encode(['error' => 'Не удалось сохранить изображение.']); exit;
+            }
+        }
+        if ($cover !== '') {
+            $stmt = $pdo->prepare("INSERT INTO playlist_covers (playlist_id,user_id,cover) VALUES (?,?,?)
+                ON CONFLICT(playlist_id) DO UPDATE SET user_id=excluded.user_id,cover=excluded.cover");
+            $stmt->execute([$playlistId, $_SESSION['user_id'], $cover]);
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM playlist_covers WHERE playlist_id = ? AND user_id = ?");
+            $stmt->execute([$playlistId, $_SESSION['user_id']]);
+        }
+        if ($previous && preg_match('~^images/playlist-covers/[a-f0-9]{32}\.(?:jpg|png|webp)$~D', $previous)) {
+            @unlink(__DIR__ . '/' . $previous);
+        }
+        echo json_encode(['success' => true, 'cover' => $cover]);
+    } catch (Exception $e) {
+        error_log('Playlist cover save failed: ' . $e->getMessage());
+        echo json_encode(['error' => 'Не удалось сохранить обложку.']);
+    }
+}
 elseif ($action === 'delete_playlist') {
     if (!isset($_SESSION['user_id'])) exit;
     try {
+        $oldCover = $pdo->prepare("SELECT cover FROM playlist_covers WHERE playlist_id = ? AND user_id = ?");
+        $oldCover->execute([$data['id'], $_SESSION['user_id']]);
+        $previous = (string)($oldCover->fetchColumn() ?: '');
         $stmt = $pdo->prepare("DELETE FROM playlists WHERE id = ? AND user_id = ?");
         $stmt->execute([$data['id'], $_SESSION['user_id']]);
+        if ($stmt->rowCount() && preg_match('~^images/playlist-covers/[a-f0-9]{32}\.(?:jpg|png|webp)$~D', $previous)) {
+            @unlink(__DIR__ . '/' . $previous);
+        }
         echo json_encode(['success' => true]);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка удаления.']); }
 }

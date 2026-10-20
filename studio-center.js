@@ -59,7 +59,9 @@ function card(info,action,edit){
  const button=make('button','showcase-center-card-open');button.type='button';
  button.setAttribute('aria-label','Открыть '+info.title);
  const art=make('span','showcase-card-art art-'+(info.art||'hits'));
- art.appendChild(make('i','fas fa-'+(info.icon||'music')));
+ const image=info.cover&&typeof playlistCoverUrl==='function'?playlistCoverUrl(info.cover):'';
+ if(image){const img=make('img','showcase-card-cover');img.src=image;img.alt='';art.appendChild(img);}
+ else art.appendChild(make('i','fas fa-'+(info.icon||'music')));
  const words=make('span','showcase-card-body');
  words.appendChild(make('strong','',info.title));words.appendChild(make('small','',info.desc||''));
  const arrow=make('span','showcase-card-play');arrow.appendChild(make('i','fas fa-chevron-right'));
@@ -106,7 +108,7 @@ function render(mode='home'){
   data.forEach(pl=>{
    const total=(pl.tracks||[]).length;
    const icon=typeof playlistIconName==='function'?playlistIconName(pl.icon):'music';
-   grid.appendChild(card({title:pl.name||'Плейлист',desc:total+' треков',icon,art:'artist'},
+   grid.appendChild(card({title:pl.name||'Плейлист',desc:total+' треков',icon,art:'artist',cover:pl.cover},
     ()=>openPlaylist(pl),()=>typeof openTrackManager==='function'&&openTrackManager(pl.id,pl.name,pl.type)));
   });
   if(!data.length)grid.appendChild(make('p','showcase-center-empty',
@@ -196,4 +198,5 @@ if(settingsModal){
  watch.observe(settingsModal,{attributes:true,attributeFilter:['class']});
 }
 render('home');
+window.dispatchEvent(new Event('dag-ui-ready'));
 })();

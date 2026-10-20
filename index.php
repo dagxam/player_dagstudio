@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="studio-booting">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -27,10 +27,14 @@
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=20">
+    <link rel="stylesheet" href="studio-touch.css?v=1">
+    <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
+    <script>window.addEventListener('dag-ui-ready',function(){document.documentElement.classList.remove('studio-booting');},{once:true});setTimeout(function(){document.documentElement.classList.remove('studio-booting');},12000);</script>
 </head>
 <body>
 
 <audio id="main-audio" playsinline preload="auto"></audio>
+<div id="studio-boot-splash" role="status" aria-label="Загружается плеер">DAGSTUDIO PLAYER<span>Подготавливаем вашу музыку…</span></div>
 
 <div class="main-container">
     
@@ -88,8 +92,8 @@
     <!-- ПРАВАЯ ЧАСТЬ (СПИСКИ) -->
     <div class="right-col" id="right-col-container">
         <div class="right-col-header">
-            <button class="tab-btn active" id="tab-search-btn" onclick="switchTab('search')">
-                <i class="fas fa-search"></i> ПОИСК
+            <button class="tab-btn active" id="tab-search-btn" onclick="switchTab('search')" aria-label="Поиск музыки" title="Поиск музыки">
+                <i class="fas fa-search" aria-hidden="true"></i>
             </button>
             <button type="button" class="queue-toggle-btn" id="smart-shuffle-btn" onclick="toggleShuffle()" title="Перемешать треки плейлиста" aria-label="Перемешать треки плейлиста"><i class="fas fa-shuffle" aria-hidden="true"></i></button>
         </div>
@@ -257,19 +261,51 @@
 </div>
 
 <div id="manage-pl-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box"><button type="button" class="modal-close" onclick="closeModal('manage-pl-modal')" aria-label="Закрыть управление плейлистами">&times;</button><h3 class="modal-title">ПЛЕЙЛИСТЫ</h3><div id="manage-pl-list" class="playlist-list"></div><button class="modal-btn btn-primary" onclick="openNewPlModal()">+ СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
-<div id="track-manager-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box" style="padding: 30px;"><button type="button" class="modal-close" onclick="closeModal('track-manager-modal')" aria-label="Закрыть редактор плейлиста">&times;</button><div class="studio-drawer-eyebrow">РЕДАКТОР ПЛЕЙЛИСТА</div><input type="text" id="tm-rename-input" class="tm-rename-input" placeholder="Название плейлиста" aria-label="Название плейлиста" onblur="savePlaylistName()">
-    <div class="playlist-icon-editor" aria-label="Оформление плейлиста">
-        <div class="playlist-icon-editor-head">
-            <span class="playlist-icon-editor-preview"><i id="tm-playlist-icon-preview" class="fas fa-music" aria-hidden="true"></i></span>
-            <span><strong>Иконка плейлиста</strong><small>Выберите символ — он появится в левом меню и сохранится в вашем аккаунте</small></span>
+<main id="track-manager-modal" class="playlist-editor-page" aria-label="Редактирование плейлиста" hidden>
+    <div class="playlist-editor-shell">
+        <header class="playlist-editor-header">
+            <button type="button" class="playlist-editor-back" onclick="closeModal('track-manager-modal')" aria-label="Назад к плейлистам"><i class="fas fa-arrow-left"></i><span>Назад</span></button>
+            <div><span class="studio-drawer-eyebrow">ВАША МУЗЫКА · DAGSTUDIO</span><h2>Редактор плейлиста</h2></div>
+            <button type="button" class="playlist-editor-done" onclick="closeModal('track-manager-modal')"><i class="fas fa-check"></i> Готово</button>
+        </header>
+        <div class="playlist-editor-columns">
+            <section class="playlist-editor-settings" aria-label="Оформление плейлиста">
+                <div class="playlist-editor-cover-row">
+                    <div class="playlist-editor-cover" id="tm-cover-preview"><img id="tm-cover-image" alt="Обложка плейлиста" hidden><i id="tm-cover-placeholder" class="fas fa-music" aria-hidden="true"></i></div>
+                    <div class="playlist-editor-cover-controls">
+                        <strong>Обложка плейлиста</strong>
+                        <p>Выбранная картинка показывается в круге плеера вместо обложек отдельных песен этого плейлиста.</p>
+                        <div class="playlist-editor-cover-buttons">
+                            <button type="button" id="tm-cover-select" onclick="document.getElementById('tm-cover-file').click()"><i class="fas fa-image"></i> Выбрать фото</button>
+                            <button type="button" id="tm-cover-remove" onclick="removePlaylistCover()"><i class="fas fa-rotate-left"></i> Сбросить</button>
+                        </div>
+                        <input type="file" id="tm-cover-file" accept="image/jpeg,image/png,image/webp" hidden onchange="uploadPlaylistCover(this)">
+                        <small id="tm-cover-status" role="status" aria-live="polite">JPG, PNG или WebP · до 5 МБ</small>
+                    </div>
+                </div>
+                <label class="playlist-editor-field" for="tm-rename-input">Название плейлиста</label>
+                <div class="playlist-editor-name-row"><input type="text" id="tm-rename-input" class="tm-rename-input" maxlength="90" placeholder="Название плейлиста" aria-label="Название плейлиста" onblur="savePlaylistName()"><button type="button" onclick="savePlaylistName()"><i class="fas fa-floppy-disk"></i><span>Сохранить</span></button></div>
+                <div class="playlist-icon-editor" aria-label="Оформление значка">
+                    <div class="playlist-icon-editor-head">
+                        <span class="playlist-icon-editor-preview"><i id="tm-playlist-icon-preview" class="fas fa-music" aria-hidden="true"></i></span>
+                        <span><strong>Значок в меню</strong><small>Выберите символ для быстрого поиска плейлиста</small></span>
+                    </div>
+                    <div id="tm-playlist-icons" class="playlist-icon-grid" role="group" aria-label="Значки плейлиста"></div>
+                </div>
+                <label class="studio-likes-exclusion" for="tm-exclude-likes">
+                    <input type="checkbox" id="tm-exclude-likes" onchange="setPlaylistExcludedFromLikes(editingPlaylistId,this.checked)">
+                    <span><strong>Исключить из «Мне нравится»</strong><small>Не учитывать этот плейлист в персональных рекомендациях. Песни остаются на месте.</small></span>
+                </label>
+            </section>
+            <section class="playlist-editor-tracks" aria-label="Песни плейлиста">
+                <div class="playlist-editor-tracks-heading"><div><span class="studio-drawer-eyebrow">СОДЕРЖИМОЕ</span><h3>Песни <span id="tm-track-count"></span></h3></div></div>
+                <div class="tm-actions-bar"><button type="button" class="tm-act-btn" onclick="showAddLinkUI('link')"><i class="fas fa-link"></i> Добавить по ссылке</button><button type="button" class="tm-act-btn" onclick="triggerLocalUploadManager()"><i class="fas fa-file-audio"></i> Загрузить аудио</button></div>
+                <div id="tm-add-link-area" hidden><input type="url" id="tm-link-input" class="auth-input" placeholder="Ссылка на аудиофайл"><input type="text" id="tm-link-name" class="auth-input" placeholder="Название песни"><button type="button" class="modal-btn btn-primary" id="tm-add-confirm-btn">Добавить песню</button></div>
+                <div id="track-manage-list" class="track-manage-list"></div>
+            </section>
         </div>
-        <div id="tm-playlist-icons" class="playlist-icon-grid" role="group" aria-label="Иконки плейлиста"></div>
     </div>
-
-    <label class="studio-likes-exclusion" for="tm-exclude-likes">
-        <input type="checkbox" id="tm-exclude-likes" onchange="setPlaylistExcludedFromLikes(editingPlaylistId,this.checked)">
-        <span><strong>Исключить из «Мне нравится»</strong><small>Треки останутся в плейлисте, но не появятся в общей подборке любимых песен. Выбор сохраняется на этом устройстве.</small></span>
-    </label><div class="tm-actions-bar"><button class="tm-act-btn" onclick="showAddLinkUI('link')"><i class="fas fa-link"></i></button><button class="tm-act-btn" onclick="triggerLocalUploadManager()"><i class="fas fa-file-audio"></i></button></div><div id="tm-add-link-area" style="display:none; margin-bottom:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:12px;"><input type="text" id="tm-link-input" class="auth-input" placeholder="Вставьте ссылку..." style="margin-bottom:10px;"><input type="text" id="tm-link-name" class="auth-input" placeholder="Название трека..." style="margin-bottom:10px;"><button class="modal-btn btn-primary" id="tm-add-confirm-btn">ДОБАВИТЬ</button></div><div id="track-manage-list" class="track-manage-list"></div></div></div>
+</main>
 <div id="save-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box"><button type="button" class="modal-close" onclick="closeModal('save-modal')" aria-label="Закрыть выбор плейлиста">&times;</button><h3 class="modal-title">ВЫБРАТЬ ПЛЕЙЛИСТ</h3><div id="playlist-select-list" class="playlist-list"></div></div></div>
 <div id="input-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true"><div class="modal-box" style="padding-top: 30px;"><button type="button" class="modal-close" onclick="closeModal('input-modal')" aria-label="Закрыть создание плейлиста">&times;</button><h3 class="modal-title" style="margin-bottom: 20px;">НОВЫЙ ПЛЕЙЛИСТ</h3><input type="text" id="new-tab-name" class="auth-input" placeholder="Введите название..." style="margin-bottom: 25px; text-align:center; font-weight:bold;"><button class="modal-btn btn-dark" onclick="submitCreateTab()" style="padding: 12px; font-size: 0.9rem;">СОЗДАТЬ ПЛЕЙЛИСТ</button></div></div>
 
@@ -310,7 +346,7 @@
     <div class="modal-box utility-modal studio-queue-dialog">
         <button type="button" class="modal-close" onclick="closeModal('queue-modal')" aria-label="Закрыть очередь">&times;</button>
         <h3 class="modal-title" id="queue-modal-title"><i class="fas fa-list-ol"></i> Очередь воспроизведения</h3>
-        <p class="studio-queue-hint">Здесь можно изменить порядок добавленных в очередь песен. Перемешивание треков выполняется отдельной кнопкой над списком.</p>
+        <p class="studio-queue-hint" id="queue-modal-summary">Добавляйте песни значком списка возле трека.</p>
         <div id="queue-list" class="queue-list"></div>
         <button class="modal-btn btn-dark" type="button" onclick="clearPlaybackQueue()">Очистить очередь</button>
     </div>
@@ -362,10 +398,10 @@
     </div>
 </div>
 
-<script src="script.js?v=2304" defer></script>
+<script src="script.js?v=2305" defer></script>
 <script src="studio.js?v=4" defer></script>
-<script src="studio-next.js?v=10" defer></script>
-<script src="studio-center.js?v=3" defer></script>
+<script src="studio-next.js?v=11" defer></script>
+<script src="studio-center.js?v=4" defer></script>
 
 </body>
 </html>

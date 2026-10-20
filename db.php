@@ -43,6 +43,17 @@ try {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_playlist_icons_user ON playlist_icons(user_id)");
 
+    // Cover files are optional and kept separate for zero-risk migration of
+    // existing player.db libraries on shared hosting and Android sync.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS playlist_covers (
+        playlist_id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        cover TEXT NOT NULL,
+        FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_playlist_covers_user ON playlist_covers(user_id)");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS tracks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         playlist_id INTEGER NOT NULL,

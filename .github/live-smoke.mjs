@@ -92,13 +92,30 @@ try {
         playButton:play.width>=54&&play.height>=54,
         audio:document.querySelectorAll('audio').length===1,
         noOverflow:document.documentElement.scrollWidth<=innerWidth+3,
-        hasMobileMenu:wide?true:getComputedStyle(document.querySelector('#showcase-menu-toggle')).display!=='none'
+        hasMobileMenu:wide?true:getComputedStyle(document.querySelector('#showcase-menu-toggle')).display!=='none',
+        readyWithoutOldLayout:!document.documentElement.classList.contains('studio-booting'),
+        quickMobileSettings:wide?true:(getComputedStyle(document.querySelector('.showcase-mobile-tools')).display!=='none'
+          &&document.querySelectorAll('.showcase-mobile-action').length===3),
+        searchIconOnly:!document.getElementById('tab-search-btn')?.textContent?.trim()
       };
     });
     console.log('SHOWCASE_LAYOUT',JSON.stringify({viewport,state}));
     if(Object.values(state).some(v=>!v))
       throw new Error('Showcase responsive layout regression '+JSON.stringify({viewport,state}));
   }
+  await page.setViewport({width:1024,height:600});
+  const sidebarCollapse=await page.evaluate(()=>{
+    const root=document.querySelector('.main-container'),rail=document.querySelector('.showcase-rail-toggle');
+    const original=document.getElementById('studio-navigation').getBoundingClientRect().width;
+    rail.click();
+    const compact=document.getElementById('studio-navigation').getBoundingClientRect().width;
+    const persisted=localStorage.getItem('dag_sidebar_collapsed')==='1';
+    rail.click();
+    return {original,compact,persisted,restored:!root.classList.contains('showcase-nav-collapsed')};
+  });
+  if(sidebarCollapse.compact>90||sidebarCollapse.original<140||
+     !sidebarCollapse.persisted||!sidebarCollapse.restored)
+    throw new Error('Collapsible touch navigation regression '+JSON.stringify(sidebarCollapse));
 
   // Action dialogs are right-hand drawers on TEYES and mobile. Guidance and
   // informational notifications remain centered, without page scrolling.
@@ -107,7 +124,7 @@ try {
     await page.setViewport(viewport);
     const dialogs=await page.evaluate(()=>{
       const ids=['quick-mixes-modal','caucasus-radio-modal','confirm-modal',
-        'manage-pl-modal','track-manager-modal','save-modal','input-modal',
+        'manage-pl-modal','save-modal','input-modal',
         'equalizer-modal','queue-modal','sleep-modal','diagnostics-modal',
         'cache-dashboard-modal'];
       const failures=[];
@@ -130,6 +147,18 @@ try {
         overlay.classList.remove('show');
         overlay.style.removeProperty('animation');panel.style.removeProperty('animation');
       });
+      // Playlist editing is now a full-screen page, not a right-hand drawer.
+      const editor=document.getElementById('track-manager-modal');
+      if(!editor||!editor.classList.contains('playlist-editor-page')||
+         !editor.querySelector('#tm-cover-file')||!editor.querySelector('#tm-cover-image')){
+        failures.push('playlist editor page missing');
+      }else{
+        editor.hidden=false;editor.classList.add('show');
+        const box=editor.getBoundingClientRect();
+        if(Math.abs(box.width-innerWidth)>2||Math.abs(box.height-innerHeight)>2||
+           box.left!==0||box.top!==0)failures.push('playlist editor not fullscreen');
+        editor.classList.remove('show');editor.hidden=true;
+      }
       ['alert-modal','ios-install-modal'].forEach(id=>{
         const overlay=document.getElementById(id),panel=overlay?.querySelector('.modal-box');
         overlay.classList.add('show');
@@ -816,10 +845,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2304', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2305', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2304'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2305'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),

@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2304';
+const WEB_BUILD_LABEL = '2305';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -479,6 +479,11 @@ const PLAYLIST_ICON_OPTIONS = Object.freeze([
 ]);
 function playlistIconName(value) {
     return PLAYLIST_ICON_OPTIONS.some(([name])=>name===value)?value:'music';
+}
+function playlistCoverUrl(value){
+    const path=String(value||'').replace(/^\//,'');
+    if(!/^images\/playlist-covers\/[a-f0-9]{32}\.(?:jpg|png|webp)$/i.test(path))return '';
+    return IS_NATIVE_APP?appServerUrl('/'+path):'/'+path;
 }
 function renderPlaylistIconPicker(id) {
     const container=document.getElementById('tm-playlist-icons');
@@ -2697,7 +2702,12 @@ function showConfirm(msg, callback) {
     document.getElementById('confirm-modal').classList.add('show'); 
 }
 function closeModal(id) {
-    document.getElementById(id)?.classList.remove('show');
+    const element=document.getElementById(id);
+    element?.classList.remove('show');
+    if(id==='track-manager-modal'){
+        if(element)element.hidden=true;
+        window.studioCenterRender?.('playlists');
+    }
     if(id==='quick-mixes-modal') document.getElementById('header-mixes-btn')?.setAttribute('aria-expanded','false');
 }
 function showLoader(show) { 
@@ -2791,15 +2801,101 @@ async function deletePlaylistFromManager(id) {
 
 function openTrackManager(plId, plName, plType) { 
     const pl = playlists.find(p => p.id == plId); 
+    if(!pl)return;
     editingPlaylistId = plId;
     document.getElementById('tm-rename-input').value = plName;
     renderPlaylistIconPicker(plId);
-    document.getElementById('tm-add-link-area').style.display = 'none';
+    const linkArea=document.getElementById('tm-add-link-area');
+    linkArea.hidden=true;linkArea.style.display='none';
     renderTrackManagerList(pl);
+    refreshPlaylistCoverEditor(pl);
     const checkbox=document.getElementById('tm-exclude-likes');
     if(checkbox)checkbox.checked=playlistExcludedFromLikes(plId);
     closeModal('manage-pl-modal'); 
-    document.getElementById('track-manager-modal').classList.add('show'); 
+    closeModal('menu-modal');
+    const page=document.getElementById('track-manager-modal');
+    page.hidden=false;
+    page.classList.add('show');
+}
+
+function refreshPlaylistCoverEditor(pl){
+    const img=document.getElementById('tm-cover-image');
+    const placeholder=document.getElementById('tm-cover-placeholder');
+    const removal=document.getElementById('tm-cover-remove');
+    const cover=playlistCoverUrl(pl?.cover);
+    if(img){img.hidden=!cover;if(cover)img.src=cover;else img.removeAttribute('src');}
+    if(placeholder)placeholder.hidden=Boolean(cover);
+    if(removal)removal.disabled=!cover;
+    const status=document.getElementById('tm-cover-status');
+    if(status)status.textContent=cover?'Обложка сохранена · используется при воспроизведении':'JPG, PNG или WebP · до 5 МБ';
+}
+function preparePlaylistCoverData(file){
+    return new Promise((resolve,reject)=>{
+        const url=URL.createObjectURL(file),img=new Image();
+        img.onload=()=>{
+            URL.revokeObjectURL(url);
+            try{
+                const ratio=Math.min(1,720/Math.max(img.naturalWidth,img.naturalHeight));
+                const canvas=document.createElement('canvas');
+                canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));
+                canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));
+                const context=canvas.getContext('2d');
+                if(!context)throw new Error('Canvas unavailable');
+                context.drawImage(img,0,0,canvas.width,canvas.height);
+                let result=canvas.toDataURL('image/jpeg',.82);
+                if(result.length>1850000)result=canvas.toDataURL('image/jpeg',.60);
+                if(result.length>1850000)throw new Error('Image too large');
+                resolve(result);
+            }catch(error){reject(error);}
+        };
+        img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Invalid image'));};
+        img.src=url;
+    });
+}
+async function uploadPlaylistCover(input){
+    const file=input.files?.[0];
+    if(!file||!editingPlaylistId)return;
+    input.value='';
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1048576){
+        showNotification('Выберите JPG, PNG или WebP размером до 5 МБ.');return;
+    }
+    const owner=editingPlaylistId;
+    const button=document.getElementById('tm-cover-select');
+    const status=document.getElementById('tm-cover-status');
+    if(button)button.disabled=true;
+    if(status)status.textContent='Подготавливаем фотографию…';
+    try{
+        const image=await preparePlaylistCoverData(file);
+        if(status)status.textContent='Сохраняем обложку…';
+        const result=await api('update_playlist_cover',{id:owner,image});
+        if(!result?.success)throw new Error(result?.error||'Ошибка сервера');
+        const pl=playlists.find(item=>String(item.id)===String(owner));
+        if(pl)pl.cover=result.cover;
+        saveOfflinePlaylistsSnapshot(playlists);
+        if(String(editingPlaylistId)===String(owner))refreshPlaylistCoverEditor(pl);
+        window.dispatchEvent(new Event('dag-playlists-updated'));
+        window.dispatchEvent(new Event('dag-artwork-updated'));
+    }catch(error){
+        if(status)status.textContent='Не удалось загрузить изображение';
+        showNotification(error?.message||'Не удалось сохранить обложку');
+    }finally{if(button)button.disabled=false;}
+}
+async function removePlaylistCover(){
+    const owner=editingPlaylistId;
+    if(!owner)return;
+    const button=document.getElementById('tm-cover-remove');
+    if(button)button.disabled=true;
+    try{
+        const result=await api('update_playlist_cover',{id:owner,remove:true});
+        if(!result?.success)throw new Error(result?.error||'Не удалось сбросить обложку');
+        const pl=playlists.find(item=>String(item.id)===String(owner));
+        if(pl)pl.cover='';
+        saveOfflinePlaylistsSnapshot(playlists);
+        refreshPlaylistCoverEditor(pl);
+        window.dispatchEvent(new Event('dag-playlists-updated'));
+        window.dispatchEvent(new Event('dag-artwork-updated'));
+    }catch(error){showNotification(error?.message||'Не удалось сбросить обложку');}
+    finally{if(button)button.disabled=false;}
 }
 
 async function savePlaylistName() {
@@ -2829,6 +2925,7 @@ function showAddLinkUI(type) {
     const area = document.getElementById('tm-add-link-area');
     const input = document.getElementById('tm-link-input');
     const btn = document.getElementById('tm-add-confirm-btn');
+    area.hidden=false;
     area.style.display = 'block';
     document.getElementById('tm-link-name').value = '';
     input.value = '';
@@ -2845,6 +2942,8 @@ function triggerLocalUploadManager() {
 function renderTrackManagerList(pl) { 
     const list = document.getElementById('track-manage-list'); 
     list.innerHTML = ''; 
+    const count=document.getElementById('tm-track-count');
+    if(count)count.textContent='· '+(pl?.tracks?.length||0);
     if(!pl || pl.tracks.length === 0) { 
         const empty = document.createElement('div');
         empty.style.color = '#666'; empty.style.padding = '20px'; empty.style.textAlign = 'center';
@@ -3697,7 +3796,8 @@ async function playTrack(index, options = {}) {
                 title: track.title,
                 artist: track.artist,
                 album: 'DAGSTUDIO',
-                artwork: [{ src: track.thumb || 'images/faviconch.png', sizes: '512x512', type: 'image/png' }]
+                artwork: [{ src: playlistCoverUrl(playlists.find(pl=>String(pl.id)===String(playbackTab))?.cover)
+                    || track.thumb || 'images/faviconch.png' }]
             });
             navigator.mediaSession.setActionHandler('play', function() { if (!playbackWanted) resumePlayback(); });
             navigator.mediaSession.setActionHandler('pause', function() { if (playbackWanted) pausePlayback(); });
@@ -4627,6 +4727,9 @@ function savePlaybackQueue() {
 function updatePlaybackQueueBadge() {
     const badge = document.getElementById('queue-count');
     if (badge) badge.textContent = playbackQueue.length ? String(playbackQueue.length) : '';
+    const pill=document.getElementById('showcase-queue-count');
+    if(pill){pill.textContent=playbackQueue.length?String(playbackQueue.length):'0';
+        pill.setAttribute('aria-label','В очереди: '+playbackQueue.length);}
 }
 function queueTrack(index) {
     const track = playlist[index];
@@ -4649,6 +4752,10 @@ function renderPlaybackQueue() {
     const list = document.getElementById('queue-list');
     if (!list) return;
     list.replaceChildren();
+    const summary=document.getElementById('queue-modal-summary');
+    if(summary)summary.textContent=playbackQueue.length
+        ?'В очереди '+playbackQueue.length+' песен · перемещайте их большими кнопками ниже'
+        :'Добавляйте песни в очередь значком списка у трека.';
     if (!playbackQueue.length) {
         const p = document.createElement('p');p.className='queue-empty';
         p.textContent='Очередь пуста. Добавляйте треки значком списка.';
@@ -4660,7 +4767,7 @@ function renderPlaybackQueue() {
         label.textContent=(i+1)+'. '+track.title+(track.artist ? ' — '+track.artist : '');
         const make=(text,title,disabled,action)=>{
             const btn=document.createElement('button');btn.type='button';
-            btn.className='queue-mini-btn';btn.title=title;btn.textContent=text;
+            btn.className='queue-mini-btn';btn.title=title;btn.setAttribute('aria-label',title);btn.textContent=text;
             btn.disabled=disabled;btn.onclick=action;return btn;
         };
         row.append(label,

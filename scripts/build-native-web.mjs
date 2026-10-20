@@ -18,7 +18,8 @@ if (html.includes('<?php')) {
 
 // PWA-only metadata is unnecessary inside Capacitor.
 html = html
-  .replace('<html lang="ru">', '<html lang="ru" class="native-app">')
+  .replace(/<html lang="ru"(?: class="([^"]*)")?>/,
+    (_, classes = '') => `<html lang="ru" class="${classes} native-app">`)
   .replace('</head>', `    <script>window.DAG_NATIVE_APP = true; window.DAG_NATIVE_BUILD_VERSION = ${JSON.stringify(buildVersion)};</script>\n</head>`)
   .replace(/\s*<link rel="manifest"[^>]*>\s*/i, '\n')
   .replace(
@@ -84,6 +85,7 @@ await copyFile(join(root, 'modern.css'), join(out, 'modern.css'));
 await copyFile(join(root, 'studio.css'), join(out, 'studio.css'));
 await copyFile(join(root, 'studio.js'), join(out, 'studio.js'));
 await copyFile(join(root, 'studio-next.css'), join(out, 'studio-next.css'));
+await copyFile(join(root, 'studio-touch.css'), join(out, 'studio-touch.css'));
 await copyFile(join(root, 'studio-next.js'), join(out, 'studio-next.js'));
 await copyFile(join(root, 'studio-center.js'), join(out, 'studio-center.js'));
 

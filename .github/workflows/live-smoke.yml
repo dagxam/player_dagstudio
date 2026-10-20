@@ -16,6 +16,7 @@ on:
       - "studio-next.js"
       - "studio-center.js"
       - "studio-next.css"
+      - "studio-touch.css"
       - "images/**"
       - "api.php"
       - "proxy.php"
