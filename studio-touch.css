@@ -6,11 +6,11 @@
 .studio-showcase .showcase-brand-text{flex:1;overflow:hidden}
 .showcase-rail-toggle{border:1px solid rgba(var(--theme-rgb,192,108,66),.32);background:rgba(var(--theme-rgb,192,108,66),.11);color:var(--theme-bright,#f2b486);width:36px;height:40px;min-width:36px;border-radius:11px;display:grid;place-items:center;cursor:pointer;font-size:.98rem;flex-shrink:0}
 .showcase-rail-toggle:hover{background:rgba(var(--theme-rgb,192,108,66),.22)}
-.studio-showcase .showcase-nav-btn{min-height:46px;user-select:none}
+.studio-showcase .showcase-nav-btn{min-height:46px!important;user-select:none}
 .studio-showcase .showcase-nav-btn:active,.studio-showcase .showcase-curation-card:active{transform:scale(.985);filter:brightness(1.16)}
 .studio-showcase .showcase-curations .showcase-curation-card,.studio-showcase .showcase-curations .showcase-center-card{min-height:78px!important}
 .studio-showcase .showcase-center-card-open{min-height:inherit}
-.studio-showcase .showcase-center-card-settings{width:46px!important;height:46px!important;flex:0 0 46px!important;font-size:1.1rem;border-color:var(--showcase-stroke)!important;margin-right:9px!important}
+.studio-showcase .showcase-curations .showcase-center-card-settings{width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;flex:0 0 46px!important;font-size:1.1rem;border-color:var(--showcase-stroke)!important;margin-right:9px!important}
 .showcase-card-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;filter:none!important}
 .studio-showcase .showcase-card-art:has(.showcase-card-cover)::after{display:none}
 .studio-showcase #tab-search-btn{width:48px!important;min-width:48px!important;max-width:48px!important;height:48px!important;display:grid!important;place-items:center!important;padding:0!important;font-size:1.2rem!important;border-radius:14px!important}
@@ -71,7 +71,7 @@
  .studio-showcase>.showcase-mobile-shade{z-index:190!important}
  .studio-showcase .showcase-nav-btn{min-height:50px!important;font-size:.91rem!important}
  .studio-showcase .showcase-rail-toggle{display:none}
- .studio-showcase .showcase-center-card-settings{width:48px!important;height:48px!important;flex-basis:48px!important}
+ .studio-showcase .showcase-curations .showcase-center-card-settings{width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;flex-basis:48px!important}
  .studio-showcase .showcase-curation-card{min-height:82px!important}
  .studio-showcase.showcase-wave-only>.left-col{height:100dvh!important;flex-basis:100dvh!important;padding-top:58px!important}
  .studio-showcase.showcase-wave-only>.right-col{display:none!important}
