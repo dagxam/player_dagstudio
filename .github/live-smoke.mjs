@@ -883,7 +883,8 @@ try {
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
       offlineIndex:text.includes('async function offlineTrackList()'),
-      offlineRecovery:text.includes('startOfflineListening({auto:true,autoplay:true})'),
+      offlineRecovery:!text.includes('startOfflineListening({auto:true,autoplay:true})') &&
+        text.includes("recoverCurrentStream('network-offline')"),
       listeningHistory:text.includes("tasteRecord('listen',track)")};
   });
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
