@@ -70,6 +70,9 @@ jobs:
       - name: Install native dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Test signed OTA manifest and fallback
+        run: node .github/test-ota-update.mjs
+
       - name: Test native progress and touch seeking
         run: node .github/test-native-media.mjs
 

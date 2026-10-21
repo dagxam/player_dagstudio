@@ -77,9 +77,11 @@ async function nativeHttpRequest(options) {
 }
 
 const NATIVE_UPDATE_META_URL =
+    'https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-version.json';
+const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2307';
+const WEB_BUILD_LABEL = '2308';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -99,8 +101,8 @@ async function fetchUpdateJson(url) {
                 'Accept': 'application/json',
                 'Cache-Control': 'no-cache'
             },
-            connectTimeout: 12000,
-            readTimeout: 20000
+            connectTimeout: 20000,
+            readTimeout: 35000
         });
 
         if (!response || response.status < 200 || response.status >= 300) {
@@ -117,6 +119,54 @@ async function fetchUpdateJson(url) {
     });
     if (!response.ok) throw new Error('HTTP ' + response.status);
     return response.json();
+}
+
+// Only trusted release endpoints can supply executable web bundles.
+function trustedOtaDownloadUrl(url) {
+    const value = String(url || '');
+    return /^https:\/\/pl\.dagstudio\.ru\/ota\/DAGSTUDIO-PLAYER-web-\d+\.\d+\.\d+\.zip$/.test(value) ||
+        value === 'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web.zip';
+}
+function validOtaManifest(meta) {
+    return !!meta && /^\d+\.\d+\.\d+$/.test(String(meta.version || '')) &&
+        trustedOtaDownloadUrl(meta.url) &&
+        /^[a-f0-9]{64}$/i.test(String(meta.checksum || '')) &&
+        (!meta.fallback_url || trustedOtaDownloadUrl(meta.fallback_url));
+}
+async function fetchOtaManifest() {
+    const attempts = [];
+    for (const endpoint of [NATIVE_UPDATE_META_URL, NATIVE_UPDATE_BACKUP_META_URL]) {
+        try {
+            const meta = await fetchUpdateJson(endpoint);
+            if (!validOtaManifest(meta)) throw new Error('Некорректный манифест обновления');
+            return meta;
+        } catch (error) {
+            attempts.push((endpoint === NATIVE_UPDATE_META_URL ? 'сайт' : 'GitHub') +
+                ': ' + String(error?.message || error || 'нет ответа').slice(0,110));
+        }
+    }
+    throw new Error('Серверы обновления недоступны. ' + attempts.join('; '));
+}
+async function downloadOtaBundle(updater, meta) {
+    const urls = [meta.url];
+    if (meta.fallback_url && meta.fallback_url !== meta.url) urls.push(meta.fallback_url);
+    const problems = [];
+    for (let i = 0; i < urls.length; i++) {
+        if (i) setManualUpdateButtonState('is-checking', 'Пробуем запасной сервер…');
+        try {
+            const bundle = await updater.download({
+                url: String(urls[i]),
+                version: String(meta.version),
+                checksum: String(meta.checksum)
+            });
+            if (!bundle?.id) throw new Error('Нет идентификатора обновления');
+            return bundle;
+        } catch (error) {
+            problems.push((i ? 'резервный' : 'основной') + ': ' +
+                String(error?.message || error || 'загрузка прервана').slice(0,110));
+        }
+    }
+    throw new Error('Не удалось скачать пакет. ' + problems.join('; '));
 }
 
 async function getNativeAppInfoSafe() {
@@ -269,18 +319,11 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
             await updater.notifyAppReady();
         }
 
-        const meta = await fetchUpdateJson(NATIVE_UPDATE_META_URL);
-        if (!meta || !meta.version || !meta.url ||
-            !/^\d+\.\d+\.\d+$/.test(String(meta.version)) ||
-            !/^https:\/\/github\.com\/dagxam\/player_dagstudio\/releases\/download\/android-web\/DAGSTUDIO-PLAYER-web\.zip$/.test(String(meta.url)) ||
-            !/^[a-f0-9]{64}$/i.test(String(meta.checksum || ''))) {
-            throw new Error('Некорректные данные или контрольная сумма OTA-обновления');
-        }
-
+        const meta = await fetchOtaManifest();
         const installedBundleVersion = await getInstalledBundleVersion();
         const installedVersion = installedBundleVersion || String(window.DAG_NATIVE_BUILD_VERSION || 'builtin');
         const latestVersion = String(meta.version);
-        const builtInCommit = String(window.DAG_NATIVE_BUILD_VERSION || '');
+        const builtInCommit = String(window.DAG_NATIVE_BUILD_COMMIT || '');
 
         // Свежесобранный APK уже содержит этот же интерфейс; повторный ZIP не нужен.
         const sameBuiltInFiles = !installedBundleVersion && /^[a-f0-9]{40}$/i.test(builtInCommit) &&
@@ -298,18 +341,7 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
             setManualUpdateButtonState('is-checking', 'Скачиваем обновление…');
         }
 
-        const downloadOptions = {
-            url: String(meta.url),
-            version: String(meta.version)
-        };
-        if (meta.checksum) {
-            downloadOptions.checksum = String(meta.checksum);
-        }
-
-        const bundle = await updater.download(downloadOptions);
-        if (!bundle || !bundle.id) {
-            throw new Error('Updater did not return bundle id');
-        }
+        const bundle = await downloadOtaBundle(updater, meta);
 
         if (manual) {
             setManualUpdateButtonState('is-checking', 'Устанавливаем обновление…');
@@ -420,7 +452,7 @@ window.manualUpdateApplication = async function() {
     } catch (error) {
         console.error('Manual OTA update failed:', error);
         setManualUpdateButtonState('is-error', 'Повторить обновление');
-        showNotification('Не удалось обновить приложение автоматически. Проверьте интернет и повторите.');
+        showNotification('Онлайн-обновление не удалось: ' + String(error?.message || 'Проверьте сеть').slice(0,220));
     }
 };
 

@@ -20,7 +20,7 @@ if (html.includes('<?php')) {
 html = html
   .replace(/<html lang="ru"(?: class="([^"]*)")?>/,
     (_, classes = '') => `<html lang="ru" class="${classes} native-app">`)
-  .replace('</head>', `    <script>window.DAG_NATIVE_APP = true; window.DAG_NATIVE_BUILD_VERSION = ${JSON.stringify(buildVersion)};</script>\n</head>`)
+  .replace('</head>', `    <script>window.DAG_NATIVE_APP = true; window.DAG_NATIVE_BUILD_VERSION = ${JSON.stringify(buildVersion)}; window.DAG_NATIVE_BUILD_COMMIT = ${JSON.stringify(process.env.GITHUB_SHA || "")};</script>\n</head>`)
   .replace(/\s*<link rel="manifest"[^>]*>\s*/i, '\n')
   .replace(
     /<link rel="stylesheet" href="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/[^"]+\/css\/all\.min\.css">/i,

@@ -69,6 +69,9 @@ jobs:
           grep -q "$GITHUB_SHA" www/index.html
           grep -q 'https://pl.dagstudio.ru' www/script.js
 
+      - name: Test manual OTA and backup delivery
+        run: node .github/test-ota-update.mjs
+
       - name: Package live update with Capgo CLI
         run: |
           set -e
@@ -105,6 +108,30 @@ jobs:
           echo "Live update version: $VERSION"
           echo "Live update checksum: $CHECKSUM"
 
+      - name: Prepare primary OTA files for direct delivery
+        run: |
+          set -euo pipefail
+          VERSION="1000.0.$GITHUB_RUN_NUMBER"
+          mkdir -p ota-publish
+          VERSIONED_ZIP="DAGSTUDIO-PLAYER-web-$VERSION.zip"
+          cp DAGSTUDIO-PLAYER-web.zip "ota-publish/$VERSIONED_ZIP"
+          SHA256="$(sha256sum "ota-publish/$VERSIONED_ZIP" | cut -d ' ' -f 1)"
+          python - "$VERSION" "$VERSIONED_ZIP" "$SHA256" "$GITHUB_SHA" <<'PY'
+          import json,sys,pathlib
+          version,name,sha,commit=sys.argv[1:]
+          payload={
+            "version":version,
+            "url":"https://pl.dagstudio.ru/ota/"+name,
+            "fallback_url":"https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web.zip",
+            "checksum":sha,
+            "sha256":sha,
+            "commit":commit
+          }
+          pathlib.Path("ota-publish/DAGSTUDIO-PLAYER-web-version.json").write_text(
+            json.dumps(payload,ensure_ascii=False,indent=2)+"\n")
+          PY
+          test -s ota-publish/DAGSTUDIO-PLAYER-web-version.json
+
       - name: Publish permanent live-update release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -117,3 +144,37 @@ jobs:
           else
             gh release create android-web               DAGSTUDIO-PLAYER-web.zip               DAGSTUDIO-PLAYER-web-version.json               --title "DAGSTUDIO PLAYER Web Update"               --notes "$NOTES"               --prerelease
           fi
+
+      - name: Publish OTA directly to the DAGSTUDIO website
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          local-dir: ./ota-publish/
+          server-dir: /www/pl.dagstudio.ru/ota/
+
+      - name: Verify primary OTA manifest and ZIP from public URL
+        run: |
+          set -euo pipefail
+          VERSION="1000.0.$GITHUB_RUN_NUMBER"
+          URL="https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-version.json?verify=$GITHUB_SHA"
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 3 --max-time 45 "$URL" -o /tmp/dag-ota.json
+          python - "$VERSION" "$GITHUB_SHA" <<'PY'
+          import json,sys,re
+          info=json.load(open('/tmp/dag-ota.json'))
+          version,commit=sys.argv[1:]
+          assert info.get('version')==version, 'OTA version was not published'
+          assert info.get('commit')==commit, 'OTA belongs to another commit'
+          assert re.fullmatch('[a-f0-9]{64}',info.get('checksum','')), 'Missing SHA-256'
+          assert info.get('url')==f'https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-{version}.zip'
+          PY
+          OTA_URL="$(python -c 'import json;print(json.load(open("/tmp/dag-ota.json"))["url"])')"
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 3 --max-time 90 "$OTA_URL" -o /tmp/dag-ota-public.zip
+          ZIP_SHA="$(sha256sum /tmp/dag-ota-public.zip | cut -d ' ' -f1)"
+          EXPECTED_SHA="$(python -c 'import json;print(json.load(open("/tmp/dag-ota.json"))["checksum"])')"
+          test "$ZIP_SHA" = "$EXPECTED_SHA"
+          unzip -t /tmp/dag-ota-public.zip >/dev/null
+          echo "Primary OTA verified: version=$VERSION SHA256=$ZIP_SHA"
