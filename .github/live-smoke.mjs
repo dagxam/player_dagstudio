@@ -890,10 +890,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2310', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2311', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2310'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2311'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -1335,6 +1335,26 @@ try {
   }));
   console.log('APP_NETWORK_DIAGNOSTIC',JSON.stringify(networkDiagPresence));
   if(Object.values(networkDiagPresence).some(value=>!value))throw Error('App connectivity test UI missing');
+
+  // Verify search design and touch controls on narrow/phone layouts.
+  for (const viewport of [{width:1024,height:600},{width:390,height:844}]) {
+    await page.setViewport(viewport);
+    await page.evaluate(()=>{window.studioShowList?.('search');if(typeof switchTab==='function')switchTab('search');});
+    const layout=await page.evaluate(()=>{
+      const field=document.querySelector('.dag-search-field');
+      const input=document.getElementById('search-input');
+      const icon=document.querySelector('.dag-search-glass');
+      const clear=document.getElementById('search-clear-btn');
+      const bounds=field?.getBoundingClientRect();
+      return {field:!!bounds&&bounds.height>=42&&bounds.width>=180,
+        icon:!!icon&&getComputedStyle(icon).display!=='none',
+        clear:!!clear,visible:!!input&&input.getBoundingClientRect().width>100,
+        fits:!!bounds&&bounds.right<=innerWidth+2};
+    });
+    console.log('SEARCH_TOUCH_DESIGN',JSON.stringify({viewport,...layout}));
+    if(Object.values(layout).some(value=>!value))throw new Error('Search field clipped or missing');
+  }
+  await page.setViewport({width:1024,height:600});
 
   // Live search + audio relay smoke test. Read only the first streamed chunk.
   const searchSmoke = await page.evaluate(async () => {

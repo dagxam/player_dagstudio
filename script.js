@@ -77,11 +77,11 @@ async function nativeHttpRequest(options) {
 }
 
 const NATIVE_UPDATE_META_URL =
-    'https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-version.json';
+    'https://pl.dagstudio.ru/ota-bridge.php';
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2310';
+const WEB_BUILD_LABEL = '2311';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -2654,6 +2654,7 @@ function refreshPlayerDiagnostics() {
         'Платформа: '+(NATIVE_PLATFORM==='ios'?'iPhone / iPad (Capacitor)':IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
         'Сетевой интерфейс: '+(navigator.onLine?(net.effectiveType||'подключён, доступ в интернет не подтверждён'):'отключён'),
         'Последняя ошибка сети: '+(lastConnectivityFailure || 'нет'),
+        'HTTP Android: '+(window.DAG_NATIVE_BRIDGE?.networkTransport?.() || 'нет данных'),
         'Проверка сети: '+(lastAppNetworkDiagnostics || 'ещё не проводилась'),
         'Воспроизведение: '+(playbackWanted?(mainAudio.paused?'загрузка':'играет'):'пауза'),
         'Готовность: '+mainAudio.readyState+' из 4',
@@ -5087,8 +5088,22 @@ mainAudio.addEventListener('timeupdate', updateProgress);
 mainAudio.addEventListener('progress', updateProgress);
 
 // --- GLOBAL SEARCH LOGIC ---
-const mainSearchInput = document.getElementById('search-input'); 
+const mainSearchInput = document.getElementById('search-input');
 const searchHistoryBox = document.getElementById('search-history');
+const searchClearButton = document.getElementById('search-clear-btn');
+function syncSearchClearButton() {
+    if (searchClearButton) searchClearButton.hidden = !(mainSearchInput?.value || '').trim();
+}
+searchClearButton?.addEventListener('click', () => {
+    if (!mainSearchInput) return;
+    mainSearchInput.value = '';
+    clearTimeout(searchTimeout);
+    clearSearchResults();
+    syncSearchClearButton();
+    mainSearchInput.focus();
+});
+mainSearchInput?.addEventListener('input', syncSearchClearButton);
+syncSearchClearButton();
 
 function saveSearchQuery(query) { 
     if(!query || query.length < 2) return; 
@@ -5135,14 +5150,21 @@ function searchStatus(message, retry = false) {
     }
     status.replaceChildren();
     status.hidden = !message;
+    status.classList.toggle('is-error', !!retry);
+    status.classList.toggle('is-loading', !!message && !retry && /поиск|ищем|загружаем|проверяем/i.test(message));
     if (!message) return;
+    const symbol = document.createElement('i');
+    symbol.className = retry ? 'fas fa-circle-exclamation'
+        : status.classList.contains('is-loading') ? 'fas fa-spinner fa-spin' : 'fas fa-circle-check';
+    symbol.setAttribute('aria-hidden', 'true');
+    status.appendChild(symbol);
     const caption = document.createElement('span');
     caption.textContent = message;
     status.appendChild(caption);
     if (retry) {
         const again = document.createElement('button');
         again.type = 'button';
-        again.textContent = 'Повторить';
+        again.innerHTML = '<i class="fas fa-rotate-right" aria-hidden="true"></i> Повторить';
         again.addEventListener('click', () => performSearch(currentSearchQuery, true));
         status.appendChild(again);
     }
@@ -5155,6 +5177,7 @@ function clearSearchResults() {
     hasMoreSearchResults = false;
     searchPlaylistCache = [];
     searchStatus('');
+    syncSearchClearButton();
     if (currentTab === 'search') {
         playlist = [];
         renderPlaylist();

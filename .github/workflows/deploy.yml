@@ -40,6 +40,8 @@ jobs:
           node .github/test-ota-update.mjs
           node .github/test-connectivity.mjs
           node .github/test-end-to-end-network.mjs
+          node .github/test-native-http-fallback.mjs
+          php -l ota-bridge.php
           node .github/test-offline-batch.mjs
           node .github/test-ios-preparation.mjs
           node .github/test-native-media.mjs

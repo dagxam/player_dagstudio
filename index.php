@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=20">
-    <link rel="stylesheet" href="studio-touch.css?v=8">
+    <link rel="stylesheet" href="studio-touch.css?v=9">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>window.addEventListener('dag-ui-ready',function(){document.documentElement.classList.remove('studio-booting');},{once:true});setTimeout(function(){document.documentElement.classList.remove('studio-booting');},12000);</script>
 </head>
@@ -105,8 +105,13 @@
             <button type="button" class="ios-banner-close" onclick="dismissIOSInstallBanner()" aria-label="Скрыть"><i class="fas fa-xmark"></i></button>
         </div>
         <div id="quick-mix-status" class="quick-mix-status" role="status" aria-live="polite" hidden></div>
-        <div class="search-container-wrap" id="search-container-box">
-            <input type="text" id="search-input" class="search-input" placeholder="Поиск музыки..." autocomplete="off">
+        <div class="search-container-wrap" id="search-container-box" role="search" aria-label="Поиск музыки">
+            <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>По всем доступным источникам</small></div>
+            <div class="dag-search-field">
+                <i class="fas fa-magnifying-glass dag-search-glass" aria-hidden="true"></i>
+                <input type="search" id="search-input" class="search-input" placeholder="Исполнитель или песня" autocomplete="off" enterkeyhint="search" aria-label="Исполнитель или название песни">
+                <button type="button" id="search-clear-btn" class="dag-search-clear" aria-label="Очистить поиск" hidden><i class="fas fa-xmark" aria-hidden="true"></i></button>
+            </div>
             <div id="search-history" class="search-suggestions"></div>
         </div>
         
@@ -400,7 +405,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2310" defer></script>
+<script src="script.js?v=2311" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=13" defer></script>
 <script src="studio-center.js?v=4" defer></script>

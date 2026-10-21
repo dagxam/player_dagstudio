@@ -15,7 +15,7 @@ const meta = {version:'1000.0.155',url:main,fallback_url:github,checksum:'c'.rep
 let requested = [];
 let mode = 'site-ok';
 const windowContext = {
-    NATIVE_UPDATE_META_URL:'https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-version.json',
+    NATIVE_UPDATE_META_URL:'https://pl.dagstudio.ru/ota-bridge.php',
     NATIVE_UPDATE_BACKUP_META_URL:'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json',
     fetchUpdateJson:async url => {
         requested.push(url);
@@ -54,6 +54,7 @@ assert.equal(downloadAttempts[0].checksum,meta.checksum);
 assert.equal(downloadAttempts[1].url,github);
 assert.ok(script.includes('window.DAG_NATIVE_BUILD_COMMIT'));
 assert.ok(native.includes('window.DAG_NATIVE_BUILD_COMMIT'));
+assert.ok(script.includes("https://pl.dagstudio.ru/ota-bridge.php"));
 assert.ok(workflow.includes('ota-publish/DAGSTUDIO-PLAYER-web-version.json'));
 assert.ok(workflow.includes('Verify primary OTA manifest and ZIP from public URL'));
 assert.ok(workflow.includes('server-dir: /www/pl.dagstudio.ru/ota/'));

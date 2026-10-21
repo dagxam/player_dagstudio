@@ -21,7 +21,7 @@
       "autoDeletePrevious": true
     },
     "CapacitorHttp": {
-      "enabled": true
+      "enabled": false
     }
   }
 }

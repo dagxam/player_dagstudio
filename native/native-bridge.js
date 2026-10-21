@@ -200,8 +200,69 @@ const audioCache = {
   }
 };
 
+// On some CC3 firmwares Android's native DNS resolver fails while Chromium
+// WebView can access the exact same HTTPS site. Retry only idempotent reads
+// in the WebView network stack, never account/playlist writes.
+let lastHttpTransport = 'native';
+function nativeDnsError(error) {
+  return /unable to resolve host|unknownhost|name_not_resolved|no address associated|dns|enotfound|name or service not known|failed to resolve/i
+    .test(String(error?.message || error || ''));
+}
+function safeWebviewRead(options) {
+  const method = String(options?.method || 'GET').toUpperCase();
+  let url;
+  try { url = new URL(String(options?.url || '')); } catch(e) { return false; }
+  if (url.protocol !== 'https:' || url.hostname !== 'pl.dagstudio.ru' || url.port) return false;
+  if (method === 'GET')
+    return url.pathname === '/ota-bridge.php' || url.pathname === '/api.php' ||
+      url.pathname === '/deploy-version.txt';
+  if (method !== 'POST' || url.pathname !== '/api.php') return false;
+  // Read-only music search only. A write could have succeeded before the
+  // native connection dropped; transparently repeating it would be unsafe.
+  const data = options?.data || {};
+  return data && typeof data === 'object' && data.action === 'search_global';
+}
+async function browserNetworkRead(options) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(),
+    Math.min(Math.max(Number(options?.readTimeout) || 25000,10000),55000));
+  try {
+    const method = String(options?.method || 'GET').toUpperCase();
+    const response = await fetch(String(options.url), {
+      method,
+      mode:'cors', credentials:'omit',
+      headers: options?.headers || {},
+      body: method === 'POST' ? JSON.stringify(options.data || {}) : undefined,
+      cache:'no-store',
+      signal:controller.signal
+    });
+    const raw = await response.text();
+    let data;
+    try { data=JSON.parse(raw); } catch(e) { data=raw; }
+    return {status:response.status,data,headers:{},transport:'webview'};
+  } finally { clearTimeout(timeout); }
+}
+async function nativeHttpWithBrowserFallback(options) {
+  try {
+    const response=await CapacitorHttp.request(options);
+    lastHttpTransport='native';
+    return response;
+  } catch(error) {
+    if (!nativeDnsError(error) || !safeWebviewRead(options)) throw error;
+    try {
+      const response=await browserNetworkRead(options);
+      lastHttpTransport='webview-fallback';
+      return response;
+    } catch(webError) {
+      const reason=String(webError?.message || webError || '').slice(0,100);
+      throw new Error('Native DNS failed; WebView fallback: '+reason);
+    }
+  }
+}
+
 window.DAG_NATIVE_BRIDGE = {
-  httpRequest: (options) => CapacitorHttp.request(options),
+  httpRequest: nativeHttpWithBrowserFallback,
+  networkTransport: () => lastHttpTransport,
   updater,
   audioCache,
   screen: {
