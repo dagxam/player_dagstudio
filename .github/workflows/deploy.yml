@@ -39,6 +39,7 @@ jobs:
           node --check sw.js
           node .github/test-ota-update.mjs
           node .github/test-connectivity.mjs
+          node .github/test-end-to-end-network.mjs
           node .github/test-offline-batch.mjs
           node .github/test-ios-preparation.mjs
           node .github/test-native-media.mjs

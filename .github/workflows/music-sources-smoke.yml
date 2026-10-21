@@ -79,6 +79,34 @@ jobs:
               raise SystemExit("No music provider returned a playable search result")
           PY
 
+      - name: Check production player API and OTA endpoint
+        run: |
+          set -euo pipefail
+          echo "DNS addresses (runner):"
+          getent ahostsv4 pl.dagstudio.ru | head -n 3
+          curl --fail --silent --show-error --retry 2 --max-time 40 \
+            -H 'Content-Type: application/json' \
+            --data '{"action":"search_global","query":"Miyagi","page":1,"network":"weak"}' \
+            https://pl.dagstudio.ru/api.php -o /tmp/dag-public-search.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/dag-public-search.json'))
+          items=data.get('data') or []
+          print('LIVE_SEARCH_COUNT',len(items))
+          for k,v in (data.get('sources') or {}).items():
+              print('LIVE_SOURCE',k,'ok='+str(bool(v.get('ok'))).lower(),
+                    'http='+str(v.get('http',0)))
+          assert data.get('success') is True and len(items)>0, 'Live API search unavailable'
+          PY
+          curl --fail --silent --show-error --retry 2 --max-time 35 \
+            https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-version.json -o /tmp/dag-public-ota.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/dag-public-ota.json'))
+          assert data.get('version') and data.get('checksum') and data.get('url')
+          print('LIVE_OTA_VERSION',data['version'])
+          PY
+
       - name: Stop local API
         if: always()
         run: |

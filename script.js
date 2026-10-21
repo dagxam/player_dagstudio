@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2309';
+const WEB_BUILD_LABEL = '2310';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -2185,25 +2185,23 @@ async function api(action, data = {}) {
             (e && (e.message || e.error || (e.data && e.data.message))) || e || ''
         );
 
+        recordConnectivityFailure(e);
         if (e && e.name === 'AbortError') {
-            return { error: 'Сервер отвечает слишком долго. Проверьте интернет и повторите.' };
+            return { error: 'Сервер отвечает слишком долго. Проверьте интернет и повторите.',
+                error_code: 'timeout' };
         }
-
-        if (/UnknownHost|NAME_NOT_RESOLVED|resolve host|dns|No address associated/i.test(detail)) {
-            return { error: 'Не найден сервер pl.dagstudio.ru. Ошибка DNS или интернет-соединения.' };
+        if (isDnsResolutionFailure(e)) {
+            return { error: 'Ошибка DNS: магнитола не может определить адрес pl.dagstudio.ru.',
+                error_code: 'dns' };
         }
-
         if (/SSL|certificate|CERT_/i.test(detail)) {
-            return { error: 'Не удалось установить защищённое соединение с pl.dagstudio.ru.' };
+            return { error: 'Ошибка защищённого соединения с pl.dagstudio.ru.',
+                error_code: 'tls' };
         }
-
         if (/timeout|timed out/i.test(detail)) {
-            return { error: 'Сервер pl.dagstudio.ru не ответил вовремя.' };
+            return { error: 'Сервер pl.dagstudio.ru не ответил вовремя.', error_code: 'timeout' };
         }
-
-        return {
-            error: 'Ошибка соединения с сервером.' + (detail ? ' ' + detail.slice(0, 140) : '')
-        };
+        return { error: explainConnectionFailure(e), error_code: 'network' };
     }
 }
 
@@ -2503,6 +2501,67 @@ function recordPlayerEvent(reason, code = 0) {
 function openPlayerDiagnostics() {
     refreshPlayerDiagnostics();document.getElementById('diagnostics-modal').classList.add('show');
 }
+let lastAppNetworkDiagnostics = '';
+async function checkPlayerEndpoint(url) {
+    const started = Date.now();
+    try {
+        if (IS_NATIVE_APP) {
+            const response = await nativeHttpRequest({
+                url: url + (url.includes('?') ? '&' : '?') + 'probe=' + Date.now(),
+                method: 'GET',
+                headers: { 'Accept':'text/plain,application/json', 'Cache-Control':'no-cache' },
+                connectTimeout: 12000, readTimeout: 15000
+            });
+            const status = Number(response?.status || 0);
+            if (status < 200 || status >= 400) return {ok:false,detail:'HTTP ' + status};
+        } else {
+            const controller = new AbortController();
+            const timer = setTimeout(()=>controller.abort(), 18000);
+            try {
+                const response = await fetch(url + (url.includes('?') ? '&' : '?') + 'probe=' + Date.now(), {
+                    signal:controller.signal, cache:'no-store'
+                });
+                if (!response.ok) return {ok:false,detail:'HTTP ' + response.status};
+            } finally { clearTimeout(timer); }
+        }
+        return {ok:true,detail:'доступен (' + (Date.now()-started) + ' мс)'};
+    } catch(error) {
+        recordConnectivityFailure(error);
+        return {ok:false,dns:isDnsResolutionFailure(error),
+            detail: isDnsResolutionFailure(error) ? 'ошибка DNS'
+                : explainConnectionFailure(error)};
+    }
+}
+async function testPlayerConnectivity() {
+    const out = document.getElementById('connectivity-check-info');
+    const button = document.getElementById('connectivity-check-btn');
+    if (!out) return;
+    if (button) button.disabled = true;
+    out.textContent = 'Проверяем соединение с API и сервером обновлений…';
+    try {
+        const endpoints = [
+            ['Сайт и API', DAG_SERVER_ORIGIN + '/deploy-version.txt'],
+            ['OTA', NATIVE_UPDATE_META_URL],
+            ['GitHub', NATIVE_UPDATE_BACKUP_META_URL]
+        ];
+        const results = await Promise.all(endpoints.map(async ([label,url])=>
+            ({label,...await checkPlayerEndpoint(url)})));
+        const dnsCount = results.filter(item=>item.dns).length;
+        const reachable = results.filter(item=>item.ok).length;
+        lastAppNetworkDiagnostics = 'доступно ' + reachable + '/3';
+        const lines = results.map(item=>item.label+': '+(item.ok?'✓ ':'✕ ')+item.detail);
+        if (dnsCount >= 2) lines.push('Адреса не определяются на устройстве. Проверьте интернет и DNS; это не ошибка поиска музыкального каталога.');
+        else if (!reachable) lines.push('С устройства не удалось связаться с серверами. Попробуйте другую точку доступа.');
+        else if (!results[0].ok) lines.push('Нет соединения с API сайта — поиск музыки работать не сможет.');
+        else if (!results[1].ok && !results[2].ok) lines.push('Источники OTA недоступны на этом соединении.');
+        else lines.push('Соединение с доступными адресами установлено.');
+        out.textContent=lines.join('\n');
+        refreshPlayerDiagnostics();
+    } finally {
+        if(button) button.disabled = false;
+    }
+}
+
 async function probeSourceAudio(track) {
     const url = isDagServerMedia(track?.url) ?
         resolveMediaUrl(track.url) : buildProxyUrl(track, {weak:isWeakConnection(),norange:true});
@@ -2542,7 +2601,8 @@ async function testMusicSourceHealth() {
         const response=await api('search_global', {
             query:'Miyagi', page:1, network:getNetworkProfile().weak?'weak':'normal'
         });
-        if (!response?.success || !response?.sources) throw new Error('No search API response');
+        if (response?.error) throw new Error(String(response.error));
+        if (!response?.success || !response?.sources) throw new Error('Не получен ответ от поискового API.');
         const labels={audius:'Audius',vk_mail:'VK / Slider',hitmoz:'Hitmoz',
             muzo:'Muzofond',zvooq:'Zvooq',muzvox:'Muzvox',muzca:'Muzca'};
         const samples=Array.isArray(response.data)?response.data:[];
@@ -2578,6 +2638,7 @@ function copyPlayerDiagnostics() {
     const content=['DAGSTUDIO PLAYER diagnostics',
         document.getElementById('diagnostics-info')?.textContent || '',
         document.getElementById('source-health-info')?.textContent || '',
+        document.getElementById('connectivity-check-info')?.textContent || '',
         'Последняя ошибка соединения: '+(lastConnectivityFailure || 'нет')].join('\n');
     if (navigator.clipboard?.writeText) {
         navigator.clipboard.writeText(content).then(
@@ -2593,6 +2654,7 @@ function refreshPlayerDiagnostics() {
         'Платформа: '+(NATIVE_PLATFORM==='ios'?'iPhone / iPad (Capacitor)':IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
         'Сетевой интерфейс: '+(navigator.onLine?(net.effectiveType||'подключён, доступ в интернет не подтверждён'):'отключён'),
         'Последняя ошибка сети: '+(lastConnectivityFailure || 'нет'),
+        'Проверка сети: '+(lastAppNetworkDiagnostics || 'ещё не проводилась'),
         'Воспроизведение: '+(playbackWanted?(mainAudio.paused?'загрузка':'играет'):'пауза'),
         'Готовность: '+mainAudio.readyState+' из 4',
         'Буфер впереди: '+bufferedSecondsAhead().toFixed(1)+' с',
@@ -5132,8 +5194,13 @@ async function performSearch(rawQuery, save = false) {
             save_data: net.saveData ? 1 : 0
         });
         if (requestId !== searchRequestSerial || currentSearchQuery !== query) return;
+        if (result?.error) {
+            const error = new Error(String(result.error));
+            error.error_code = String(result.error_code || 'api');
+            throw error;
+        }
         const tracks = result?.success && Array.isArray(result.data) ? result.data : null;
-        if (!tracks) throw new Error('Invalid search response');
+        if (!tracks) throw new Error('Сервер поиска вернул некорректный ответ.');
         searchPlaylistCache = tracks;
         playlist = tracks;
         hasMoreSearchResults = tracks.length >= 15;
@@ -5180,7 +5247,8 @@ async function loadMoreSearchResults() {
             save_data: net.saveData ? 1 : 0
         });
         if (requestId !== searchRequestSerial || currentSearchQuery !== query || currentTab !== 'search') return;
-        if (!result?.success || !Array.isArray(result.data)) throw new Error('No search page');
+        if (result?.error) throw new Error(String(result.error));
+        if (!result?.success || !Array.isArray(result.data)) throw new Error('Следующая страница поиска недоступна.');
         const seen = new Set(playlist.map(track => canonicalTrackUrl(track)));
         const unique = result.data.filter(track => {
             const key = canonicalTrackUrl(track);

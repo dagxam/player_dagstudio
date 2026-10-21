@@ -890,10 +890,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2309', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2310', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2309'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2310'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -1327,6 +1327,14 @@ try {
       statusLayout.brand!=='DAGSTUDIO')throw Error('Network error UI clipping');
   await page.evaluate(()=>searchStatus(''));
   await page.setViewport({width:1024,height:600});
+
+  const networkDiagPresence=await page.evaluate(()=>({
+    button:!!document.getElementById('connectivity-check-btn'),
+    status:!!document.getElementById('connectivity-check-info'),
+    action:typeof testPlayerConnectivity==='function'
+  }));
+  console.log('APP_NETWORK_DIAGNOSTIC',JSON.stringify(networkDiagPresence));
+  if(Object.values(networkDiagPresence).some(value=>!value))throw Error('App connectivity test UI missing');
 
   // Live search + audio relay smoke test. Read only the first streamed chunk.
   const searchSmoke = await page.evaluate(async () => {

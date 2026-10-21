@@ -369,9 +369,11 @@
         <div class="utility-buttons">
             <button type="button" onclick="refreshPlayerDiagnostics()">Обновить данные</button>
             <button type="button" onclick="retryCurrentTrackManually()">Переподключить трек</button>
+            <button id="connectivity-check-btn" type="button" onclick="testPlayerConnectivity()">Проверить соединение</button>
             <button id="source-health-test" type="button" onclick="testMusicSourceHealth()">Проверить источники</button>
             <button type="button" onclick="copyPlayerDiagnostics()">Копировать отчёт</button>
         </div>
+        <pre id="connectivity-check-info" class="diagnostics-info" aria-live="polite"></pre>
         <pre id="source-health-info" class="diagnostics-info"></pre>
     </div>
 </div>
@@ -398,7 +400,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2309" defer></script>
+<script src="script.js?v=2310" defer></script>
 <script src="studio.js?v=4" defer></script>
 <script src="studio-next.js?v=13" defer></script>
 <script src="studio-center.js?v=4" defer></script>
