@@ -890,10 +890,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2308', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2309', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2308'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2309'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -1304,6 +1304,29 @@ try {
   }));
   console.log('SEARCH_UI_LIVE',JSON.stringify(searchUI));
   if(!searchUI.count||!searchUI.listVisible)throw new Error('Live search results not visible');
+
+  // Android-style narrow rail: input and error status must stack, not clip.
+  await page.setViewport({width:1280,height:720});
+  await page.click('#showcase-search');
+  await page.evaluate(()=>{
+    if(typeof searchStatus==='function') searchStatus('Нет доступа к DNS · проверьте подключение',true);
+  });
+  const statusLayout=await page.evaluate(()=>{
+    const input=document.getElementById('search-input')?.getBoundingClientRect();
+    const status=document.getElementById('dag-search-status')?.getBoundingClientRect();
+    const retry=document.querySelector('#dag-search-status button')?.getBoundingClientRect();
+    const holder=document.getElementById('search-container-box')?.getBoundingClientRect();
+    const title=document.querySelector('.showcase-brand-text strong');
+    return {below:!!input && !!status && status.top>=input.bottom-2,
+        buttonFits:!!retry && !!holder && retry.left>=holder.left-2 && retry.right<=holder.right+2,
+        brandFits:!!title && title.scrollWidth<=title.clientWidth+2,
+        brand:title?.textContent||''};
+  });
+  console.log('DNS_SEARCH_LAYOUT_1280',JSON.stringify(statusLayout));
+  if(!statusLayout.below || !statusLayout.buttonFits || !statusLayout.brandFits ||
+      statusLayout.brand!=='DAGSTUDIO')throw Error('Network error UI clipping');
+  await page.evaluate(()=>searchStatus(''));
+  await page.setViewport({width:1024,height:600});
 
   // Live search + audio relay smoke test. Read only the first streamed chunk.
   const searchSmoke = await page.evaluate(async () => {

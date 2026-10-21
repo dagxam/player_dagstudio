@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2308';
+const WEB_BUILD_LABEL = '2309';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -133,19 +133,47 @@ function validOtaManifest(meta) {
         /^[a-f0-9]{64}$/i.test(String(meta.checksum || '')) &&
         (!meta.fallback_url || trustedOtaDownloadUrl(meta.fallback_url));
 }
+// A Wi-Fi icon or navigator.onLine=true does not prove DNS resolution.
+// Keep raw exceptions in the diagnostics, but display a short Russian message.
+let lastConnectivityFailure = '';
+function isDnsResolutionFailure(error) {
+    return /unable to resolve host|no address associated with hostname|unknownhostexception|err_name_not_resolved|name or service not known|temporary failure in name resolution|dns_probe_finished|enotfound|dns lookup failed|failed to resolve|could not resolve host|ошибка dns|dns недоступ|не определяет адреса|серверы обновления недоступны/i
+        .test(String(error?.message || error || ''));
+}
+function explainConnectionFailure(error) {
+    if (navigator.onLine === false) return 'Нет подключения к сети. Проверьте Wi-Fi или мобильный интернет.';
+    if (isDnsResolutionFailure(error)) return 'Устройство не определяет интернет-адреса (ошибка DNS). Проверьте подключение, настройки DNS и попробуйте другую сеть.';
+    const message = String(error?.message || error || '');
+    if (/abort|timed?\s*out|timeout|sockettimeout/i.test(message)) return 'Сервер отвечает слишком долго. Проверьте интернет и повторите запрос.';
+    if (/\bhttp\s*5\d\d\b/i.test(message)) return 'Сервер временно недоступен. Повторите попытку позже.';
+    if (/network|failed to fetch|connectexception|unreachable|connection refused/i.test(message)) return 'Не удаётся связаться с сервером. Проверьте интернет и повторите.';
+    return 'Запрос не выполнен. Проверьте интернет и повторите.';
+}
+function recordConnectivityFailure(error) {
+    lastConnectivityFailure = isDnsResolutionFailure(error)
+        ? 'DNS: адреса серверов не определяются'
+        : String(error?.message || error || 'Ошибка сети').slice(0,130);
+}
+
 async function fetchOtaManifest() {
     const attempts = [];
+    let dnsFailures = 0;
     for (const endpoint of [NATIVE_UPDATE_META_URL, NATIVE_UPDATE_BACKUP_META_URL]) {
         try {
             const meta = await fetchUpdateJson(endpoint);
             if (!validOtaManifest(meta)) throw new Error('Некорректный манифест обновления');
             return meta;
         } catch (error) {
+            recordConnectivityFailure(error);
+            if (isDnsResolutionFailure(error)) dnsFailures++;
             attempts.push((endpoint === NATIVE_UPDATE_META_URL ? 'сайт' : 'GitHub') +
                 ': ' + String(error?.message || error || 'нет ответа').slice(0,110));
         }
     }
-    throw new Error('Серверы обновления недоступны. ' + attempts.join('; '));
+    if (dnsFailures === 2 || navigator.onLine === false) {
+        throw new Error('Ошибка DNS: магнитола не определяет адреса серверов. Проверьте интернет и настройки DNS.');
+    }
+    throw new Error('Серверы обновлений не ответили: ' + attempts.join('; '));
 }
 async function downloadOtaBundle(updater, meta) {
     const urls = [meta.url];
@@ -162,9 +190,13 @@ async function downloadOtaBundle(updater, meta) {
             if (!bundle?.id) throw new Error('Нет идентификатора обновления');
             return bundle;
         } catch (error) {
+            recordConnectivityFailure(error);
             problems.push((i ? 'резервный' : 'основной') + ': ' +
                 String(error?.message || error || 'загрузка прервана').slice(0,110));
         }
+    }
+    if (problems.every(line => isDnsResolutionFailure(line))) {
+        throw new Error('Ошибка DNS: устройство не определяет адреса серверов обновлений.');
     }
     throw new Error('Не удалось скачать пакет. ' + problems.join('; '));
 }
@@ -452,7 +484,8 @@ window.manualUpdateApplication = async function() {
     } catch (error) {
         console.error('Manual OTA update failed:', error);
         setManualUpdateButtonState('is-error', 'Повторить обновление');
-        showNotification('Онлайн-обновление не удалось: ' + String(error?.message || 'Проверьте сеть').slice(0,220));
+        recordConnectivityFailure(error);
+        showNotification('Онлайн-обновление не выполнено. ' + explainConnectionFailure(error));
     }
 };
 
@@ -2536,14 +2569,16 @@ async function testMusicSourceHealth() {
         result.textContent=output.join('\n');
         recordPlayerEvent('provider-diagnostics');
     } catch(error) {
-        result.textContent='Не удалось проверить источники: нет соединения или ответа сервера.';
+        recordConnectivityFailure(error);
+        result.textContent='Проверка источников: '+explainConnectionFailure(error);
     } finally { if(button) button.disabled=false; }
 }
 
 function copyPlayerDiagnostics() {
     const content=['DAGSTUDIO PLAYER diagnostics',
         document.getElementById('diagnostics-info')?.textContent || '',
-        document.getElementById('source-health-info')?.textContent || ''].join('\n');
+        document.getElementById('source-health-info')?.textContent || '',
+        'Последняя ошибка соединения: '+(lastConnectivityFailure || 'нет')].join('\n');
     if (navigator.clipboard?.writeText) {
         navigator.clipboard.writeText(content).then(
             ()=>showNotification('Диагностика скопирована без ссылок на треки и токенов.'),
@@ -2556,7 +2591,8 @@ function refreshPlayerDiagnostics() {
     const net=getNetworkProfile(),track=playbackPlaylist[currentIndex];
     el.textContent=[
         'Платформа: '+(NATIVE_PLATFORM==='ios'?'iPhone / iPad (Capacitor)':IS_NATIVE_APP?'Android APK':'Браузер / PWA'),
-        'Соединение: '+(navigator.onLine?(net.effectiveType||'доступно'):'отсутствует'),
+        'Сетевой интерфейс: '+(navigator.onLine?(net.effectiveType||'подключён, доступ в интернет не подтверждён'):'отключён'),
+        'Последняя ошибка сети: '+(lastConnectivityFailure || 'нет'),
         'Воспроизведение: '+(playbackWanted?(mainAudio.paused?'загрузка':'играет'):'пауза'),
         'Готовность: '+mainAudio.readyState+' из 4',
         'Буфер впереди: '+bufferedSecondsAhead().toFixed(1)+' с',
@@ -5033,7 +5069,7 @@ function searchStatus(message, retry = false) {
         status.className = 'dag-search-status';
         status.setAttribute('role', 'status');
         status.setAttribute('aria-live', 'polite');
-        holder.insertAdjacentElement('afterend', status);
+        holder.appendChild(status);
     }
     status.replaceChildren();
     status.hidden = !message;
@@ -5117,8 +5153,11 @@ async function performSearch(rawQuery, save = false) {
     } catch(error) {
         if (requestId !== searchRequestSerial) return;
         hasMoreSearchResults = false;
-        displaySearchMessage('Не удалось получить результаты. Проверьте сеть и повторите поиск.');
-        searchStatus('Поиск временно недоступен.', true);
+        recordConnectivityFailure(error);
+        const message=explainConnectionFailure(error);
+        displaySearchMessage(message);
+        searchStatus(isDnsResolutionFailure(error)
+            ? 'DNS недоступен · проверьте подключение' : 'Не удалось выполнить поиск.', true);
         console.warn('DAGSTUDIO search unavailable:', String(error?.message || error));
     } finally {
         if (requestId === searchRequestSerial) isSearchLoading = false;
@@ -5159,9 +5198,10 @@ async function loadMoreSearchResults() {
         if (result.data.length < 15 || !unique.length) hasMoreSearchResults = false;
     } catch(error) {
         if (requestId === searchRequestSerial) {
-            // Leave the page cursor in place so the next attempt can retry it.
+            recordConnectivityFailure(error);
+            // Keep songs already found; the retry control reruns the search.
             hasMoreSearchResults = false;
-            searchStatus('Следующая страница недоступна; уже найденные песни сохранены.', true);
+            searchStatus('Следующие песни не загрузились · '+explainConnectionFailure(error), true);
         }
     } finally {
         loader.remove();
