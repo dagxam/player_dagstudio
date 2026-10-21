@@ -13,6 +13,14 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.PluginMethod;
+import java.net.URL;
+import java.util.concurrent.TimeUnit;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.MediaType;
+import org.json.JSONObject;
 
 @CapacitorPlugin(name = "DAGCarMode")
 public class DAGCarModePlugin extends Plugin {
@@ -69,6 +77,74 @@ public class DAGCarModePlugin extends Plugin {
             }
         } catch (Exception ignored) {}
         return false;
+    }
+
+    /**
+     * One strictly read-only HTTPS fallback when both Android CapacitorHttp
+     * and Chromium have failed DNS resolution. OkHttp resolves only the owned
+     * origin using DAGServerDns, preserving TLS hostname verification.
+     */
+    @PluginMethod
+    public void readOwnServer(PluginCall call) {
+        final String value = call.getString("url", "");
+        final String method = call.getString("method", "GET").toUpperCase(java.util.Locale.ROOT);
+        final JSObject data = call.getObject("data", new JSObject());
+        try {
+            URL uri = new URL(value);
+            String path = uri.getPath();
+            if (!"https".equalsIgnoreCase(uri.getProtocol()) ||
+                    !DAGServerDns.HOST.equalsIgnoreCase(uri.getHost()) ||
+                    (uri.getPort() != -1 && uri.getPort() != 443)) {
+                call.reject("Only the official DAGSTUDIO HTTPS server is allowed");
+                return;
+            }
+            boolean safeGet = "GET".equals(method) &&
+                    ("/ota-bridge.php".equals(path) || "/deploy-version.txt".equals(path));
+            boolean safePost = "POST".equals(method) && "/api.php".equals(path) &&
+                    "search_global".equals(data.optString("action", ""));
+            if (!safeGet && !safePost) {
+                call.reject("Only read-only search and update checks are allowed");
+                return;
+            }
+            new Thread(() -> {
+                OkHttpClient client = new OkHttpClient.Builder()
+                    .dns(new DAGServerDns())
+                    .connectTimeout(18, TimeUnit.SECONDS)
+                    .readTimeout(45, TimeUnit.SECONDS)
+                    .callTimeout(55, TimeUnit.SECONDS)
+                    .followRedirects(false)
+                    .followSslRedirects(false)
+                    .build();
+                try {
+                    Request.Builder builder = new Request.Builder()
+                        .url(value)
+                        .header("Accept", "application/json, text/plain")
+                        .header("User-Agent", "DAGSTUDIO-PLAYER/TEYES");
+                    if (safePost) {
+                        builder.post(RequestBody.create(
+                            data.toString(), MediaType.parse("application/json; charset=utf-8")));
+                    } else {
+                        builder.get();
+                    }
+                    try (Response response = client.newCall(builder.build()).execute()) {
+                        String body = response.body() == null ? "" : response.body().string();
+                        JSObject answer = new JSObject();
+                        answer.put("status", response.code());
+                        answer.put("transport", "server-ip-tls-verified");
+                        try { answer.put("data", new JSONObject(body)); }
+                        catch (Exception ignored) { answer.put("data", body); }
+                        call.resolve(answer);
+                    }
+                } catch (Exception error) {
+                    call.reject("Official HTTPS server is unreachable via DNS fallback", error);
+                } finally {
+                    client.dispatcher().executorService().shutdown();
+                    client.connectionPool().evictAll();
+                }
+            }, "dag-network-recovery").start();
+        } catch (Exception error) {
+            call.reject("Invalid official server request", error);
+        }
     }
 
     @PluginMethod

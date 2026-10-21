@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2311';
+const WEB_BUILD_LABEL = '2312';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;

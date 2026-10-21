@@ -428,3 +428,14 @@
  .studio-showcase .dag-search-heading small{font-size:.59rem}
  .studio-showcase .dag-search-field{min-height:52px!important}
 }
+
+/* Suppress the legacy ::before magnifier; the new search field owns its icon. */
+.studio-showcase .right-col-header #search-container-box::before,
+.studio-showcase #search-container-box::before,
+.studio-showcase .search-container-wrap::before {
+ content:none!important;display:none!important;
+}
+.studio-showcase .dag-search-field .dag-search-glass {
+ display:inline-flex!important;align-items:center;justify-content:center;
+ flex:0 0 18px;pointer-events:none;
+}

@@ -70,6 +70,24 @@ jobs:
       - name: Install native dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Verify trusted server IP with original HTTPS hostname
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 35 --retry 2 --retry-delay 2 \
+            --resolve pl.dagstudio.ru:443:188.127.241.85 \
+            -H 'Content-Type: application/json' \
+            --data '{"action":"search_global","query":"Miyagi","page":1,"network":"weak"}' \
+            https://pl.dagstudio.ru/api.php -o /tmp/dag-pinned-api.json
+          python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/dag-pinned-api.json'))
+          assert payload.get('success') is True and isinstance(payload.get('data'),list), 'Trusted IP did not reach the official HTTPS API'
+          print('TRUSTED_IP_TLS_AND_SEARCH_OK',len(payload['data']))
+          PY
+
+      - name: Test verified IP fallback for CC3 DNS failures
+        run: node .github/test-trusted-ip-dns.mjs
+
       - name: Test WebView fallback for CC3 DNS failures
         run: node .github/test-native-http-fallback.mjs
 
@@ -121,12 +139,15 @@ jobs:
           cp native/android/DAGCarModePlugin.java android/app/src/main/java/ru/dagstudio/player/DAGCarModePlugin.java
           cp native/android/DAGMediaService.java android/app/src/main/java/ru/dagstudio/player/DAGMediaService.java
           cp native/android/DAGAudioEngine.java android/app/src/main/java/ru/dagstudio/player/DAGAudioEngine.java
+          cp native/android/DAGServerDns.java android/app/src/main/java/ru/dagstudio/player/DAGServerDns.java
           node scripts/configure-android-media.mjs
           cat >> android/app/build.gradle <<'MEDIA3_GRADLE'
 
           dependencies {
               implementation "androidx.media3:media3-exoplayer:1.11.1"
               implementation "androidx.media3:media3-datasource:1.11.1"
+              implementation "androidx.media3:media3-datasource-okhttp:1.11.1"
+              implementation "com.squareup.okhttp3:okhttp:4.12.0"
               implementation "androidx.media3:media3-database:1.11.1"
           }
           MEDIA3_GRADLE

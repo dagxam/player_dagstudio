@@ -254,6 +254,25 @@ async function nativeHttpWithBrowserFallback(options) {
       lastHttpTransport='webview-fallback';
       return response;
     } catch(webError) {
+      // Final route for TEYES firmware with broken Android + WebView DNS.
+      // The native plugin keeps HTTPS SNI/certificate checks for the domain.
+      if (hasAndroidMedia3 && typeof DAGCarMode.readOwnServer === 'function') {
+        try {
+          const safe = safeWebviewRead(options);
+          if (safe) {
+            const response=await DAGCarMode.readOwnServer({
+              url: String(options.url),
+              method: String(options?.method || 'GET'),
+              data: options?.data || {}
+            });
+            lastHttpTransport='trusted-ip-tls';
+            return response;
+          }
+        } catch(pinnedError) {
+          throw new Error('Server connection failed via DNS, WebView and verified HTTPS IP: ' +
+            String(pinnedError?.message || pinnedError).slice(0,110));
+        }
+      }
       const reason=String(webError?.message || webError || '').slice(0,100);
       throw new Error('Native DNS failed; WebView fallback: '+reason);
     }

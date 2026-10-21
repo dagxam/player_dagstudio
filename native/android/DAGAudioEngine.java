@@ -11,7 +11,9 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.DefaultDataSource;
-import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.okhttp.OkHttpDataSource;
+import okhttp3.OkHttpClient;
+import java.util.concurrent.TimeUnit;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
@@ -46,10 +48,16 @@ public final class DAGAudioEngine {
         cache = new SimpleCache(new File(context.getCacheDir(), "media3-audio-v1"),
             new LeastRecentlyUsedCacheEvictor(DISK_CACHE_BYTES),
             new StandaloneDatabaseProvider(context));
-        DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
-            .setConnectTimeoutMs(30000)
-            .setReadTimeoutMs(60000)
-            .setAllowCrossProtocolRedirects(false)
+        // The native player must use the same verified DNS fallback as the
+        // search API, otherwise music would still fail after search recovers.
+        OkHttpClient streamClient = new OkHttpClient.Builder()
+            .dns(new DAGServerDns())
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build();
+        OkHttpDataSource.Factory http = new OkHttpDataSource.Factory(streamClient)
             .setUserAgent("DAGSTUDIO-PLAYER/Media3");
         DefaultDataSource.Factory upstream = new DefaultDataSource.Factory(context, http);
         CacheDataSource.Factory source = new CacheDataSource.Factory()
