@@ -20,6 +20,7 @@ on:
       - "package.json"
       - "capacitor.config.json"
       - "scripts/build-native-web.mjs"
+      - "scripts/configure-android-media.mjs"
       - "native/**"
       - ".github/test-in-app-apk-update.mjs"
       - ".github/workflows/build-android.yml"
@@ -90,7 +91,9 @@ jobs:
         run: node .github/test-trusted-ip-dns.mjs
 
       - name: Test in-app Android APK updater
-        run: node .github/test-in-app-apk-update.mjs
+        run: |
+          node --check scripts/configure-android-media.mjs
+          node .github/test-in-app-apk-update.mjs
 
       - name: Test WebView fallback for CC3 DNS failures
         run: node .github/test-native-http-fallback.mjs
