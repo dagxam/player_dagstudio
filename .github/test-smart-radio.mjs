@@ -46,3 +46,8 @@ assert.ok(text.includes("tasteRecord('like',track)"));
 assert.ok(text.includes("key==='wave'"));
 assert.ok(text.includes("tastePreferredArtists(seeds)"));
 console.log('PERSONAL_RADIO_HOOKS_OK');
+assert.ok(text.includes('let searchRequestSerial = 0;'));
+assert.ok(text.includes('requestId !== searchRequestSerial'));
+assert.ok(text.includes('function clearSearchResults()'));
+assert.ok(text.includes('function searchStatus(message, retry = false)'));
+console.log('SEARCH_RACE_AND_RETRY_GUARDS_OK');

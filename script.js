@@ -79,7 +79,7 @@ async function nativeHttpRequest(options) {
 const NATIVE_UPDATE_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2306';
+const WEB_BUILD_LABEL = '2307';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -4990,54 +4990,151 @@ document.addEventListener('click', (e) => {
     if (mainSearchInput && searchHistoryBox && !mainSearchInput.contains(e.target) && !searchHistoryBox.contains(e.target)) { searchHistoryBox.style.display = 'none'; } 
 });
 
-async function performSearch(query, save = false) { 
-    if(!query) return; 
-    if(save && searchHistoryBox) { saveSearchQuery(query); searchHistoryBox.style.display = 'none'; } 
-    localStorage.setItem('dag_last_search', query); 
-    currentSearchQuery = query; currentSearchPage = 1; hasMoreSearchResults = true;
-    
-    listEl.innerHTML = '<div class="search-loader-box"><div class="search-spinner"></div><div style="margin-top:15px; font-size:0.9rem; color:#666;">Ищем музыку...</div></div>'; 
-    try {
-        isSearchLoading = true;
-        const net = getNetworkProfile();
-        const result = await api('search_global', {
-            query: query,
-            page: currentSearchPage,
-            network: net.weak ? 'weak' : 'normal',
-            save_data: net.saveData ? 1 : 0
-        });
-        isSearchLoading = false;
-        
-        if (result.success && result.data) {
-            playlist = result.data; searchPlaylistCache = result.data; renderPlaylist(); 
-            if(result.data.length === 0) { listEl.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Ничего не найдено</div>'; hasMoreSearchResults = false; } else if (result.data.length < 15) { hasMoreSearchResults = false; }
-        } else { listEl.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Ошибка поиска</div>'; }
-    } catch(e) { isSearchLoading = false; listEl.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">Ошибка сети</div>'; } 
+let searchRequestSerial = 0;
+function searchStatus(message, retry = false) {
+    const holder = document.getElementById('search-container-box');
+    if (!holder || !holder.parentElement) return;
+    let status = document.getElementById('dag-search-status');
+    if (!status) {
+        status = document.createElement('div');
+        status.id = 'dag-search-status';
+        status.className = 'dag-search-status';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        holder.insertAdjacentElement('afterend', status);
+    }
+    status.replaceChildren();
+    status.hidden = !message;
+    if (!message) return;
+    const caption = document.createElement('span');
+    caption.textContent = message;
+    status.appendChild(caption);
+    if (retry) {
+        const again = document.createElement('button');
+        again.type = 'button';
+        again.textContent = 'Повторить';
+        again.addEventListener('click', () => performSearch(currentSearchQuery, true));
+        status.appendChild(again);
+    }
 }
-
-async function loadMoreSearchResults() {
-    if (isSearchLoading || !hasMoreSearchResults || currentTab !== 'search') return;
-    isSearchLoading = true; currentSearchPage++;
-    
-    const loader = document.createElement('div'); loader.className = 'more-loader';
-    loader.innerHTML = '<div class="spinner" style="width:20px; height:20px; margin: 15px auto;"></div>';
-    listEl.appendChild(loader);
-
+function clearSearchResults() {
+    searchRequestSerial++;
+    isSearchLoading = false;
+    currentSearchQuery = '';
+    currentSearchPage = 1;
+    hasMoreSearchResults = false;
+    searchPlaylistCache = [];
+    searchStatus('');
+    if (currentTab === 'search') {
+        playlist = [];
+        renderPlaylist();
+    }
+}
+function displaySearchMessage(message) {
+    listEl.replaceChildren();
+    const caption = document.createElement('p');
+    caption.className = 'dag-search-empty';
+    caption.textContent = message;
+    listEl.appendChild(caption);
+}
+async function performSearch(rawQuery, save = false) {
+    const query = String(rawQuery || '').trim().replace(/\s+/g, ' ');
+    clearTimeout(searchTimeout);
+    if (!query) { clearSearchResults(); return; }
+    const requestId = ++searchRequestSerial;
+    if (save && searchHistoryBox) {
+        saveSearchQuery(query);
+        searchHistoryBox.style.display = 'none';
+    }
+    try { localStorage.setItem('dag_last_search', query); } catch(error) {}
+    currentSearchQuery = query;
+    currentSearchPage = 1;
+    hasMoreSearchResults = true;
+    isSearchLoading = true;
+    const root = document.querySelector('.main-container.studio-showcase');
+    root?.classList.remove('showcase-wave-only');
+    window.studioShowList?.('search');
+    if (currentTab !== 'search') switchTab('search');
+    displaySearchMessage('Ищем музыку…');
+    searchStatus('Поиск по доступным музыкальным источникам…');
     try {
         const net = getNetworkProfile();
         const result = await api('search_global', {
-            query: currentSearchQuery,
-            page: currentSearchPage,
-            network: net.weak ? 'weak' : 'normal',
+            query, page: 1, network: net.weak ? 'weak' : 'normal',
             save_data: net.saveData ? 1 : 0
         });
+        if (requestId !== searchRequestSerial || currentSearchQuery !== query) return;
+        const tracks = result?.success && Array.isArray(result.data) ? result.data : null;
+        if (!tracks) throw new Error('Invalid search response');
+        searchPlaylistCache = tracks;
+        playlist = tracks;
+        hasMoreSearchResults = tracks.length >= 15;
+        renderPlaylist();
+        const counts = result.source_counts || {};
+        const providersWithSongs = Object.values(counts).filter(value => Number(value) > 0).length;
+        if (tracks.length) {
+            searchStatus('Найдено: ' + tracks.length +
+                ' · источников с результатами: ' + providersWithSongs);
+        } else {
+            const available = Object.values(result.sources || {}).some(value => value?.ok);
+            displaySearchMessage(available
+                ? 'По вашему запросу ничего не найдено. Попробуйте указать исполнителя или название.'
+                : 'Музыкальные источники сейчас не отвечают.');
+            searchStatus(available ? 'Результатов пока нет.' : 'Нет ответа от музыкальных источников.', true);
+        }
+    } catch(error) {
+        if (requestId !== searchRequestSerial) return;
+        hasMoreSearchResults = false;
+        displaySearchMessage('Не удалось получить результаты. Проверьте сеть и повторите поиск.');
+        searchStatus('Поиск временно недоступен.', true);
+        console.warn('DAGSTUDIO search unavailable:', String(error?.message || error));
+    } finally {
+        if (requestId === searchRequestSerial) isSearchLoading = false;
+    }
+}
+async function loadMoreSearchResults() {
+    if (isSearchLoading || !hasMoreSearchResults || currentTab !== 'search' || !currentSearchQuery) return;
+    const requestId = searchRequestSerial;
+    const query = currentSearchQuery;
+    const page = currentSearchPage + 1;
+    isSearchLoading = true;
+    const loader = document.createElement('div');
+    loader.className = 'more-loader';
+    loader.textContent = 'Загружаем следующие песни…';
+    listEl.appendChild(loader);
+    try {
+        const net = getNetworkProfile();
+        const result = await api('search_global', {
+            query, page, network: net.weak ? 'weak' : 'normal',
+            save_data: net.saveData ? 1 : 0
+        });
+        if (requestId !== searchRequestSerial || currentSearchQuery !== query || currentTab !== 'search') return;
+        if (!result?.success || !Array.isArray(result.data)) throw new Error('No search page');
+        const seen = new Set(playlist.map(track => canonicalTrackUrl(track)));
+        const unique = result.data.filter(track => {
+            const key = canonicalTrackUrl(track);
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        if (unique.length) {
+            playlist = playlist.concat(unique);
+            searchPlaylistCache = playlist;
+            currentSearchPage = page;
+            renderPlaylist();
+            searchStatus('Найдено: ' + playlist.length + ' · поиск продолжается');
+        }
+        if (result.data.length < 15 || !unique.length) hasMoreSearchResults = false;
+    } catch(error) {
+        if (requestId === searchRequestSerial) {
+            // Leave the page cursor in place so the next attempt can retry it.
+            hasMoreSearchResults = false;
+            searchStatus('Следующая страница недоступна; уже найденные песни сохранены.', true);
+        }
+    } finally {
         loader.remove();
-        if (result.success && result.data && result.data.length > 0) {
-            playlist = playlist.concat(result.data); searchPlaylistCache = playlist; renderPlaylist(); 
-            if (result.data.length < 10) hasMoreSearchResults = false;
-        } else { hasMoreSearchResults = false; }
-    } catch(e) { loader.remove(); hasMoreSearchResults = false; }
-    isSearchLoading = false;
+        if (requestId === searchRequestSerial) isSearchLoading = false;
+    }
 }
 
 const playlistArea = document.querySelector('.playlist-area');
@@ -5052,11 +5149,15 @@ if(playlistArea) {
 }
 
 if(mainSearchInput) {
-    mainSearchInput.addEventListener('input', (e) => { 
-        if(searchHistoryBox) searchHistoryBox.style.display = 'none'; 
-        clearTimeout(searchTimeout); 
-        const delay = getNetworkProfile().weak ? 750 : 400;
-        searchTimeout = setTimeout(() => { performSearch(e.target.value, false); }, delay); 
+    mainSearchInput.addEventListener('input', (e) => {
+        if(searchHistoryBox) searchHistoryBox.style.display = 'none';
+        clearTimeout(searchTimeout);
+        // An in-flight answer must not overwrite what the user is typing.
+        searchRequestSerial++;
+        const query = e.target.value;
+        if (!query.trim()) { clearSearchResults(); return; }
+        const delay = getNetworkProfile().weak ? 700 : 380;
+        searchTimeout = setTimeout(() => { performSearch(query, false); }, delay);
     });
     mainSearchInput.addEventListener('keydown', (e) => { 
         if(e.key === 'Enter') { clearTimeout(searchTimeout); performSearch(e.target.value, true); } 

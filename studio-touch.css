@@ -197,3 +197,54 @@
    Keep only the section heading above it; the ornamental slogan is gone. */
 .studio-showcase>.left-col .vinyl-wave-play{top:50%!important;left:50%!important}
 .studio-showcase .showcase-hero-copy h1{margin:0!important;line-height:1.12!important;letter-spacing:-.045em!important;text-shadow:0 5px 24px #000c,0 0 26px rgba(var(--theme-rgb,192,108,66),.24)}
+
+
+/* Search must remain visible when the real list replaces the home cards. */
+.studio-showcase>.right-col.showcase-list #search-container-box{
+ display:block!important;flex:0 0 auto;position:relative;z-index:2;
+ width:auto;min-width:0;margin:3px 12px 8px!important;
+}
+.studio-showcase>.right-col.showcase-list #search-container-box .search-input{
+ display:block!important;width:100%;box-sizing:border-box;
+ min-height:48px!important;font-size:16px!important;
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.48)!important;
+ border-radius:14px!important;
+}
+.studio-showcase>.right-col.showcase-curated #search-container-box,
+.studio-showcase>.right-col.showcase-curated #dag-search-status{display:none!important}
+.dag-search-status{
+ display:flex;align-items:center;justify-content:space-between;gap:10px;
+ min-height:30px;margin:0 12px 9px;padding:7px 12px;border-radius:11px;
+ background:rgba(var(--theme-rgb,192,108,66),.085);
+ color:var(--theme-muted,#bec0c6);font-size:.75rem;line-height:1.45;
+}
+.dag-search-status[hidden]{display:none!important}
+.dag-search-status button{
+ flex-shrink:0;min-height:42px;padding:8px 14px;cursor:pointer;
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.6);
+ color:var(--theme-bright-text,#fff);background:rgba(var(--theme-rgb,192,108,66),.22);
+ border-radius:11px;font-size:.78rem;font-weight:750;
+}
+.dag-search-empty{
+ color:var(--theme-muted,#bec0c6);margin:15px 8px;padding:24px 10px;
+ font-size:.9rem;line-height:1.55;text-align:center;
+}
+/* The logo, title and expand button must never compete for the same 90px. */
+@media(min-width:769px) and (max-width:1199px){
+ .studio-showcase:not(.showcase-nav-collapsed) .showcase-brand-icon{
+  display:none!important;
+ }
+ .studio-showcase:not(.showcase-nav-collapsed) .showcase-brand{
+  width:100%;min-width:0;box-sizing:border-box;
+ }
+ .studio-showcase:not(.showcase-nav-collapsed) .showcase-brand-text{
+  flex:1;min-width:0;overflow:visible!important;
+ }
+ .studio-showcase:not(.showcase-nav-collapsed) .showcase-brand-text strong{
+  font-size:clamp(.74rem,1.08vw,.89rem)!important;
+  letter-spacing:-.025em!important;white-space:nowrap!important;
+ }
+ .studio-showcase:not(.showcase-nav-collapsed) .showcase-brand-text small{
+  font-size:.54rem!important;letter-spacing:.19em!important;
+ }
+}

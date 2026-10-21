@@ -448,8 +448,10 @@ elseif ($action === 'search_global') {
     if ($page < 1) $page = 1;
 
     $weak_client = (($data['network'] ?? '') === 'weak') || !empty($data['save_data']);
-    $provider_connect_timeout = $weak_client ? 2 : 3;
-    $provider_timeout = $weak_client ? 4 : 6;
+    // Slow user connectivity does not imply a fast connection from PHP to providers.
+    // Give the upstream services time to answer instead of discarding viable results.
+    $provider_connect_timeout = $weak_client ? 3 : 4;
+    $provider_timeout = $weak_client ? 7 : 8;
     $muzca_detail_limit = $weak_client ? 5 : 12;
     $result_limit = $weak_client ? 30 : 50;
 
@@ -880,8 +882,10 @@ elseif ($action === 'search_global') {
         $r['relevance'] = 0;
         if ($title_lower === $query_lower) $r['relevance'] += 10000;
         elseif (mb_strpos($title_lower, $query_lower) === 0) $r['relevance'] += 5000;
-        elseif ($artist_lower === $query_lower) $r['relevance'] += 3000;
+        elseif ($artist_lower === $query_lower) $r['relevance'] += 12000;
         elseif (mb_strpos($title_lower, $query_lower) !== false) $r['relevance'] += 500;
+        if ($artist_lower !== $query_lower && $query_lower !== '' &&
+            mb_strpos($artist_lower, $query_lower) !== false) $r['relevance'] += 3500;
 
         $by_source[$source][] = $r;
     }

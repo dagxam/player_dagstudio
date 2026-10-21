@@ -890,10 +890,10 @@ try {
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2306', { cache: 'no-store' });
+    const response = await fetch('/script.js?v=2307', { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2306'"),
+      isCurrent: code.includes("const WEB_BUILD_LABEL = '2307'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
@@ -1269,6 +1269,41 @@ try {
   }
 
   console.log('CONSOLE_ERRORS', JSON.stringify(consoleErrors));
+
+  // Verify the real search interaction and expanded sidebar at TEYES resolution.
+  await page.setViewport({width:1024,height:600});
+  await page.click('#showcase-search');
+  const searchLayout=await page.evaluate(()=>{
+    const input=document.getElementById('search-input');
+    const title=document.querySelector('.showcase-brand-text strong');
+    const field=input?.getBoundingClientRect();
+    const name=title?.getBoundingClientRect();
+    const parent=title?.parentElement?.getBoundingClientRect();
+    return {
+      visible:!!field && field.width>100 && field.height>=42 &&
+        getComputedStyle(input).visibility!=='hidden' &&
+        getComputedStyle(input).display!=='none',
+      listVisible:document.getElementById('right-col-container')?.classList.contains('showcase-list')===true,
+      brandFits:!!name && !!parent && name.left>=parent.left-1 && name.right<=parent.right+1,
+      name:title?.textContent||''
+    };
+  });
+  console.log('SEARCH_INPUT_AND_BRAND_1024',JSON.stringify(searchLayout));
+  if(!searchLayout.visible || !searchLayout.listVisible || !searchLayout.brandFits ||
+    searchLayout.name!=='DAGSTUDIO')throw new Error('Search field hidden or brand clipped');
+  await page.$eval('#search-input',input=>{
+    input.value='Miyagi';
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  await page.waitForFunction(()=>document.querySelector('#dag-search-status')?.textContent?.includes('Найдено:') &&
+    document.querySelectorAll('#playlist-container .track-row').length>0,{timeout:30000});
+  const searchUI=await page.evaluate(()=>({
+    count:document.querySelectorAll('#playlist-container .track-row').length,
+    status:document.getElementById('dag-search-status')?.textContent||'',
+    listVisible:document.getElementById('right-col-container')?.classList.contains('showcase-list')
+  }));
+  console.log('SEARCH_UI_LIVE',JSON.stringify(searchUI));
+  if(!searchUI.count||!searchUI.listVisible)throw new Error('Live search results not visible');
 
   // Live search + audio relay smoke test. Read only the first streamed chunk.
   const searchSmoke = await page.evaluate(async () => {
