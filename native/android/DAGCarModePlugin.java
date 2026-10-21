@@ -148,6 +148,16 @@ public class DAGCarModePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void checkApkUpdate(PluginCall call) {
+        new DAGApkUpdater(this).check(call);
+    }
+
+    @PluginMethod
+    public void installApkUpdate(PluginCall call) {
+        new DAGApkUpdater(this).install(call);
+    }
+
+    @PluginMethod
     public void loadAudio(PluginCall call) {
         String url = call.getString("url", "");
         if (!isAllowedAudioUrl(url)) {

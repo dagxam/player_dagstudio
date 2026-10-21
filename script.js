@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2312';
+const WEB_BUILD_LABEL = '2313';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -450,8 +450,31 @@ window.manualUpdateApplication = async function() {
             return;
         }
 
-        // Нативное Android-приложение обновляется только встроенным OTA bundle.
-        // Никаких переходов в браузер и автоматических скачиваний APK.
+        // Download and verify the native APK through the official HTTPS server
+        // (with trusted IP fallback on TEYES CC3). Android still asks permission.
+        // New native code cannot be installed by a web-only OTA bundle.
+        const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
+        if (NATIVE_PLATFORM === 'android' && installer &&
+            typeof installer.check === 'function') {
+            let apk = null;
+            try {
+                apk = await installer.check();
+            } catch (error) {
+                console.warn('Native APK check unavailable; trying web OTA:', error);
+            }
+            if (apk?.available) {
+                setManualUpdateButtonState('is-checking', 'Скачиваем APK ' + apk.version + '…');
+                const installResult = await installer.install();
+                if (installResult?.status === 'installer-opened') {
+                    setManualUpdateButtonState('is-ready', 'Подтвердите установку Android');
+                    showNotification('APK загружен и проверен. Подтвердите обновление в системном окне Android.');
+                    return;
+                }
+                if (installResult?.status !== 'current') {
+                    throw new Error('Системный установщик не открылся');
+                }
+            }
+        }
         const result = await checkNativeLiveUpdate(true, true);
 
         if (result.status === 'updated') {

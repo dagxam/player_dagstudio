@@ -21,6 +21,7 @@ on:
       - "capacitor.config.json"
       - "scripts/build-native-web.mjs"
       - "native/**"
+      - ".github/test-in-app-apk-update.mjs"
       - ".github/workflows/build-android.yml"
       - ".github/test-native-media.mjs"
       - ".github/test-smart-radio.mjs"
@@ -88,6 +89,9 @@ jobs:
       - name: Test verified IP fallback for CC3 DNS failures
         run: node .github/test-trusted-ip-dns.mjs
 
+      - name: Test in-app Android APK updater
+        run: node .github/test-in-app-apk-update.mjs
+
       - name: Test WebView fallback for CC3 DNS failures
         run: node .github/test-native-http-fallback.mjs
 
@@ -140,6 +144,7 @@ jobs:
           cp native/android/DAGMediaService.java android/app/src/main/java/ru/dagstudio/player/DAGMediaService.java
           cp native/android/DAGAudioEngine.java android/app/src/main/java/ru/dagstudio/player/DAGAudioEngine.java
           cp native/android/DAGServerDns.java android/app/src/main/java/ru/dagstudio/player/DAGServerDns.java
+          cp native/android/DAGApkUpdater.java android/app/src/main/java/ru/dagstudio/player/DAGApkUpdater.java
           node scripts/configure-android-media.mjs
           cat >> android/app/build.gradle <<'MEDIA3_GRADLE'
 
@@ -282,3 +287,58 @@ jobs:
               --notes "$NOTES" \
               --prerelease
           fi
+
+      - name: Prepare HTTPS APK mirror for TEYES CC3
+        run: |
+          set -euo pipefail
+          mkdir -p apk-publish
+          BASE_VERSION="${DAG_NATIVE_VERSION%-preview}"
+          APK_NAME="DAGSTUDIO-PLAYER-Preview-$BASE_VERSION.apk"
+          cp DAGSTUDIO-PLAYER-Preview.apk "apk-publish/$APK_NAME"
+          python - "$BASE_VERSION" "$APK_NAME" "$GITHUB_SHA" "$DAG_NATIVE_VERSION_CODE" <<'PY'
+          import json,sys,hashlib,pathlib
+          version,name,commit,code=sys.argv[1:]
+          payload={
+            "version":version+"-preview",
+            "version_code":int(code),
+            "url":"https://pl.dagstudio.ru/apk/"+name,
+            "sha256":hashlib.sha256(pathlib.Path("apk-publish",name).read_bytes()).hexdigest(),
+            "commit":commit
+          }
+          pathlib.Path("apk-publish/DAGSTUDIO-PLAYER-native-version.json").write_text(
+              json.dumps(payload,ensure_ascii=False,indent=2)+"\n")
+          PY
+
+      - name: Deploy APK mirror for DNS-restricted CC3 devices
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          local-dir: ./apk-publish/
+          server-dir: /www/pl.dagstudio.ru/apk/
+
+      - name: Verify HTTPS APK mirror, SHA256 and release identity
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 45 --retry 3 --retry-delay 2 \
+            --resolve pl.dagstudio.ru:443:188.127.241.85 \
+            https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-native-version.json \
+            -o /tmp/dag-native-meta.json
+          python - <<'PY'
+          import json,os
+          data=json.load(open('/tmp/dag-native-meta.json'))
+          assert data["commit"]==os.environ["GITHUB_SHA"]
+          assert data["version"]==os.environ["DAG_NATIVE_VERSION"]
+          assert data["url"].startswith("https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview-")
+          PY
+          URL="$(python -c 'import json; print(json.load(open("/tmp/dag-native-meta.json"))["url"])')"
+          curl --fail --silent --show-error --location --max-time 180 --retry 2 --retry-delay 2 \
+            --resolve pl.dagstudio.ru:443:188.127.241.85 "$URL" \
+            -o /tmp/dag-native-public.apk
+          test "$(sha256sum /tmp/dag-native-public.apk | awk '{print $1}')" = \
+            "$(python -c 'import json; print(json.load(open("/tmp/dag-native-meta.json"))["sha256"])')"
+          unzip -t /tmp/dag-native-public.apk >/dev/null
+          echo "NATIVE_APK_MIRROR_TLS_SHA256_OK"

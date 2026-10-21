@@ -42,6 +42,7 @@ jobs:
           node .github/test-end-to-end-network.mjs
           node .github/test-native-http-fallback.mjs
           node .github/test-trusted-ip-dns.mjs
+          node .github/test-in-app-apk-update.mjs
           php -l ota-bridge.php
           node .github/test-offline-batch.mjs
           node .github/test-ios-preparation.mjs

@@ -284,6 +284,14 @@ window.DAG_NATIVE_BRIDGE = {
   networkTransport: () => lastHttpTransport,
   updater,
   audioCache,
+  apkInstaller: {
+    check: () => hasAndroidMedia3
+      ? DAGCarMode.checkApkUpdate()
+      : Promise.reject(new Error('Android only')),
+    install: () => hasAndroidMedia3
+      ? DAGCarMode.installApkUpdate()
+      : Promise.reject(new Error('Android only'))
+  },
   screen: {
     setKeepScreenOn: (options) => hasAndroidMedia3
       ? DAGCarMode.setKeepScreenOn(options) : Promise.resolve({ supported: false })
