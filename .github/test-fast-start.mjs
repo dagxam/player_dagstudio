@@ -19,8 +19,8 @@ assert.match(html,/font-awesome\/6\.4\.0\/css\/all\.min\.css" media="print" onlo
 assert.match(manual,/AbortController\(\)/);
 assert.match(manual,/7500/);
 assert.match(manual,/serviceWorkerRegistrationPromise/);
-assert.match(sw,/dagstudio-player-shell-v2324/);
-assert.match(html,/script\.js\?v=2316/);
+assert.match(sw,/dagstudio-player-shell-v2325/);
+assert.match(html,/script\.js\?v=2317/);
 assert.match(html,/studio-next\.js\?v=14/);
 assert.match(native,/native-bridge\.js/);
 assert.match(native,/studio-next\.js/);

@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2316';
+const WEB_BUILD_LABEL = '2317';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -5378,15 +5378,21 @@ const QUICK_MIXES={
         artists:['Zivert','Баста','Miyagi','The Weeknd','Dua Lipa',
           `новинки ${new Date().getFullYear()}`,'new music releases',
           'новые песни','latest songs','новинки России','new pop music',
-          'Кавказские новинки','новая музыка','new hip hop','new rock music']},
+          'Кавказские новинки','новая музыка','new hip hop','new rock music',
+          'Султан Лагучев','Мурат Тхагалегов','Эльмира Магомедова',
+          'Зульфия Чотчаева','Роза Мальсагова','Шамиль Кашешов']},
     russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
     caucasus:{title:'Кавказские',mode:'popular',regions:[
         // Region labels are search directions, not verified audio-language tags.
-        {id:'dag_ru',label:'Дагестан · на русском',queries:['Эльдар Далгатов','Тимур Темиров']},
+        {id:'dag_ru',label:'Дагестан · на русском',queries:[
+          'Эльдар Далгатов','Тимур Темиров','Эльмира Магомедова','Зульфия Чотчаева']},
         {id:'dag_avar',label:'Дагестан · аварские',queries:['Зара Гамзатова','аварские']},
-        {id:'chechnya',label:'Чечня',queries:['чеченские','Тимур Муцураев']},
-        {id:'ingushetia',label:'Ингушетия',queries:['ингушские','ингушская']},
-        {id:'ossetia',label:'Северная Осетия',queries:['осетинские','осетинская']},
+        {id:'chechnya',label:'Чечня',queries:[
+          'чеченские','Тимур Муцураев','Иман Амирбекова','Увайс Шарипов']},
+        {id:'ingushetia',label:'Ингушетия',queries:[
+          'ингушские','ингушская','Роза Мальсагова','Зара Аушева']},
+        {id:'ossetia',label:'Северная Осетия',queries:[
+          'осетинские','осетинская','Мадина Кайтмазова','Амина Дзуцева']},
         {id:'kabardino',label:'Кабардино-Балкария',queries:['кабардинские','балкарские']},
         {id:'karachay',label:'Карачаево-Черкесия',queries:['Ислам Итляшев','карачаевские']},
         {id:'adygea',label:'Адыгея',queries:['адыгейские','Мурат Калакуток']},

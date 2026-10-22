@@ -10,6 +10,28 @@ const make=(tag,cls,value)=>{
  const el=document.createElement(tag);if(cls)el.className=cls;
  if(value!==undefined)el.textContent=String(value);return el;
 };
+// Official licensed catalogues are discovery links, NOT unlicensed audio URLs.
+// The music itself stays on the publisher's website until a streaming deal
+// and an authenticated playback API have been agreed.
+const caucasusCatalogues=[
+ {title:'Звук-М · новинки',desc:'Официальные премьеры кавказской эстрады',icon:'compact-disc',
+  url:'https://zvuk-m.com/muzykalnye-premery'},
+ {title:'Звук-М · архив',desc:'Релизы прошлых лет, в том числе 2016–2024',icon:'clock-rotate-left',
+  url:'https://zvuk-m.com/relizy'},
+ {title:'Kavkaz Music · национальные',desc:'Дагестан, Чечня, Ингушетия, Осетия и другие',icon:'mountain',
+  url:'https://kavkazmusic.tv/category/premery'},
+ {title:'Кавказ Хит · радио',desc:'Эфир: новые и знакомые песни Кавказа',icon:'radio',
+  url:'https://kavkazhit.com/'}
+];
+function openCaucasusCatalogue(link){
+ const allowed=caucasusCatalogues.some(item=>item.url===link);
+ if(!allowed)return;
+ if(window.DAG_NATIVE_BRIDGE?.openExternal){
+  window.DAG_NATIVE_BRIDGE.openExternal({url:link}).catch(()=>{
+   window.open(link,'_blank','noopener,noreferrer');
+  });
+ }else window.open(link,'_blank','noopener,noreferrer');
+}
 const defs=[
  {key:'caucasus',title:'Кавказские',desc:'Республики и языки',icon:'mountain',art:'mountains'},
  {key:'russian',title:'Русские',desc:'Популярные песни',icon:'music',art:'folk'},
@@ -140,6 +162,17 @@ function render(mode='home'){
     icon:r.id==='all'?'mountain':'music',art:'mountains'
   },()=>region(r.id,r.label))));
   gallery.appendChild(grid);
+  const sourcesHead=make('div','showcase-section-head');
+  sourcesHead.appendChild(make('span','showcase-kicker','ОФИЦИАЛЬНЫЕ КАТАЛОГИ'));
+  sourcesHead.appendChild(make('h2','','Новинки и архивы'));
+  sourcesHead.appendChild(make('p','showcase-center-empty',
+   'Прослушивание на сайтах правообладателей. Встроенный поиск музыки работает отдельно.'));
+  gallery.appendChild(sourcesHead);
+  const sourcesGrid=make('div','showcase-curation-list');
+  caucasusCatalogues.forEach(item=>sourcesGrid.appendChild(card({
+   title:item.title,desc:item.desc,icon:item.icon,art:'mountains'
+  },()=>openCaucasusCatalogue(item.url))));
+  gallery.appendChild(sourcesGrid);
  }else{
   selectNav(mode==='collections'?'collections':'wave');
   (mode==='collections'?defs:defs.slice(0,6)).forEach(d=>{
