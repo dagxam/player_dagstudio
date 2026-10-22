@@ -27,7 +27,7 @@ assert.match(build,/cp native\/android\/DAGApkUpdater\.java/);
 assert.match(build,/Deploy APK mirror for DNS-restricted CC3 devices/);
 assert.match(build,/NATIVE_APK_MIRROR_TLS_SHA256_OK/);
 assert.match(bridge,/apkInstaller: \{/);
-assert.match(script,/const WEB_BUILD_LABEL = '2317'/);
+assert.match(script,/const WEB_BUILD_LABEL = '2318'/);
 const manual=script.slice(script.indexOf('window.manualUpdateApplication ='),
                           script.indexOf('let serviceWorkerRegistrationPromise'));
 assert.match(manual,/checkNativeLiveUpdate\(true, true\)/);

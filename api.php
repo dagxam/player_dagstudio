@@ -211,7 +211,7 @@ elseif ($action === 'update_track_url') {
     $host = strtolower((string)($parts['host'] ?? ''));
     $scheme = strtolower((string)($parts['scheme'] ?? ''));
     $allowedTrackHosts = [
-        'api.audius.co',
+        'api.audius.co', 'discoveryprovider.audius.co', 'storage.jamendo.com',
         'slider.kz', 'ru.hitmoz.org', 'hitmoz.org', 'muzofond.fm', 'zvooq.net',
         'muzvox.org', 'storage.muzvox.org', 'static.muzvox.org', 'muzca.net'
     ];
@@ -436,7 +436,12 @@ elseif ($action === 'upload_track') {
     }
 }
 
-// --- УМНЫЙ ГЛОБАЛЬНЫЙ ПОИСК (4 ЛУЧШИХ ИСТОЧНИКА) ---
+// Official Audius new releases / trending, streamed only from its own API.
+elseif ($action === 'official_audius_feed') {
+    require __DIR__ . '/music-official.php';
+}
+
+// --- ГЛОБАЛЬНЫЙ ПОИСК ПО ДОСТУПНЫМ ИСТОЧНИКАМ ---
 elseif ($action === 'search_global') {
     $query_raw = isset($data['query']) ? $data['query'] : ($_POST['query'] ?? '');
     $query_encode = urlencode(strip_tags(trim($query_raw)));
@@ -468,6 +473,7 @@ elseif ($action === 'search_global') {
     // automotive internet. Timeouts and result limits adapt, not the list.
     $urls = [
         'audius'  => "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
+        'audius_secondary' => "https://discoveryprovider.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
         'vk_mail' => "https://slider.kz/vk_auth.php?q=" . $query_encode . "&page=" . $page,
         'hitmoz'  => "https://ru.hitmoz.org/search?q=" . $query_encode,
         'muzo'    => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page,
@@ -475,6 +481,19 @@ elseif ($action === 'search_global') {
         'muzvox'  => "https://muzvox.org/search/" . $query_encode,
         'muzca'   => "https://muzca.net/index.php?do=search&subaction=search&story=" . $query_encode
     ];
+    // Jamendo API requires a project-specific client_id. Never use a public
+    // test credential or invent an authorization: keep other 7 sources working.
+    $jamendo_client = trim((string)(getenv('JAMENDO_CLIENT_ID') ?: ''));
+    $jamendo_enabled = (bool)preg_match('/^[A-Za-z0-9_-]{6,128}$/', $jamendo_client);
+    if ($jamendo_enabled) {
+        $urls['jamendo'] = "https://api.jamendo.com/v3.0/tracks/?" . http_build_query([
+            'client_id' => $jamendo_client, 'format' => 'json',
+            'search' => trim(strip_tags((string)$query_raw)),
+            'limit' => $weak_client ? 12 : 20,
+            'offset' => ($page-1) * ($weak_client ? 12 : 20),
+            'type' => 'single albumtrack', 'audioformat' => 'mp32'
+        ], '', '&', PHP_QUERY_RFC3986);
+    }
 
     $multi = curl_multi_init();
     $channels = [];
@@ -482,7 +501,8 @@ elseif ($action === 'search_global') {
     foreach ($urls as $key => $url) {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        // Do not redirect API credentials to another host.
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $key !== 'jamendo');
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
@@ -535,9 +555,30 @@ elseif ($action === 'search_global') {
     }
     curl_multi_close($multi);
 
+    if (!$jamendo_enabled) {
+        $source_status['jamendo'] = [
+            'ok' => false, 'http' => 0, 'error' => '', 'configured' => false
+        ];
+    } else {
+        $source_status['jamendo']['configured'] = true;
+    }
+    // Use the public documented discovery provider when the primary API
+    // returned an error or an empty/unparseable JSON response.
+    $mainAudius = json_decode((string)($responses['audius'] ?? ''), true);
+    if (empty($mainAudius['data']) && !empty($responses['audius_secondary'])) {
+        $alt = json_decode((string)$responses['audius_secondary'], true);
+        if (!empty($alt['data'])) {
+            $responses['audius'] = $responses['audius_secondary'];
+            $source_status['audius'] = $source_status['audius_secondary'];
+            $source_status['audius']['used_fallback'] = true;
+        }
+    }
+    unset($source_status['audius_secondary']);
+    $audius_stream_host = !empty($source_status['audius']['used_fallback'])
+        ? 'discoveryprovider.audius.co' : 'api.audius.co';
     $raw_results = [];
 
-    // Основной стабильный источник: официальная открытая Audius API.
+    // Audius: first-party API, not a third-party scraper.
     if (!empty($responses['audius'])) {
         $audius = json_decode($responses['audius'], true);
         if (!empty($audius['data']) && is_array($audius['data'])) {
@@ -566,7 +607,7 @@ elseif ($action === 'search_global') {
                 $raw_results[] = [
                     'title' => $title,
                     'artist' => $artist,
-                    'url' => 'https://api.audius.co/v1/tracks/' . rawurlencode($id) . '/stream',
+                    'url' => 'https://' . $audius_stream_host . '/v1/tracks/' . rawurlencode($id) . '/stream',
                     'type' => 'audio',
                     'thumb' => $thumb,
                     'source' => '[AUDIUS]',
@@ -845,6 +886,36 @@ elseif ($action === 'search_global') {
         }
     }
 
+    // Jamendo artist-authorized streaming API, only with the operator's own
+    // credential. Stream URLs must point to Jamendo storage over HTTPS.
+    if ($jamendo_enabled && !empty($responses['jamendo'])) {
+        $catalog = json_decode($responses['jamendo'], true);
+        if (($catalog['headers']['status'] ?? '') === 'success' &&
+            is_array($catalog['results'] ?? null)) {
+            foreach ($catalog['results'] as $track) {
+                if (!is_array($track)) continue;
+                $title = trim((string)($track['name'] ?? ''));
+                $audio = trim((string)($track['audio'] ?? ''));
+                $info = parse_url($audio);
+                $host = strtolower((string)($info['host'] ?? ''));
+                if ($title === '' || ($info['scheme'] ?? '') !== 'https' ||
+                    empty($host) || !($host === 'storage.jamendo.com' ||
+                        str_ends_with($host, '.storage.jamendo.com')) ||
+                    isset($info['user']) || isset($info['pass']) || isset($info['port'])) continue;
+                $raw_results[] = [
+                    'title' => $title,
+                    'artist' => trim((string)($track['artist_name'] ?? 'Неизвестен')),
+                    'url' => $audio, 'type' => 'audio',
+                    'thumb' => trim((string)($track['image'] ?? 'images/cover.png')),
+                    'source' => '[JAMENDO]',
+                    'release_date' => trim((string)($track['releasedate'] ?? '')),
+                    'license_url' => trim((string)($track['license_ccurl'] ?? '')),
+                    'source_url' => trim((string)($track['shareurl'] ?? ''))
+                ];
+            }
+        }
+    }
+
     // --- ФИЛЬТРАЦИЯ И ДЕДУПЛИКАЦИЯ ПО КАЖДОМУ ИСТОЧНИКУ ---
     // Один и тот же трек на разных сайтах НЕ удаляется.
     $by_source = [
@@ -854,7 +925,8 @@ elseif ($action === 'search_global') {
         '[MUZOFOND]' => [],
         '[ZVOOQ]' => [],
         '[MUZVOX]' => [],
-        '[MUZCA]' => []
+        '[MUZCA]' => [],
+        '[JAMENDO]' => []
     ];
 
     foreach ($raw_results as $r) {
@@ -909,7 +981,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[AUDIUS]', '[VK]', '[HITMOZ]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[AUDIUS]', '[JAMENDO]', '[VK]', '[HITMOZ]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -938,7 +1010,8 @@ elseif ($action === 'search_global') {
     $provider_source_keys = [
         'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
         'hitmoz' => '[HITMOZ]', 'muzo' => '[MUZOFOND]',
-        'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]'
+        'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]',
+        'jamendo' => '[JAMENDO]'
     ];
     foreach ($provider_source_keys as $key => $label) {
         $count = (int)($source_counts[$label] ?? 0);

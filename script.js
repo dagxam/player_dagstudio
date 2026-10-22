@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2317';
+const WEB_BUILD_LABEL = '2318';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -1909,9 +1909,21 @@ document.addEventListener('fullscreenchange', () => {
     }
 });
 
+function isJamendoStreamUrl(url) {
+    try {
+        const parsed=new URL(resolveMediaUrl(url),window.location.href);
+        return parsed.protocol==='https:' &&
+            (parsed.hostname==='storage.jamendo.com' ||
+             parsed.hostname.endsWith('.storage.jamendo.com'));
+    } catch(e) { return false; }
+}
 window.downloadTrack = function(index) {
     const track = playlist[index];
     if (!track || !track.url) return;
+    if(track.source==='[JAMENDO]'||isJamendoStreamUrl(track.url)){
+        showNotification('Трек Jamendo доступен для прослушивания. Загрузка здесь не предусмотрена.');
+        return;
+    }
     const safeTitle = `${track.artist} - ${track.title}`;
     showNotification(`Начинаем скачивание: ${safeTitle}`);
     const downloadUrl = appServerUrl(`/download.php?url=${encodeURIComponent(resolveMediaUrl(track.url))}&title=${encodeURIComponent(safeTitle)}`);
@@ -2613,7 +2625,7 @@ async function testMusicSourceHealth() {
     const button=document.getElementById('source-health-test');
     if (!result) return;
     if (button) button.disabled=true;
-    result.textContent='Проверяем все 7 источников…';
+    result.textContent='Проверяем музыкальные источники…';
     const started=Date.now();
     try {
         const response=await api('search_global', {
@@ -2623,6 +2635,7 @@ async function testMusicSourceHealth() {
         if (!response?.success || !response?.sources) throw new Error('Не получен ответ от поискового API.');
         const sources=[
             {key:'audius',label:'Audius',source:'[AUDIUS]'},
+            {key:'jamendo',label:'Jamendo',source:'[JAMENDO]'},
             {key:'vk_mail',label:'VK / Slider',source:'[VK]'},
             {key:'hitmoz',label:'Hitmoz',source:'[HITMOZ]'},
             {key:'muzo',label:'Muzofond',source:'[MUZOFOND]'},
@@ -2636,14 +2649,14 @@ async function testMusicSourceHealth() {
         const lines=sources.map(({key,label,source})=>{
             const info=response.sources[key]||{};
             const count=Number(counts[source])||0;
-            const status=info.ok
-                ? (count>0?'есть совпадения':'ответ есть, совпадений нет')
+            const status=info.configured===false ? 'ожидает ключ API'
+                : info.ok ? (count>0?'есть совпадения':'ответ есть, совпадений нет')
                 : 'недоступен';
             return label+': поиск '+status+' · '+count+' тр. (HTTP '+
                 (Number(info.http)||0)+')';
         });
         const render=()=>{
-            result.textContent=['Проверка 7 источников · '+((Date.now()-started)/1000).toFixed(1)+' с',
+            result.textContent=['Проверка 8 источников (Jamendo по ключу) · '+((Date.now()-started)/1000).toFixed(1)+' с',
                 ...lines,
                 'HTTP 200 — не гарантия аудио. Проверка выполнена из сети сервера DAGSTUDIO.',
                 'При слабом сигнале или воспроизведении с малым буфером аудиопроверка пропускается.'
@@ -2670,7 +2683,7 @@ async function testMusicSourceHealth() {
             await Promise.all(Array.from({length:Math.min(3,pending.length)},worker));
         }
         const hasMatches=sources.filter(({source})=>Number(counts[source])>0).length;
-        lines.push('С результатами по Miyagi: '+hasMatches+' из 7 источников.');
+        lines.push('С результатами по Miyagi: '+hasMatches+' из 8 источников (Jamendo по ключу).');
         lines.push('Для других исполнителей результаты могут отличаться. Работа в России без VPN проверяется отдельно на устройстве.');
         render();
         recordPlayerEvent('provider-diagnostics');
@@ -2742,7 +2755,8 @@ function downloadCurrentPlaylistOffline() {
     if(navigator.onLine===false)return showNotification('Для скачивания нужна сеть.');
     if(!playlist.length)return showNotification('В этом списке нет треков.');
     if(offlineBatch?.pending.size)return showNotification('Загрузка плейлиста уже идёт. Дождитесь завершения.');
-    const tracks=playlist.filter(track=>track?.url&&isRemoteMediaUrl(track.url));
+    const tracks=playlist.filter(track=>track?.url&&isRemoteMediaUrl(track.url) &&
+        track.source!=='[JAMENDO]'&&!isJamendoStreamUrl(track.url));
     const unique=[],seen=new Set();
     for(const track of tracks){
         const url=canonicalTrackUrl(track);
@@ -5235,6 +5249,49 @@ function displaySearchMessage(message) {
     caption.textContent = message;
     listEl.appendChild(caption);
 }
+// New releases and trending charts from the official, public Audius API.
+// The entire request goes through our own HTTPS server (Android DNS fallback).
+window.browseOfficialAudius = async function(mode='latest') {
+    if(mode!=='latest' && mode!=='trending') return;
+    const id=++searchRequestSerial;
+    clearTimeout(searchTimeout);
+    if(mainSearchInput) {
+        mainSearchInput.value='';
+        syncSearchClearButton();
+    }
+    currentSearchQuery='';
+    currentSearchPage=1;
+    hasMoreSearchResults=false;
+    isSearchLoading=true;
+    document.querySelector('.main-container.studio-showcase')?.classList.remove('showcase-wave-only');
+    window.studioShowList?.('search');
+    if(currentTab!=='search') switchTab('search');
+    displaySearchMessage('Загружаем каталог Audius…');
+    searchStatus(mode==='latest'?'Новые релизы Audius…':'Популярные треки Audius…');
+    try {
+        const response=await api('official_audius_feed',{mode,page:1});
+        if(id!==searchRequestSerial)return;
+        if(!response?.success || !Array.isArray(response.data))
+            throw new Error(response?.error||'Официальный Audius API недоступен.');
+        playlist=response.data;
+        searchPlaylistCache=response.data;
+        renderPlaylist();
+        if(!playlist.length)displaySearchMessage('Каталог временно пуст. Выберите другой источник.');
+        searchStatus('Audius · '+(mode==='latest'?'новые релизы':'популярное')+
+            ' · '+playlist.length+' треков');
+    } catch(error){
+        if(id!==searchRequestSerial)return;
+        playlist=[];
+        searchPlaylistCache=[];
+        renderPlaylist();
+        recordConnectivityFailure(error);
+        displaySearchMessage('Сервер Audius временно недоступен. Попробуйте позже или используйте общий поиск.');
+        searchStatus(explainConnectionFailure(error),true);
+    } finally {
+        if(id===searchRequestSerial)isSearchLoading=false;
+    }
+};
+
 async function performSearch(rawQuery, save = false) {
     const query = String(rawQuery || '').trim().replace(/\s+/g, ' ');
     clearTimeout(searchTimeout);
@@ -6002,7 +6059,8 @@ function renderPlaylist() {
             iconHtml = `<div class="track-icon-box link" style="margin-right:12px;"><i class="fas fa-music"></i></div>`;
         }
         
-        const downloadBtn = (t.url && isRemoteMediaUrl(t.url)) 
+        const downloadBtn = (t.url && isRemoteMediaUrl(t.url) &&
+            t.source !== '[JAMENDO]' && !isJamendoStreamUrl(t.url)) 
             ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>` 
             : '';
 
@@ -6033,6 +6091,31 @@ function renderPlaylist() {
             sourceBadge.textContent=t.source;
             artist.appendChild(document.createTextNode(' '));
             artist.appendChild(sourceBadge);
+        }
+        if(t.source==='[JAMENDO]' && currentTab==='search') {
+            // CC attribution: show the author (above), source and CC license.
+            const official=String(t.source_url||'');
+            if(/^https:\/\/(?:www\.)?jamendo\.com\/track\/[0-9]+(?:[/?#]|$)/.test(official)){
+                const link=document.createElement('a');
+                link.textContent=' · Jamendo';
+                link.href=official;
+                link.target='_blank';
+                link.rel='noopener noreferrer';
+                link.title='Официальная запись исполнителя';
+                link.addEventListener('click',event=>event.stopPropagation());
+                artist.appendChild(link);
+            }
+            const license=String(t.license_url||'');
+            if(/^https?:\/\/creativecommons\.org\/licenses\/[a-z-]+\/[0-9.]+\/?$/.test(license)){
+                const licenseLink=document.createElement('a');
+                licenseLink.textContent=' · CC';
+                licenseLink.href=license;
+                licenseLink.target='_blank';
+                licenseLink.rel='noopener noreferrer';
+                licenseLink.title='Условия лицензии записи';
+                licenseLink.addEventListener('click',event=>event.stopPropagation());
+                artist.appendChild(licenseLink);
+            }
         }
         if(currentTab==='mix:caucasus' && t._mixRegion) {
             const regionBadge=document.createElement('span');

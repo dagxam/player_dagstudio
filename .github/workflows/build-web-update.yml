@@ -75,6 +75,7 @@ jobs:
           node .github/test-fast-start.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs
+          node .github/test-official-music.mjs
 
       - name: Test manual OTA and backup delivery
         run: node .github/test-ota-update.mjs

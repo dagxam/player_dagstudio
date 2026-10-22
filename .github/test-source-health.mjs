@@ -4,7 +4,7 @@ const php=readFileSync(new URL('../api.php',import.meta.url),'utf8');
 const js=readFileSync(new URL('../script.js',import.meta.url),'utf8');
 const workflow=readFileSync(new URL('./workflows/music-sources-smoke.yml',import.meta.url),'utf8');
 const proxy=readFileSync(new URL('../proxy.php',import.meta.url),'utf8');
-const providers=['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'];
+const providers=['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca','jamendo'];
 for(const id of providers){
   assert.ok(php.includes("'"+id+"'"),'search provider missing: '+id);
   assert.ok(js.includes("key:'"+id+"'"),'diagnostics missing: '+id);
@@ -22,4 +22,9 @@ assert.match(workflow,/matching_tracks/);
 assert.match(workflow,/25 \*\/6 \* \* \*/);
 assert.match(proxy,/CURLOPT_SSL_VERIFYPEER => true/);
 assert.match(proxy,/CURLOPT_SSL_VERIFYHOST => 2/);
+assert.match(proxy,/storage\.jamendo\.com/);
+assert.match(proxy,/discoveryprovider\.audius\.co/);
+assert.match(php,/JAMENDO_CLIENT_ID/);
+assert.match(php,/\[JAMENDO\]/);
+assert.match(php,/discoveryprovider\.audius\.co/);
 console.log('SOURCE_HEALTH_SEVEN_PROVIDERS_TLS_AUDIO_DIAGNOSTICS_OK');

@@ -7,6 +7,7 @@ on:
     paths:
       - "api.php"
       - "proxy.php"
+      - "music-official.php"
       - ".github/workflows/music-sources-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -28,6 +29,8 @@ jobs:
         run: |
           php -l api.php
           php -l proxy.php
+          php -l music-official.php
+          node .github/test-official-music.mjs
 
       - name: Start local player API
         run: |
