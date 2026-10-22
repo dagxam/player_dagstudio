@@ -332,6 +332,9 @@ if (hasAndroidMedia3) {
   DAGCarMode.addListener('audioStatus', state => {
     window.dispatchEvent(new CustomEvent('dag-native-audio-status', {detail: state}));
   }).catch(error => console.warn('Media3 status listener unavailable:', error));
+  DAGCarMode.addListener('apkUpdateProgress', state => {
+    window.dispatchEvent(new CustomEvent('dag-apk-update-progress', {detail: state}));
+  }).catch(error => console.warn('Android APK update progress listener unavailable:', error));
   App.addListener('backButton', () => {
     window.dispatchEvent(new Event('dag-android-back'));
   }).catch(error => console.warn('Android back handler unavailable:', error));

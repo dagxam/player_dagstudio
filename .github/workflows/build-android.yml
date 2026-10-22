@@ -5,23 +5,11 @@ on:
     branches:
       - main
     paths:
-      - "index.php"
-      - "script.js"
-      - "style.css"
-      - "modern.css"
-      - "studio.css"
-      - "studio.js"
-      - "studio-next.js"
-      - "studio-center.js"
-      - "studio-next.css"
-      - "studio-touch.css"
-      - "images/**"
-      - "images/**"
       - "package.json"
       - "capacitor.config.json"
       - "scripts/build-native-web.mjs"
-      - "scripts/configure-android-media.mjs"
       - "native/**"
+      - "scripts/configure-android-media.mjs"
       - ".github/test-in-app-apk-update.mjs"
       - ".github/workflows/build-android.yml"
       - ".github/test-native-media.mjs"
@@ -298,6 +286,7 @@ jobs:
           BASE_VERSION="${DAG_NATIVE_VERSION%-preview}"
           APK_NAME="DAGSTUDIO-PLAYER-Preview-$BASE_VERSION.apk"
           cp DAGSTUDIO-PLAYER-Preview.apk "apk-publish/$APK_NAME"
+          cp DAGSTUDIO-PLAYER-Preview.apk apk-publish/DAGSTUDIO-PLAYER-Preview.apk
           python - "$BASE_VERSION" "$APK_NAME" "$GITHUB_SHA" "$DAG_NATIVE_VERSION_CODE" <<'PY'
           import json,sys,hashlib,pathlib
           version,name,commit,code=sys.argv[1:]
@@ -344,4 +333,10 @@ jobs:
           test "$(sha256sum /tmp/dag-native-public.apk | awk '{print $1}')" = \
             "$(python -c 'import json; print(json.load(open("/tmp/dag-native-meta.json"))["sha256"])')"
           unzip -t /tmp/dag-native-public.apk >/dev/null
+          # The stable link is used by the public website and is checked too.
+          curl --fail --silent --show-error --location --max-time 180 --retry 2 --retry-delay 2 \
+            --resolve pl.dagstudio.ru:443:188.127.241.85 \
+            https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk \
+            -o /tmp/dag-native-latest.apk
+          cmp /tmp/dag-native-public.apk /tmp/dag-native-latest.apk
           echo "NATIVE_APK_MIRROR_TLS_SHA256_OK"

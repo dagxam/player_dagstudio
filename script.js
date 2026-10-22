@@ -80,8 +80,8 @@ const NATIVE_UPDATE_META_URL =
     'https://pl.dagstudio.ru/ota-bridge.php';
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const ANDROID_APK_LATEST_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2313';
+const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
+const WEB_BUILD_LABEL = '2314';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -408,6 +408,31 @@ window.manualUpdateApplication = async function() {
         return;
     }
     setManualUpdateButtonState('is-checking', 'Проверяем обновления…');
+    // APK downloads run in native OkHttp; relay real byte counters to the
+    // existing update button instead of leaving it spinning indefinitely.
+    let lastApkProgressAt = 0;
+    const onApkUpdateProgress = event => {
+        const data = event.detail || {};
+        const now = Date.now();
+        if (data.state === 'downloading' && now - lastApkProgressAt < 400) return;
+        lastApkProgressAt = now;
+        if (data.state === 'downloading') {
+            const pct = Number(data.percent);
+            const bytes = Number(data.bytes) || 0;
+            const amount = (bytes / 1048576).toFixed(1).replace('.', ',');
+            setManualUpdateButtonState('is-checking',
+                'Загрузка APK ' + (pct >= 0 && pct <= 100 ? pct + '% · ' : '') + amount + ' МБ');
+        } else if (data.state === 'retrying') {
+            setManualUpdateButtonState('is-checking', 'Восстанавливаем загрузку APK…');
+        } else if (data.state === 'verifying') {
+            setManualUpdateButtonState('is-checking', 'Проверяем загруженный APK…');
+        } else if (data.state === 'installing') {
+            setManualUpdateButtonState('is-checking', 'Открываем установку Android…');
+        }
+    };
+    if (NATIVE_PLATFORM === 'android') {
+        window.addEventListener('dag-apk-update-progress', onApkUpdateProgress);
+    }
 
     try {
         if (NATIVE_PLATFORM === 'ios') {
@@ -509,6 +534,8 @@ window.manualUpdateApplication = async function() {
         setManualUpdateButtonState('is-error', 'Повторить обновление');
         recordConnectivityFailure(error);
         showNotification('Онлайн-обновление не выполнено. ' + explainConnectionFailure(error));
+    } finally {
+        window.removeEventListener('dag-apk-update-progress', onApkUpdateProgress);
     }
 };
 

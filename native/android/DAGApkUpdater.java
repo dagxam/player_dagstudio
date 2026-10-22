@@ -13,6 +13,9 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import android.os.SystemClock;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.Locale;
@@ -28,17 +31,28 @@ final class DAGApkUpdater {
     private static final String PREFIX = "https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview-";
     private static final long MAX_SIZE = 100L * 1024 * 1024;
     private final DAGCarModePlugin plugin;
+    private static final long MANIFEST_TTL_MS = 90_000L;
+    private static final Object META_LOCK = new Object();
+    private static JSONObject lastManifest;
+    private static long lastManifestAt;
+
 
     DAGApkUpdater(DAGCarModePlugin plugin) { this.plugin = plugin; }
 
     private OkHttpClient client() {
         return new OkHttpClient.Builder().dns(new DAGServerDns())
-            .connectTimeout(25, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS)
-            .callTimeout(0, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS).readTimeout(45, TimeUnit.SECONDS)
+            .callTimeout(210, TimeUnit.SECONDS)
             .followRedirects(false).followSslRedirects(false).build();
     }
 
     private JSONObject manifest() throws Exception {
+        synchronized (META_LOCK) {
+            if (lastManifest != null &&
+                SystemClock.elapsedRealtime() - lastManifestAt < MANIFEST_TTL_MS) {
+                return new JSONObject(lastManifest.toString());
+            }
+        }
         OkHttpClient client = client();
         try {
             Request request = new Request.Builder().url(META)
@@ -56,6 +70,10 @@ final class DAGApkUpdater {
                     !link.equals(PREFIX + version.replace("-preview","") + ".apk") ||
                     !sha.matches("(?i)[0-9a-f]{64}") || data.getInt("version_code") < 1)
                     throw new SecurityException("Недоверенный источник APK");
+                synchronized (META_LOCK) {
+                    lastManifest = new JSONObject(data.toString());
+                    lastManifestAt = SystemClock.elapsedRealtime();
+                }
                 return data;
             }
         } finally { shutdown(client); }
@@ -106,9 +124,128 @@ final class DAGApkUpdater {
         }, "dag-apk-check").start();
     }
 
+    private void progress(String status, long bytes, long total) {
+        JSObject event = new JSObject();
+        event.put("state", status);
+        event.put("bytes", bytes);
+        event.put("total", total);
+        event.put("percent", total > 0 ? Math.min(100, (int)(bytes * 100 / total)) : -1);
+        plugin.emitApkUpdateProgress(event);
+    }
+
+    /** Resume only a version-specific partial APK from our own HTTPS host. */
+    private File download(JSONObject data, File dir) throws Exception {
+        final String expectedHash = data.getString("sha256").toLowerCase(Locale.ROOT);
+        final File part = new File(dir, expectedHash + ".part");
+        File[] old = dir.listFiles();
+        if (old != null) for (File candidate : old) {
+            if (candidate.getName().endsWith(".part") && !candidate.equals(part)) candidate.delete();
+        }
+        if (part.length() > MAX_SIZE) part.delete();
+        final String url = data.getString("url");
+        Exception lastError = null;
+        final long deadline = SystemClock.elapsedRealtime() + 360_000L;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            if (SystemClock.elapsedRealtime() > deadline)
+                throw new IOException("Превышено время загрузки. Повторите обновление.");
+            long offset = part.isFile() ? part.length() : 0;
+            if (offset >= 1048576L) {
+                // Already downloaded completely? The entire SHA must match before installing.
+                if (verifiedSha(part, expectedHash)) {
+                    progress("verifying", offset, offset);
+                    return part;
+                }
+            }
+            if (attempt > 1) progress("retrying", offset, 0);
+            OkHttpClient http = client();
+            try {
+                Request.Builder builder = new Request.Builder().url(url)
+                    .header("Cache-Control", "no-store").header("Accept-Encoding", "identity");
+                if (offset > 0) builder.header("Range", "bytes=" + offset + "-");
+                try (Response response = http.newCall(builder.build()).execute()) {
+                    int code = response.code();
+                    if (code == 416 && offset > 0) {
+                        // Stale or incomplete cached range; retry a clean full download.
+                        part.delete();
+                        throw new IOException("Частичный APK устарел: повторяем с начала");
+                    }
+                    if (code >= 500 || code == 408 || code == 429)
+                        throw new IOException("Сервер временно недоступен: HTTP " + code);
+                    if ((code != 200 && code != 206) || response.body() == null)
+                        throw new SecurityException("Неверный ответ сервера APK: HTTP " + code);
+                    boolean append = offset > 0 && code == 206;
+                    if (code == 206) {
+                        String contentRange = response.header("Content-Range", "");
+                        if (!contentRange.startsWith("bytes " + offset + "-"))
+                            throw new SecurityException("Неправильный Content-Range APK");
+                    }
+                    if (!append) offset = 0;
+                    long length = response.body().contentLength();
+                    long fullLength = length < 0 ? -1 : offset + length;
+                    if (fullLength > MAX_SIZE) throw new SecurityException("APK слишком большой");
+                    // A range request must get exactly a matching Content-Range;
+                    // servers without Range support can safely restart from zero.
+                    long downloaded = offset;
+                    long lastReport = 0;
+                    try (InputStream input = response.body().byteStream();
+                         FileOutputStream output = new FileOutputStream(part, append)) {
+                        progress("downloading", downloaded, fullLength);
+                        byte[] buffer = new byte[65536];
+                        int n;
+                        while ((n = input.read(buffer)) != -1) {
+                            downloaded += n;
+                            if (downloaded > MAX_SIZE) throw new SecurityException("APK слишком большой");
+                            output.write(buffer, 0, n);
+                            long now = SystemClock.elapsedRealtime();
+                            if (now - lastReport >= 450) {
+                                progress("downloading", downloaded, fullLength);
+                                lastReport = now;
+                            }
+                            if (now > deadline)
+                                throw new IOException("Превышено время загрузки APK");
+                        }
+                        output.getFD().sync();
+                    }
+                    progress("verifying", downloaded, fullLength);
+                    if (downloaded < 1048576L || (fullLength > 0 && downloaded != fullLength))
+                        throw new IOException("Загрузка APK прервалась");
+                }
+                if (!verifiedSha(part, expectedHash)) {
+                    part.delete();
+                    throw new SecurityException("Контрольная сумма APK не совпала");
+                }
+                return part;
+            } catch (IOException error) {
+                lastError = error; // Keep partial file for HTTP Range resume.
+                if (attempt == 3) break;
+                try { Thread.sleep(attempt * 500L); }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Загрузка прервана", interrupted);
+                }
+            } finally {
+                shutdown(http);
+            }
+        }
+        throw lastError == null ? new IOException("Не удалось скачать APK") : lastError;
+    }
+
+    private boolean verifiedSha(File file, String expected) throws Exception {
+        if (!file.isFile() || file.length() < 1048576L || file.length() > MAX_SIZE) return false;
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (FileInputStream input = new FileInputStream(file)) {
+            byte[] buffer = new byte[65536];
+            int n;
+            while ((n = input.read(buffer)) != -1) digest.update(buffer, 0, n);
+        }
+        StringBuilder actual = new StringBuilder(64);
+        for (byte value : digest.digest())
+            actual.append(String.format(Locale.ROOT, "%02x", value & 255));
+        return actual.toString().equals(expected);
+    }
+
     void install(PluginCall call) {
         new Thread(() -> {
-            File part = null;
             try {
                 if (Build.VERSION.SDK_INT >= 26 &&
                     !plugin.getContext().getPackageManager().canRequestPackageInstalls()) {
@@ -130,59 +267,31 @@ final class DAGApkUpdater {
                 File dir = new File(plugin.getContext().getCacheDir(), "dag-updates");
                 if (!dir.isDirectory() && !dir.mkdirs())
                     throw new IllegalStateException("Нет каталога для APK");
-                part = new File(dir, "download.part");
+                File part = download(data, dir);
+                progress("verifying", part.length(), part.length());
+                verify(part, remote); // Validate package and the installed signing certificate.
                 File apk = new File(dir, "DAGSTUDIO-PLAYER-update.apk");
-                if (part.exists() && !part.delete())
-                    throw new IllegalStateException("Невозможно удалить старый файл");
-                OkHttpClient http = client();
-                MessageDigest md = MessageDigest.getInstance("SHA-256");
-                long total = 0;
-                try {
-                    try (Response response = http.newCall(
-                            new Request.Builder().url(data.getString("url")).build()).execute()) {
-                        if (!response.isSuccessful() || response.body() == null)
-                            throw new IllegalStateException("Не удалось скачать APK: HTTP " + response.code());
-                        if (response.body().contentLength() > MAX_SIZE)
-                            throw new SecurityException("Размер APK превышен");
-                        try (InputStream input = response.body().byteStream();
-                             FileOutputStream output = new FileOutputStream(part)) {
-                            byte[] buffer = new byte[32768];
-                            int count;
-                            while ((count = input.read(buffer)) != -1) {
-                                total += count;
-                                if (total > MAX_SIZE) throw new SecurityException("APK слишком большой");
-                                md.update(buffer, 0, count);
-                                output.write(buffer, 0, count);
-                            }
-                            output.getFD().sync();
-                        }
-                    }
-                } finally { shutdown(http); }
-                StringBuilder sha = new StringBuilder();
-                for (byte b : md.digest()) sha.append(String.format(Locale.ROOT,"%02x", b & 255));
-                if (total < 1048576 || !sha.toString().equalsIgnoreCase(data.getString("sha256")))
-                    throw new SecurityException("APK повреждён: неверный размер или SHA-256");
-                verify(part, remote);
-                if (apk.exists() && !apk.delete()) throw new IllegalStateException("Не удалось удалить старый APK");
-                if (!part.renameTo(apk)) throw new IllegalStateException("Не удалось сохранить проверенный APK");
-                part = null;
+                if (apk.exists() && !apk.delete())
+                    throw new IllegalStateException("Не удалось удалить старый APK");
+                if (!part.renameTo(apk))
+                    throw new IllegalStateException("Не удалось сохранить проверенный APK");
                 Activity activity = plugin.getActivity();
                 if (activity == null) throw new IllegalStateException("Окно установщика недоступно");
-                Uri file = FileProvider.getUriForFile(plugin.getContext(),
+                Uri uri = FileProvider.getUriForFile(plugin.getContext(),
                     plugin.getContext().getPackageName() + ".dagstudio.updates", apk);
+                progress("installing", apk.length(), apk.length());
                 activity.runOnUiThread(() -> {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW);
-                        intent.setDataAndType(file,"application/vnd.android.package-archive");
+                        intent.setDataAndType(uri, "application/vnd.android.package-archive");
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         activity.startActivity(intent);
                         JSObject result = new JSObject();
-                        result.put("status","installer-opened");
+                        result.put("status", "installer-opened");
                         call.resolve(result);
                     } catch (Exception e) { call.reject("Ошибка запуска системного установщика", e); }
                 });
             } catch (Exception e) {
-                if (part != null) part.delete();
                 call.reject("Ошибка обновления Android: " + e.getMessage(), e);
             }
         }, "dag-apk-install").start();

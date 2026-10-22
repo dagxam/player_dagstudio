@@ -147,6 +147,10 @@ public class DAGCarModePlugin extends Plugin {
         }
     }
 
+    void emitApkUpdateProgress(JSObject event) {
+        notifyListeners("apkUpdateProgress", event, true);
+    }
+
     @PluginMethod
     public void checkApkUpdate(PluginCall call) {
         new DAGApkUpdater(this).check(call);
