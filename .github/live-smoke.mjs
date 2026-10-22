@@ -93,7 +93,7 @@ try {
         sidebar:wide?(side.width>=150&&side.left>=-1):(side.width>200&&getComputedStyle(nav).position==='fixed'),
         center:wide?(center.width>=275&&Math.abs(center.left-side.right)<5):center.width>=innerWidth-3,
         hero:wide?(hero.width>=270&&Math.abs(hero.left-center.right)<5):hero.width>=innerWidth-3,
-        cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length===6,
+        cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length>=8,
         brand:!!nav.querySelector('.showcase-brand'),
         allActions:['search','wave','playlists','likes','offline','charts','collections','equalizer','settings'].every(k=>
              !!document.getElementById('showcase-'+k)),
