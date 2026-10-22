@@ -483,7 +483,8 @@ elseif ($action === 'search_global') {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
         curl_setopt($ch, CURLOPT_TIMEOUT, $provider_timeout); 
         curl_setopt($ch, CURLOPT_ENCODING, '');
@@ -778,7 +779,8 @@ elseif ($action === 'search_global') {
                 $ch = curl_init($du);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $weak_client ? 2 : 3);
                 curl_setopt($ch, CURLOPT_TIMEOUT, $weak_client ? 3 : 5);
                 curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, $weak_client ? 64 : 128);
@@ -929,6 +931,20 @@ elseif ($action === 'search_global') {
     $source_counts = [];
     foreach ($by_source as $source => $items) {
         $source_counts[$source] = count($items);
+    }
+    // HTTP 200 does not mean this site actually yielded matching tracks.
+    // Keep the old ok/http fields for compatibility; add candidate diagnostics
+    // without claiming that the audio stream was verified.
+    $provider_source_keys = [
+        'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
+        'hitmoz' => '[HITMOZ]', 'muzo' => '[MUZOFOND]',
+        'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]'
+    ];
+    foreach ($provider_source_keys as $key => $label) {
+        $count = (int)($source_counts[$label] ?? 0);
+        $source_status[$key]['matching_tracks'] = $count;
+        $source_status[$key]['has_results'] = $count > 0;
+        $source_status[$key]['audio_verified'] = false;
     }
 
     echo json_encode([

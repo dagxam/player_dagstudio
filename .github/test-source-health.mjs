@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const php=readFileSync(new URL('../api.php',import.meta.url),'utf8');
+const js=readFileSync(new URL('../script.js',import.meta.url),'utf8');
+const workflow=readFileSync(new URL('./workflows/music-sources-smoke.yml',import.meta.url),'utf8');
+const proxy=readFileSync(new URL('../proxy.php',import.meta.url),'utf8');
+const providers=['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'];
+for(const id of providers){
+  assert.ok(php.includes("'"+id+"'"),'search provider missing: '+id);
+  assert.ok(js.includes("key:'"+id+"'"),'diagnostics missing: '+id);
+  assert.ok(workflow.includes("'"+id+"'"),'health workflow missing: '+id);
+}
+assert.doesNotMatch(php,/CURLOPT_SSL_VERIFYPEER\s*,\s*false/);
+assert.equal((php.match(/CURLOPT_SSL_VERIFYHOST,\s*2/g)||[]).length,2);
+assert.match(php,/matching_tracks/);
+assert.match(php,/has_results/);
+assert.match(php,/audio_verified/);
+assert.match(js,/Math\.min\(3,pending\.length\)/);
+assert.match(js,/ответ есть, совпадений нет/);
+assert.match(workflow,/LIVE_SOURCE_AUDIO/);
+assert.match(workflow,/matching_tracks/);
+assert.match(workflow,/25 \*\/6 \* \* \*/);
+assert.match(proxy,/CURLOPT_SSL_VERIFYPEER => true/);
+assert.match(proxy,/CURLOPT_SSL_VERIFYHOST => 2/);
+console.log('SOURCE_HEALTH_SEVEN_PROVIDERS_TLS_AUDIO_DIAGNOSTICS_OK');

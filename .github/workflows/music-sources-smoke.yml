@@ -9,6 +9,8 @@ on:
       - "proxy.php"
       - ".github/workflows/music-sources-smoke.yml"
   workflow_dispatch:
+  schedule:
+    - cron: '25 */6 * * *'
 
 permissions:
   contents: read
@@ -93,9 +95,15 @@ jobs:
           data=json.load(open('/tmp/dag-public-search.json'))
           items=data.get('data') or []
           print('LIVE_SEARCH_COUNT',len(items))
+          counts=data.get('source_counts') or {}
+          names={'audius':'[AUDIUS]','vk_mail':'[VK]','hitmoz':'[HITMOZ]',
+                 'muzo':'[MUZOFOND]','zvooq':'[ZVOOQ]',
+                 'muzvox':'[MUZVOX]','muzca':'[MUZCA]'}
           for k,v in (data.get('sources') or {}).items():
               print('LIVE_SOURCE',k,'ok='+str(bool(v.get('ok'))).lower(),
-                    'http='+str(v.get('http',0)))
+                    'http='+str(v.get('http',0)),
+                    'matching_tracks='+str(counts.get(names.get(k,''),0)),
+                    'audio_verified=false')
           assert data.get('success') is True and len(items)>0, 'Live API search unavailable'
           PY
           curl --fail --silent --show-error --retry 2 --max-time 35 \
@@ -105,6 +113,39 @@ jobs:
           data=json.load(open('/tmp/dag-public-ota.json'))
           assert data.get('version') and data.get('checksum') and data.get('url')
           print('LIVE_OTA_VERSION',data['version'])
+          PY
+
+
+      - name: Probe representative audio per source on production
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import concurrent.futures,json,urllib.request,urllib.parse
+          data=json.load(open('/tmp/dag-public-search.json'))
+          groups={}
+          for item in data.get('data',[]):
+              tag=str(item.get('source','')).upper()
+              if item.get('url') and tag and tag not in groups:
+                  groups[tag]=item
+          labels=['[AUDIUS]','[VK]','[HITMOZ]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]']
+          def probe(label):
+              t=groups.get(label)
+              if not t:return (label,'NO_MATCHING_SEARCH_RESULT')
+              url='https://pl.dagstudio.ru/proxy.php?'+urllib.parse.urlencode({
+                  'url':t['url'],'source':label.strip('[]').lower(),'weak':'1'})
+              req=urllib.request.Request(url,method='HEAD',
+                  headers={'User-Agent':'DAGSTUDIO-PLAYER-source-health/1.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      mime=r.headers.get('content-type','')
+                      return (label,'AUDIO_HEAD_OK' if r.status in (200,206) and mime.startswith('audio/') else 'BAD_RESPONSE',
+                          r.status,mime[:50])
+              except Exception as err:return (label,'AUDIO_HEAD_FAILED',str(err)[:120])
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+              statuses=list(ex.map(probe,labels))
+          for item in statuses:print('LIVE_SOURCE_AUDIO',*item)
+          if not any(row[1]=='AUDIO_HEAD_OK' for row in statuses):
+              print('WARNING: No sample audio URL passed HEAD; investigate provider/server connectivity')
           PY
 
       - name: Stop local API

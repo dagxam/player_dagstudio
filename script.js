@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2315';
+const WEB_BUILD_LABEL = '2316';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -2613,7 +2613,7 @@ async function testMusicSourceHealth() {
     const button=document.getElementById('source-health-test');
     if (!result) return;
     if (button) button.disabled=true;
-    result.textContent='Проверяем поиск у подключённых источников…';
+    result.textContent='Проверяем все 7 источников…';
     const started=Date.now();
     try {
         const response=await api('search_global', {
@@ -2621,37 +2621,64 @@ async function testMusicSourceHealth() {
         });
         if (response?.error) throw new Error(String(response.error));
         if (!response?.success || !response?.sources) throw new Error('Не получен ответ от поискового API.');
-        const labels={audius:'Audius',vk_mail:'VK / Slider',hitmoz:'Hitmoz',
-            muzo:'Muzofond',zvooq:'Zvooq',muzvox:'Muzvox',muzca:'Muzca'};
+        const sources=[
+            {key:'audius',label:'Audius',source:'[AUDIUS]'},
+            {key:'vk_mail',label:'VK / Slider',source:'[VK]'},
+            {key:'hitmoz',label:'Hitmoz',source:'[HITMOZ]'},
+            {key:'muzo',label:'Muzofond',source:'[MUZOFOND]'},
+            {key:'zvooq',label:'Zvooq',source:'[ZVOOQ]'},
+            {key:'muzvox',label:'MuzVox',source:'[MUZVOX]'},
+            {key:'muzca',label:'Muzca',source:'[MUZCA]'}
+        ];
         const samples=Array.isArray(response.data)?response.data:[];
-        const output=['Проверка источников · '+((Date.now()-started)/1000).toFixed(1)+' с'];
+        const counts=response.source_counts||{};
         const skipStreams = playbackWanted && bufferedSecondsAhead()<25;
-        for (const [key,label] of Object.entries(labels)) {
-            const info=response.sources[key] || {};
-            const tags={audius:['audius'],vk_mail:['slider','vk'],hitmoz:['hitmoz'],
-                muzo:['muzofond'],zvooq:['zvooq'],muzvox:['muzvox'],muzca:['muzca']};
-            const sample=samples.find(item => item?.url &&
-                tags[key].some(tag=>String(item.source||'').toLowerCase().includes(tag)));
-            let line=label+': поиск '+(info.ok?'доступен':'недоступен')+
-                ' (HTTP '+(Number(info.http)||0)+')';
-            if (skipStreams) line+=' · поток не проверен: бережём буфер';
-            else if (sample) {
-                const probe=await probeSourceAudio(sample);
-                line+=' · аудио '+(probe.ok?'доступно':'ошибка')+
-                    ' (HTTP '+probe.code+', '+((probe.ms||0)/1000).toFixed(1)+' с)';
-            } else line+=' · аудио: нет примера в результатах';
-            output.push(line);
-            result.textContent=output.join('\n');
+        const lines=sources.map(({key,label,source})=>{
+            const info=response.sources[key]||{};
+            const count=Number(counts[source])||0;
+            const status=info.ok
+                ? (count>0?'есть совпадения':'ответ есть, совпадений нет')
+                : 'недоступен';
+            return label+': поиск '+status+' · '+count+' тр. (HTTP '+
+                (Number(info.http)||0)+')';
+        });
+        const render=()=>{
+            result.textContent=['Проверка 7 источников · '+((Date.now()-started)/1000).toFixed(1)+' с',
+                ...lines,
+                'HTTP 200 — не гарантия аудио. Проверка выполнена из сети сервера DAGSTUDIO.',
+                'При слабом сигнале или воспроизведении с малым буфером аудиопроверка пропускается.'
+            ].join('\n');
+        };
+        render();
+        if (!skipStreams) {
+            // Cap concurrency at three: old sequential seven-HEAD probes could
+            // hold the UI up for nearly two minutes on broken providers.
+            const pending=sources.map(({source},index)=>{
+                const item=samples.find(t=>t?.url&&String(t.source||'').toUpperCase()===source);
+                return {index,item};
+            }).filter(x=>x.item);
+            let cursor=0;
+            const worker=async()=>{
+                while(cursor<pending.length){
+                    const {index,item}=pending[cursor++];
+                    const probe=await probeSourceAudio(item);
+                    lines[index]+=' · аудио: '+(probe.ok?'отвечает':'ошибка')+
+                        ' (HTTP '+probe.code+', '+((probe.ms||0)/1000).toFixed(1)+' с)';
+                    render();
+                }
+            };
+            await Promise.all(Array.from({length:Math.min(3,pending.length)},worker));
         }
-        output.push('Проверка одного потока не гарантирует работу всех треков источника.');
-        result.textContent=output.join('\n');
+        const hasMatches=sources.filter(({source})=>Number(counts[source])>0).length;
+        lines.push('С результатами по Miyagi: '+hasMatches+' из 7 источников.');
+        lines.push('Для других исполнителей результаты могут отличаться. Работа в России без VPN проверяется отдельно на устройстве.');
+        render();
         recordPlayerEvent('provider-diagnostics');
     } catch(error) {
         recordConnectivityFailure(error);
         result.textContent='Проверка источников: '+explainConnectionFailure(error);
     } finally { if(button) button.disabled=false; }
 }
-
 function copyPlayerDiagnostics() {
     const content=['DAGSTUDIO PLAYER diagnostics',
         document.getElementById('diagnostics-info')?.textContent || '',

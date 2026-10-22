@@ -44,6 +44,7 @@ jobs:
           node .github/test-trusted-ip-dns.mjs
           node .github/test-in-app-apk-update.mjs
           node .github/test-fast-start.mjs
+          node .github/test-source-health.mjs
           node --check scripts/configure-android-media.mjs
           php -l ota-bridge.php
           node .github/test-offline-batch.mjs

@@ -71,7 +71,9 @@ jobs:
           grep -q 'https://pl.dagstudio.ru' www/script.js
 
       - name: Test fast startup and OTA-only update actions
-        run: node .github/test-fast-start.mjs
+        run: |
+          node .github/test-fast-start.mjs
+          node .github/test-source-health.mjs
 
       - name: Test manual OTA and backup delivery
         run: node .github/test-ota-update.mjs
