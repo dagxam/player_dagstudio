@@ -2756,7 +2756,7 @@ function downloadCurrentPlaylistOffline() {
     if(!playlist.length)return showNotification('В этом списке нет треков.');
     if(offlineBatch?.pending.size)return showNotification('Загрузка плейлиста уже идёт. Дождитесь завершения.');
     const tracks=playlist.filter(track=>track?.url&&isRemoteMediaUrl(track.url) &&
-        track.source!=='[JAMENDO]'&&!isJamendoStreamUrl(track.url));
+        track.source!=='[JAMENDO]'&&!/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(track.url)));
     const unique=[],seen=new Set();
     for(const track of tracks){
         const url=canonicalTrackUrl(track);
@@ -6060,7 +6060,8 @@ function renderPlaylist() {
         }
         
         const downloadBtn = (t.url && isRemoteMediaUrl(t.url) &&
-            t.source !== '[JAMENDO]' && !isJamendoStreamUrl(t.url)) 
+            t.source !== '[JAMENDO]' &&
+            !/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(t.url))) 
             ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>` 
             : '';
 
