@@ -22,6 +22,8 @@ assert.match(official,/CURLOPT_SSL_VERIFYHOST => 2/);
 assert.match(proxy,/'storage\.jamendo\.com'/);
 assert.match(proxy,/'discoveryprovider\.audius\.co'/);
 assert.match(js,/window\.browseOfficialAudius = async function/);
+assert.match(js,/startQuickMix\(mode==='latest'\?'charts':'hits'\)/);
+assert.match(js,/переключаемся на резервные источники/);
 assert.match(js,/official_audius_feed/);
 assert.match(js,/t\.source !== '\[JAMENDO\]'/);
 assert.match(js,/creativecommons\\.org/);

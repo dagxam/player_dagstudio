@@ -32,8 +32,8 @@ const worldCatalogues=[
   url:'https://musicbrainz.org/'}
 ];
 const officialAudiusCards=[
- {title:'Audius · новинки',desc:'Официальный API · песни в плеере',icon:'bolt',mode:'latest'},
- {title:'Audius · популярное',desc:'Официальный API · песни в плеере',icon:'chart-line',mode:'trending'}
+ {title:'Новые песни · все источники',desc:'Audius с резервом через DAGSTUDIO',icon:'bolt',mode:'latest'},
+ {title:'Популярные песни · все источники',desc:'Audius с резервом через DAGSTUDIO',icon:'chart-line',mode:'trending'}
 ];
 function openCaucasusCatalogue(link){
  const allowed=[...caucasusCatalogues,...worldCatalogues].some(item=>item.url===link);

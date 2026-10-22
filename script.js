@@ -5285,8 +5285,17 @@ window.browseOfficialAudius = async function(mode='latest') {
         searchPlaylistCache=[];
         renderPlaylist();
         recordConnectivityFailure(error);
-        displaySearchMessage('Сервер Audius временно недоступен. Попробуйте позже или используйте общий поиск.');
-        searchStatus(explainConnectionFailure(error),true);
+        // Keep discovery useful in Russia even when Audius blocks the server.
+        // Charts/hits use the existing 7+ optional provider search pipeline;
+        // do not pretend they are Audius tracks or invent release dates.
+        searchStatus('Audius не отвечает · переключаемся на резервные источники…');
+        showNotification('Audius временно недоступен. Ищем музыку в остальных источниках.');
+        try {
+            await startQuickMix(mode==='latest'?'charts':'hits');
+        } catch(fallbackError) {
+            displaySearchMessage('Внешние источники временно недоступны. Повторите поиск позже.');
+            searchStatus(explainConnectionFailure(fallbackError),true);
+        }
     } finally {
         if(id===searchRequestSerial)isSearchLoading=false;
     }
