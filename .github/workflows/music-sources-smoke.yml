@@ -120,6 +120,33 @@ jobs:
           PY
 
 
+      - name: Verify official Audius latest and trending JSON on production
+        run: |
+          set -euo pipefail
+          for MODE in latest trending; do
+            curl --fail --silent --show-error --retry 2 --max-time 35 \
+              --resolve pl.dagstudio.ru:443:188.127.241.85 \
+              -H 'Content-Type: application/json' \
+              --data "{\"action\":\"official_audius_feed\",\"mode\":\"$MODE\",\"page\":1}" \
+              https://pl.dagstudio.ru/api.php -o "/tmp/dag-audius-$MODE.json"
+            python - "$MODE" <<'PY'
+          import json,sys
+          mode=sys.argv[1]
+          data=json.load(open(f'/tmp/dag-audius-{mode}.json'))
+          assert isinstance(data.get('success'),bool),data
+          assert isinstance(data.get('data'),list),data
+          print('AUDIO_OFFICIAL_FEED',mode,'available='+str(data['success']).lower(),
+                'items='+str(len(data['data'])),'provider='+str(data.get('provider')))
+          for track in data['data'][:3]:
+              assert track.get('source')=='[AUDIUS]'
+              assert str(track.get('url','')).startswith((
+                'https://api.audius.co/v1/tracks/',
+                'https://discoveryprovider.audius.co/v1/tracks/'))
+          if not data['success']:
+              print('WARNING: Audius official',mode,'API unavailable from production host')
+          PY
+          done
+
       - name: Probe representative audio per source on production
         run: |
           set -euo pipefail
