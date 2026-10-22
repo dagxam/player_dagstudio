@@ -51,7 +51,7 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path('/tmp/source-health.json').read_text())
-          expected = ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca']
+          expected = ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca','jamendo']
 
           assert data.get('success') is True, data
           sources = data.get('sources') or {}
@@ -75,7 +75,7 @@ jobs:
                       'muzo':'[MUZOFOND]',
                       'zvooq':'[ZVOOQ]',
                       'muzvox':'[MUZVOX]',
-                      'muzca':'[MUZCA]'
+                      'muzca':'[MUZCA]', 'jamendo':'[JAMENDO]'
                   }[name], 0)),
                   "error="+str(info.get("error",""))[:100]
               )
@@ -101,7 +101,8 @@ jobs:
           counts=data.get('source_counts') or {}
           names={'audius':'[AUDIUS]','vk_mail':'[VK]','hitmoz':'[HITMOZ]',
                  'muzo':'[MUZOFOND]','zvooq':'[ZVOOQ]',
-                 'muzvox':'[MUZVOX]','muzca':'[MUZCA]'}
+                 'muzvox':'[MUZVOX]','muzca':'[MUZCA]',
+                 'jamendo':'[JAMENDO]'}
           for k,v in (data.get('sources') or {}).items():
               print('LIVE_SOURCE',k,'ok='+str(bool(v.get('ok'))).lower(),
                     'http='+str(v.get('http',0)),
@@ -130,7 +131,7 @@ jobs:
               tag=str(item.get('source','')).upper()
               if item.get('url') and tag and tag not in groups:
                   groups[tag]=item
-          labels=['[AUDIUS]','[VK]','[HITMOZ]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]']
+          labels=['[AUDIUS]','[VK]','[HITMOZ]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]']
           def probe(label):
               t=groups.get(label)
               if not t:return (label,'NO_MATCHING_SEARCH_RESULT')
