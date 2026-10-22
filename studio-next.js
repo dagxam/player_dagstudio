@@ -291,4 +291,6 @@ refreshShowcase();showCurated();
 // visually hidden on wide screens and retained under the mobile fallback.
 document.getElementById('search-input')?.addEventListener('focus',()=>showList('search'));
 window.studioShowCurated=showCurated;window.studioShowList=showList;
+// Release the boot overlay only after the real three-column navigation exists.
+window.dispatchEvent(new Event('dag-ui-ready'));
 })();

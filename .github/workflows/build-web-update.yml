@@ -70,6 +70,9 @@ jobs:
           grep -q "$GITHUB_SHA" www/index.html
           grep -q 'https://pl.dagstudio.ru' www/script.js
 
+      - name: Test fast startup and OTA-only update actions
+        run: node .github/test-fast-start.mjs
+
       - name: Test manual OTA and backup delivery
         run: node .github/test-ota-update.mjs
 

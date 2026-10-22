@@ -24,6 +24,15 @@ page.on('pageerror', err => pageErrors.push(String(err)));
 
 try {
   await page.goto(url + '?smoke=' + Date.now(), { waitUntil: 'domcontentloaded', timeout: 45000 });
+  // The desktop PWA must never show a blank black canvas for 12 seconds.
+  // UI readiness is signalled by the actual showcase, not by a long timeout.
+  await page.waitForFunction(() => {
+    const app = document.querySelector('.main-container');
+    const visible = app && getComputedStyle(app).visibility !== 'hidden';
+    return visible && !document.documentElement.classList.contains('studio-booting') &&
+      !!document.getElementById('studio-navigation');
+  }, {timeout:7000});
+  console.log('BOOT_VISIBLE_WITH_NAVIGATION_OK');
   // A newly activated service worker intentionally reloads the page once.
   // Give that migration reload time to finish before evaluating the app.
   await new Promise(resolve => setTimeout(resolve, 2500));
