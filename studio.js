@@ -22,8 +22,19 @@
   const headerLogo=el('img','studio-header-logo');
   headerLogo.src=themeCover();headerLogo.alt='';
   headerBrand.insertBefore(headerLogo,headerBrand.firstChild);
+  // Keep the search card outside the legacy action header.
+  // Placing a full-width card beside fixed-width buttons causes clipped
+  // blue controls on TEYES and desktop in the modern showcase layout.
   const search=document.getElementById('search-container-box');
-  if(search)head.insertBefore(search,head.firstChild);
+  const heading=search?.querySelector('.dag-search-heading');
+  const shuffle=head.querySelector('#smart-shuffle-btn');
+  if(heading&&shuffle){
+    const actions=el('div','dag-search-heading-actions');
+    const subtitle=heading.querySelector('small');
+    if(subtitle)actions.appendChild(subtitle);
+    actions.appendChild(shuffle); // Move the same button; keep its click handler.
+    heading.appendChild(actions);
+  }
   const searchInput=document.getElementById('search-input');
   if(searchInput)searchInput.placeholder='Поиск: трек, исполнитель или жанр…';
 

@@ -1284,12 +1284,22 @@ try {
         getComputedStyle(input).visibility!=='hidden' &&
         getComputedStyle(input).display!=='none',
       listVisible:document.getElementById('right-col-container')?.classList.contains('showcase-list')===true,
+      standaloneSearch:document.getElementById('search-container-box')?.parentElement?.id==='right-col-container',
+      legacyHeaderHidden:getComputedStyle(document.querySelector('.right-col-header')).display==='none',
+      shuffleInHeading:!!document.querySelector('#search-container-box .dag-search-heading-actions #smart-shuffle-btn'),
+      shuffleFits:(()=>{
+        const b=document.getElementById('smart-shuffle-btn')?.getBoundingClientRect();
+        const r=document.getElementById('right-col-container')?.getBoundingClientRect();
+        return !!b&&!!r&&b.width>=35&&b.left>=r.left&&b.right<=r.right+1;
+      })(),
       brandFits:!!name && !!parent && name.left>=parent.left-1 && name.right<=parent.right+1,
       name:title?.textContent||''
     };
   });
   console.log('SEARCH_INPUT_AND_BRAND_1024',JSON.stringify(searchLayout));
   if(!searchLayout.visible || !searchLayout.listVisible || !searchLayout.brandFits ||
+    !searchLayout.standaloneSearch || !searchLayout.legacyHeaderHidden ||
+    !searchLayout.shuffleInHeading || !searchLayout.shuffleFits ||
     searchLayout.name!=='DAGSTUDIO')throw new Error('Search field hidden or brand clipped');
   await page.$eval('#search-input',input=>{
     input.value='Miyagi';

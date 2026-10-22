@@ -439,3 +439,47 @@
  display:inline-flex!important;align-items:center;justify-content:center;
  flex:0 0 18px;pointer-events:none;
 }
+
+/* 2314: The modern search card is its own panel, not a flex item next to
+   obsolete toolbar icons. The shuffle action remains in the card heading. */
+.studio-showcase>.right-col.showcase-list>.right-col-header{
+ display:none!important;
+}
+.studio-showcase>.right-col.showcase-list #search-container-box{
+ position:relative;box-sizing:border-box!important;
+ width:calc(100% - 20px)!important;max-width:calc(100% - 20px)!important;
+ min-width:0!important;flex:0 0 auto!important;
+}
+.studio-showcase #search-container-box .dag-search-heading{
+ display:flex!important;align-items:center!important;flex-wrap:wrap!important;
+ gap:6px 10px!important;min-width:0!important;
+}
+.studio-showcase #search-container-box .dag-search-heading-actions{
+ display:flex;align-items:center;justify-content:flex-end;
+ gap:9px;min-width:0;max-width:100%;margin-left:auto;
+}
+.studio-showcase #search-container-box .dag-search-heading-actions small{
+ flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:break-word;
+ text-align:right;
+}
+.studio-showcase #search-container-box .dag-search-heading-actions #smart-shuffle-btn{
+ display:grid!important;place-items:center!important;
+ width:40px!important;min-width:40px!important;height:40px!important;
+ min-height:40px!important;flex:0 0 40px!important;
+ padding:0!important;margin:0!important;border-radius:11px!important;
+ background:rgba(var(--theme-rgb,192,108,66),.10)!important;
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.32)!important;
+ box-shadow:none!important;color:var(--theme-bright,#e5a078)!important;
+}
+.studio-showcase #search-container-box .dag-search-heading-actions #smart-shuffle-btn:hover{
+ background:rgba(var(--theme-rgb,192,108,66),.23)!important;
+ border-color:var(--theme-bright,#e5a078)!important;
+}
+@media(max-width:450px){
+ .studio-showcase #search-container-box .dag-search-heading-actions{
+  flex-wrap:wrap;gap:6px;justify-content:flex-end;
+ }
+ .studio-showcase #search-container-box .dag-search-heading-actions small{
+  font-size:.57rem;line-height:1.25;
+ }
+}
