@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=path=>readFileSync(new URL('../'+path,import.meta.url));
+const html=read('index.php').toString('utf8');
+const sw=read('sw.js').toString('utf8');
+const native=read('scripts/build-native-web.mjs').toString('utf8');
+const css=read('vendor/fontawesome/css/all.min.css').toString('utf8');
+const ftp=read('.github/workflows/deploy.yml').toString('utf8');
+const ota=read('.github/workflows/build-web-update.yml').toString('utf8');
+const apk=read('.github/workflows/build-android.yml').toString('utf8');
+const smoke=read('.github/live-smoke.mjs').toString('utf8');
+assert.match(html,/href="vendor\/fontawesome\/css\/all\.min\.css\?v=6722"/);
+assert.doesNotMatch(html,/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/);
+assert.match(css,/Font Awesome Free 6\.7\.2/);
+for(const name of ['fa-solid-900','fa-regular-400','fa-brands-400']){
+  const woff=read('vendor/fontawesome/webfonts/'+name+'.woff2');
+  const ttf=read('vendor/fontawesome/webfonts/'+name+'.ttf');
+  assert.equal(woff.subarray(0,4).toString('ascii'),'wOF2',name+' corrupt WOFF2');
+  assert.ok(woff.length>10000 && ttf.length>10000,name+' assets too small');
+  assert.ok(css.includes('../webfonts/'+name+'.woff2'),name+' not referenced by CSS');
+  assert.ok(css.includes('../webfonts/'+name+'.ttf'),name+' TTF not referenced by CSS');
+  assert.ok(sw.includes('/vendor/fontawesome/webfonts/'+name+'.woff2'),name+' not precached');
+}
+assert.match(sw,/dagstudio-player-shell-v2327/);
+assert.doesNotMatch(sw,/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/);
+assert.match(native,/await cp\(faRoot, join\(out, 'vendor', 'fontawesome'\)/);
+assert.match(native,/Native HTML must use the local Font Awesome stylesheet/);
+assert.match(ftp,/node \.github\/test-local-icons\.mjs/);
+assert.match(ota,/node \.github\/test-local-icons\.mjs/);
+assert.match(apk,/node \.github\/test-local-icons\.mjs/);
+assert.match(smoke,/LOCAL_ICON_FONTS/);
+assert.ok(read('vendor/fontawesome/LICENSE.txt').length>2000);
+console.log('LOCAL_FONTAWESOME_672_ICONS_OFFLINE_ANDROID_PWA_OK');

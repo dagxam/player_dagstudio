@@ -1,4 +1,4 @@
-import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
@@ -22,10 +22,7 @@ html = html
     (_, classes = '') => `<html lang="ru" class="${classes} native-app">`)
   .replace('</head>', `    <script>window.DAG_NATIVE_APP = true; window.DAG_NATIVE_BUILD_VERSION = ${JSON.stringify(buildVersion)}; window.DAG_NATIVE_BUILD_COMMIT = ${JSON.stringify(process.env.GITHUB_SHA || "")};</script>\n</head>`)
   .replace(/\s*<link rel="manifest"[^>]*>\s*/i, '\n')
-  .replace(
-    /<link rel="stylesheet" href="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\/[^"]+\/css\/all\.min\.css">/i,
-    '<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">'
-  )
+  // Local Font Awesome is referenced directly by index.php.
   .replace(
     /<button id="pwa-install-btn"[\s\S]*?<\/button>/i,
     ''
@@ -77,6 +74,10 @@ document.body.appendChild(script);`
 // Root-relative images should stay inside the APK web root.
 html = html.replace(/(href|src)="\/images\//g, '$1="images/');
 
+if (!html.includes('href="vendor/fontawesome/css/all.min.css?v=6722"') ||
+    /cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome\//i.test(html)) {
+  throw new Error('Native HTML must use the local Font Awesome stylesheet, never CDN.');
+}
 await writeFile(join(out, 'index.html'), html, 'utf8');
 await copyFile(join(root, 'script.js'), join(out, 'script.js'));
 await copyFile(join(root, 'native', 'native-audio-adapter.js'), join(out, 'native-audio-adapter.js'));
@@ -100,10 +101,13 @@ await esbuild({
 });
 await cp(join(root, 'images'), join(out, 'images'), { recursive: true });
 
-const faRoot = join(root, 'node_modules', '@fortawesome', 'fontawesome-free');
-await mkdir(join(out, 'vendor', 'fontawesome', 'css'), { recursive: true });
-await cp(join(faRoot, 'webfonts'), join(out, 'vendor', 'fontawesome', 'webfonts'), { recursive: true });
-await copyFile(join(faRoot, 'css', 'all.min.css'), join(out, 'vendor', 'fontawesome', 'css', 'all.min.css'));
+// Ship the exact same self-hosted font version in website, OTA and APK.
+const faRoot = join(root, 'vendor', 'fontawesome');
+for (const name of ['fa-solid-900', 'fa-regular-400', 'fa-brands-400']) {
+  const font = await stat(join(faRoot, 'webfonts', name + '.woff2'));
+  if (font.size < 10000) throw new Error('Missing Font Awesome ' + name);
+}
+await cp(faRoot, join(out, 'vendor', 'fontawesome'), { recursive: true });
 
 // @capacitor/assets Easy Mode: one 1024×1024 source generates Android/iOS icons and splash assets.
 await rm(assetsDir, { recursive: true, force: true });

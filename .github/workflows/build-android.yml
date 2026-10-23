@@ -8,6 +8,7 @@ on:
       - "package.json"
       - "capacitor.config.json"
       - "scripts/build-native-web.mjs"
+      - "vendor/fontawesome/**"
       - "native/**"
       - "scripts/configure-android-media.mjs"
       - ".github/test-in-app-apk-update.mjs"
@@ -82,6 +83,7 @@ jobs:
         run: |
           node --check scripts/configure-android-media.mjs
           node .github/test-in-app-apk-update.mjs
+          node .github/test-local-icons.mjs
 
       - name: Test WebView fallback for CC3 DNS failures
         run: node .github/test-native-http-fallback.mjs

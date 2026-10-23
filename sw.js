@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2326';
+const CACHE_NAME = 'dagstudio-player-shell-v2327';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -14,6 +14,10 @@ const CORE_ASSETS = [
     '/studio-next.js?v=14',
     '/studio-center.js?v=6',
     '/studio-touch.css?v=11',
+    '/vendor/fontawesome/css/all.min.css?v=6722',
+    '/vendor/fontawesome/webfonts/fa-solid-900.woff2',
+    '/vendor/fontawesome/webfonts/fa-regular-400.woff2',
+    '/vendor/fontawesome/webfonts/fa-brands-400.woff2',
     '/images/studio-wave.svg',
     '/images/studio-sunset.svg',
     '/manifest.json?v=2216',
@@ -22,23 +26,13 @@ const CORE_ASSETS = [
     '/images/cover.png'
 ];
 
-const OPTIONAL_ASSETS = [
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
-];
+// Icon CSS and font files are cached locally above; no optional CDN calls.
 
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(function(cache) {
                 return Promise.all(CORE_ASSETS.map(function(asset) {
-                    return cache.add(asset).catch(function() { return null; });
-                }));
-            })
-            .then(function() {
-                return caches.open(RUNTIME_CACHE);
-            })
-            .then(function(cache) {
-                return Promise.all(OPTIONAL_ASSETS.map(function(asset) {
                     return cache.add(asset).catch(function() { return null; });
                 }));
             })

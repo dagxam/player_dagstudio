@@ -65,6 +65,36 @@ try {
     audio: !!document.getElementById('main-audio')
   }));
   console.log('BASICS', JSON.stringify(basics));
+  // Verify glyph fonts really load: an outlined button without a font is blank
+  // on CC3 even when its CSS class is present.
+  const localIcons = await page.evaluate(async () => {
+    const urls = [
+      '/vendor/fontawesome/css/all.min.css?v=6722',
+      '/vendor/fontawesome/webfonts/fa-solid-900.woff2',
+      '/vendor/fontawesome/webfonts/fa-regular-400.woff2',
+      '/vendor/fontawesome/webfonts/fa-brands-400.woff2'
+    ];
+    const status=await Promise.all(urls.map(async url=>{
+      const response=await fetch(url,{cache:'no-store'});
+      return {url,ok:response.ok,status:response.status,type:response.headers.get('content-type')};
+    }));
+    const faces=await Promise.all([
+      document.fonts.load('900 16px "Font Awesome 6 Free"', String.fromCodePoint(0xf015)),
+      document.fonts.load('400 16px "Font Awesome 6 Free"', String.fromCodePoint(0xf004)),
+      document.fonts.load('400 16px "Font Awesome 6 Brands"', String.fromCodePoint(0xf179))
+    ]);
+    const icons=['#showcase-search i','#btn-play i','#vinyl-wave-play i'].map(selector=>{
+      const node=document.querySelector(selector);
+      return {selector,exists:!!node,content:node?getComputedStyle(node,'::before').content:''};
+    });
+    return {status,faces:faces.map(f=>f.filter(x=>x.status==='loaded').length),icons};
+  });
+  console.log('LOCAL_ICON_FONTS', JSON.stringify(localIcons));
+  if(localIcons.status.some(x=>!x.ok) ||
+     localIcons.faces.some(x=>x<1) ||
+     localIcons.icons.some(x=>!x.exists||!x.content||x.content==='none'||x.content==='normal')) {
+    throw new Error('Local Font Awesome glyphs missing: '+JSON.stringify(localIcons));
+  }
 
   const requiredFunctions = [
     'openMenu','handleAuth','toggleAuthMode','playTrack','togglePlay',

@@ -37,3 +37,14 @@ RedirectMatch 403 ^/sessions(/|$)
         Header always set Accept-Ranges "bytes"
     </FilesMatch>
 </IfModule>
+
+# MIME types for locally hosted Font Awesome in WebView and PWA.
+<IfModule mod_mime.c>
+    AddType font/woff2 .woff2
+    AddType font/ttf .ttf
+</IfModule>
+<IfModule mod_headers.c>
+    <FilesMatch "\\.(woff2|ttf)$">
+        Header always set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>

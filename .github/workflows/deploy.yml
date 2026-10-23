@@ -44,6 +44,7 @@ jobs:
           node .github/test-trusted-ip-dns.mjs
           node .github/test-in-app-apk-update.mjs
           node .github/test-fast-start.mjs
+          node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs
           node .github/test-official-music.mjs
@@ -240,6 +241,17 @@ jobs:
           MANIFEST_JSON="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/manifest.json?v=$EXPECTED")"
           echo "$MANIFEST_JSON" | python -m json.tool > /dev/null
           echo "Live PWA shell and manifest verified"
+          for font in solid-900 regular-400 brands-400; do
+            curl --fail --silent --show-error --location --max-time 20 \
+              "https://pl.dagstudio.ru/vendor/fontawesome/webfonts/fa-$font.woff2" \
+              -o "/tmp/dag-font-$font.woff2"
+            test "$(wc -c < "/tmp/dag-font-$font.woff2")" -gt 10000
+          done
+          curl --fail --silent --show-error --location --max-time 20 \
+            "https://pl.dagstudio.ru/vendor/fontawesome/css/all.min.css?v=6722" \
+            -o /tmp/dag-fontawesome.css
+          grep -q 'Font Awesome Free 6.7.2' /tmp/dag-fontawesome.css
+          echo "Local icon fonts available without CDN"
 
           CHECK_AUTH="$(curl --fail --silent --show-error --location --max-time 20 -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"check_auth"}' "https://pl.dagstudio.ru/api.php?t=$EXPECTED")"
           echo "CHECK_AUTH=$CHECK_AUTH"

@@ -19,10 +19,10 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- External fonts and icons are optional. Never block startup if the
-         CDN is unreachable on a Russian network or inside Windows PWA. -->
+    <!-- Text fonts are optional; every icon font is hosted locally. -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <!-- Icons bundled locally: no CDN or DNS dependency for Android/PWA. -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=6722">
     
     <link rel="preload" href="style.css?v=2227" as="style">
     <link rel="stylesheet" href="style.css?v=2227">

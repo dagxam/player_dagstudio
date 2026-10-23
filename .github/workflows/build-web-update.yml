@@ -16,7 +16,7 @@ on:
       - "studio-next.css"
       - "studio-touch.css"
       - "images/**"
-      - "images/**"
+      - "vendor/fontawesome/**"
       - "scripts/build-native-web.mjs"
       - "native/native-bridge.js"
       - "native/native-audio-adapter.js"
@@ -64,6 +64,11 @@ jobs:
           test -f www/studio-touch.css
           node --check www/studio.js
           test -f www/native-bridge.js
+          test -s www/vendor/fontawesome/css/all.min.css
+          for font in solid-900 regular-400 brands-400; do
+            test -s "www/vendor/fontawesome/webfonts/fa-$font.woff2"
+          done
+          ! grep -qi 'cdnjs.cloudflare.com/ajax/libs/font-awesome' www/index.html
           node --check www/script.js
           node --check www/native-bridge.js
           grep -q 'DAG_NATIVE_APP' www/index.html
@@ -73,6 +78,7 @@ jobs:
       - name: Test fast startup and OTA-only update actions
         run: |
           node .github/test-fast-start.mjs
+          node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs
           node .github/test-official-music.mjs
