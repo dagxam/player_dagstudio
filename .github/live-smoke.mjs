@@ -933,6 +933,9 @@ try {
     const code = await response.text();
     return {
       isCurrent: code.includes("const WEB_BUILD_LABEL = '2319'"),
+      profileSync: code.includes('async function synchronizeProfileTheme('),
+      profileResume: code.includes("window.addEventListener('dag-native-state'"),
+      searchUsesServer: code.includes("const result = await api('search_global'"),
       blocksAutomaticUpdates: code.includes("if (!manual) return { status: 'manual-only' }"),
       hasNoAutoInstallTimeout: !code.includes('checkNativeLiveUpdate(true)'),
       hasCarWake: code.includes('setNativeCarKeepAwake(true)'),
