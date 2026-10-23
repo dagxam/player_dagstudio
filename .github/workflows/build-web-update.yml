@@ -84,6 +84,7 @@ jobs:
           node .github/test-caucasus-catalogs.mjs
           node .github/test-official-music.mjs
 
+      # Includes verified-IP search and remote theme synchronization changes.
       - name: Test manual OTA and backup delivery
         run: node .github/test-ota-update.mjs
 
