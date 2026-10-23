@@ -80,38 +80,54 @@ public class DAGCarModePlugin extends Plugin {
     }
 
     /**
-     * One strictly read-only HTTPS fallback when both Android CapacitorHttp
-     * and Chromium have failed DNS resolution. OkHttp resolves only the owned
-     * origin using DAGServerDns, preserving TLS hostname verification.
+     * Primary HTTPS transport for the strictly allowlisted DAGSTUDIO API.
+     * Includes logins, profile sync and search, all on the original hostname
+     * with normal certificate and SNI verification. Mutations are submitted
+     * only once; client never replays one after a possible network failure.
      */
     @PluginMethod
     public void readOwnServer(PluginCall call) {
         final String value = call.getString("url", "");
         final String method = call.getString("method", "GET").toUpperCase(java.util.Locale.ROOT);
         final JSObject data = call.getObject("data", new JSObject());
+        final String sessionToken = call.getString("sessionToken", "");
         try {
             URL uri = new URL(value);
             String path = uri.getPath();
             if (!"https".equalsIgnoreCase(uri.getProtocol()) ||
                     !DAGServerDns.HOST.equalsIgnoreCase(uri.getHost()) ||
-                    (uri.getPort() != -1 && uri.getPort() != 443)) {
+                    (uri.getPort() != -1 && uri.getPort() != 443) ||
+                    uri.getUserInfo() != null) {
                 call.reject("Only the official DAGSTUDIO HTTPS server is allowed");
                 return;
             }
             boolean safeGet = "GET".equals(method) &&
                     ("/ota-bridge.php".equals(path) || "/deploy-version.txt".equals(path));
+            final String action = data.optString("action", "");
+            final java.util.Set<String> actions = new java.util.HashSet<>(java.util.Arrays.asList(
+                "search_global", "official_audius_feed", "check_auth", "get_data",
+                "login", "register", "logout", "update_theme",
+                "create_playlist", "rename_playlist", "update_playlist_icon",
+                "update_playlist_cover", "delete_playlist", "add_track",
+                "update_track_url", "delete_track", "upload_track"
+            ));
             boolean safePost = "POST".equals(method) && "/api.php".equals(path) &&
-                    "search_global".equals(data.optString("action", ""));
+                    actions.contains(action);
             if (!safeGet && !safePost) {
-                call.reject("Only read-only search and update checks are allowed");
+                call.reject("Only allowlisted app API actions and update checks are allowed");
+                return;
+            }
+            if (!sessionToken.isEmpty() &&
+                    !sessionToken.matches("^[A-Za-z0-9,-]{16,128}$")) {
+                call.reject("Invalid app session identifier");
                 return;
             }
             new Thread(() -> {
                 OkHttpClient client = new OkHttpClient.Builder()
                     .dns(new DAGServerDns())
-                    .connectTimeout(18, TimeUnit.SECONDS)
-                    .readTimeout(45, TimeUnit.SECONDS)
-                    .callTimeout(55, TimeUnit.SECONDS)
+                    .connectTimeout(8, TimeUnit.SECONDS)
+                    .readTimeout(32, TimeUnit.SECONDS)
+                    .callTimeout(38, TimeUnit.SECONDS)
                     .followRedirects(false)
                     .followSslRedirects(false)
                     .build();
@@ -120,6 +136,7 @@ public class DAGCarModePlugin extends Plugin {
                         .url(value)
                         .header("Accept", "application/json, text/plain")
                         .header("User-Agent", "DAGSTUDIO-PLAYER/TEYES");
+                    if (!sessionToken.isEmpty()) builder.header("X-DAG-Session", sessionToken);
                     if (safePost) {
                         builder.post(RequestBody.create(
                             data.toString(), MediaType.parse("application/json; charset=utf-8")));

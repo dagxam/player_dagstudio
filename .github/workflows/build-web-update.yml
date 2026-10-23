@@ -78,6 +78,7 @@ jobs:
       - name: Test fast startup and OTA-only update actions
         run: |
           node .github/test-fast-start.mjs
+          node .github/test-profile-theme.mjs
           node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs

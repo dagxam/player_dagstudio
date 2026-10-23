@@ -40,6 +40,7 @@ jobs:
           node .github/test-ota-update.mjs
           node .github/test-connectivity.mjs
           node .github/test-end-to-end-network.mjs
+          node .github/test-profile-theme.mjs
           node .github/test-native-http-fallback.mjs
           node .github/test-trusted-ip-dns.mjs
           node .github/test-in-app-apk-update.mjs

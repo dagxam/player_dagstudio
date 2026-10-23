@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2318';
+const WEB_BUILD_LABEL = '2319';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -2156,8 +2156,10 @@ async function api(action, data = {}) {
                 method: 'POST',
                 headers: headers,
                 data: payload,
-                connectTimeout: action === 'search_global' ? 16000 : (isWeakConnection() ? 16000 : 10000),
-                readTimeout: action === 'search_global' ? 45000 : (isWeakConnection() ? 30000 : 15000)
+                // Android primary HTTPS bridge uses verified-IP DNS and avoids
+                // the old 3 x sequential timeout chain for search/profile.
+                connectTimeout: action === 'search_global' ? 8000 : 8000,
+                readTimeout: action === 'search_global' ? 35000 : (isWeakConnection() ? 25000 : 16000)
             });
 
             if (!response || response.status < 200 || response.status >= 300) {
@@ -6387,6 +6389,35 @@ function applyThemePalette(themeName) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', shades['--theme-page']);
 }
+let themeLocalChangeEpoch=0;
+let lastRemoteThemeCheckAt=0;
+let remoteThemeCheckInFlight=null;
+async function synchronizeProfileTheme(force=false) {
+    if(!currentUser || navigator.onLine===false) return false;
+    if(remoteThemeCheckInFlight) return remoteThemeCheckInFlight;
+    const now=Date.now();
+    if(!force && now-lastRemoteThemeCheckAt<60000) return false;
+    lastRemoteThemeCheckAt=now;
+    const username=currentUser;
+    const epoch=themeLocalChangeEpoch;
+    const promise=(async()=>{
+        const remote=await api('check_auth');
+        if(currentUser!==username || themeLocalChangeEpoch!==epoch) return false;
+        if(remote?.logged_in && remote.username===username &&
+            colorThemes[remote.theme]) {
+            if(localStorage.getItem('dag_theme')!==remote.theme) {
+                setTheme(remote.theme,false);
+                console.info('DAGSTUDIO profile theme updated from server');
+            }
+            return true;
+        }
+        if(remote?.error) lastRemoteThemeCheckAt=0; // retry on next foreground
+        return false;
+    })();
+    remoteThemeCheckInFlight=promise;
+    try {return await promise;}
+    finally {if(remoteThemeCheckInFlight===promise) remoteThemeCheckInFlight=null;}
+}
 function setTheme(themeName, save = true) {
     if(!colorThemes[themeName]) return;
     const t = colorThemes[themeName]; const root = document.documentElement;
@@ -6398,7 +6429,16 @@ function setTheme(themeName, save = true) {
     document.querySelectorAll('.theme-aware-thumb').forEach(img => { img.src = t.img; });
 
     localStorage.setItem('dag_theme', themeName);
-    if(save && currentUser) { api('update_theme', {theme: themeName}); }
+    if(save && currentUser) {
+        // A slow response from an older sync must not replace a recent local choice.
+        themeLocalChangeEpoch++;
+        api('update_theme', {theme: themeName}).then(response => {
+            if(response?.error) {
+                console.warn('Theme sync to profile failed:', response.error);
+                showNotification('Цвет изменён на устройстве, но не сохранён в профиле. Проверьте сеть.');
+            }
+        }).catch(error => console.warn('Theme sync unavailable:', error));
+    }
     document.querySelectorAll('.theme-dot[data-theme]').forEach(btn => {
         const selected = btn.dataset.theme === themeName;
         btn.classList.toggle('active', selected);
@@ -6428,6 +6468,29 @@ window.handleLogout = handleLogout;
 });
 
 checkAuth();
+
+// Profile colours and playlists are account-scoped, not shared browser storage.
+// Refresh after resuming TEYES and during longer foreground sessions.
+if (IS_NATIVE_APP) {
+    let lastForegroundProfileRefresh=0;
+    const refreshForegroundProfile=async()=>{
+        if(!currentUser || navigator.onLine===false) return;
+        if(Date.now()-lastForegroundProfileRefresh<20000) return;
+        lastForegroundProfileRefresh=Date.now();
+        await synchronizeProfileTheme(true);
+        await loadUserData(true);
+    };
+    window.addEventListener('dag-native-state',event=>{
+        if(event.detail?.isActive) refreshForegroundProfile().catch(error=>
+            console.warn('Profile refresh on resume unavailable:',error));
+    });
+    document.addEventListener('visibilitychange',()=>{
+        if(!document.hidden)refreshForegroundProfile().catch(()=>{});
+    });
+    setInterval(()=>{
+        if(!document.hidden) synchronizeProfileTheme().catch(()=>{});
+    },90000);
+}
 
 if (IS_NATIVE_APP) {
     // Никаких фоновых OTA-скачиваний и updater.set() по таймеру или при возврате

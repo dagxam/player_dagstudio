@@ -204,78 +204,98 @@ const audioCache = {
 // WebView can access the exact same HTTPS site. Retry only idempotent reads
 // in the WebView network stack, never account/playlist writes.
 let lastHttpTransport = 'native';
+// Only first-party, HTTPS, allowlisted app actions may use the verified-IP route.
+// For writes it is the PRIMARY (single) transport, never a retry after a
+// possibly successful POST. Old APKs reject unsupported operations immediately.
+const OWN_SERVER_ACTIONS = new Set([
+  'search_global','official_audius_feed','check_auth','get_data',
+  'login','register','logout','update_theme',
+  'create_playlist','rename_playlist','update_playlist_icon',
+  'update_playlist_cover','delete_playlist','add_track',
+  'update_track_url','delete_track','upload_track'
+]);
+const OWN_SERVER_READS = new Set([
+  'search_global','official_audius_feed','check_auth','get_data'
+]);
 function nativeDnsError(error) {
   return /unable to resolve host|unknownhost|name_not_resolved|no address associated|dns|enotfound|name or service not known|failed to resolve/i
     .test(String(error?.message || error || ''));
 }
-function safeWebviewRead(options) {
-  const method = String(options?.method || 'GET').toUpperCase();
+function ownServerRequest(options) {
+  const method=String(options?.method || 'GET').toUpperCase();
   let url;
-  try { url = new URL(String(options?.url || '')); } catch(e) { return false; }
-  if (url.protocol !== 'https:' || url.hostname !== 'pl.dagstudio.ru' || url.port) return false;
-  if (method === 'GET')
-    return url.pathname === '/ota-bridge.php' || url.pathname === '/api.php' ||
-      url.pathname === '/deploy-version.txt';
-  if (method !== 'POST' || url.pathname !== '/api.php') return false;
-  // Read-only music search only. A write could have succeeded before the
-  // native connection dropped; transparently repeating it would be unsafe.
-  const data = options?.data || {};
-  return data && typeof data === 'object' && data.action === 'search_global';
+  try {url=new URL(String(options?.url || ''));} catch(e) {return false;}
+  if(url.protocol!=='https:' || url.hostname!=='pl.dagstudio.ru' ||
+     url.port || url.username || url.password) return false;
+  if(method==='GET') return url.pathname==='/ota-bridge.php' ||
+    url.pathname==='/deploy-version.txt';
+  return method==='POST' && url.pathname==='/api.php' &&
+    OWN_SERVER_ACTIONS.has(String(options?.data?.action || ''));
+}
+function safeWebviewRead(options) {
+  if(!ownServerRequest(options))return false;
+  if(String(options?.method || 'GET').toUpperCase()==='GET')return true;
+  return OWN_SERVER_READS.has(String(options?.data?.action || ''));
 }
 async function browserNetworkRead(options) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(),
-    Math.min(Math.max(Number(options?.readTimeout) || 25000,10000),55000));
+  const controller=new AbortController();
+  // A broken WebView DNS resolver must not add another 45-55 second wait.
+  const timeout=setTimeout(()=>controller.abort(),10000);
   try {
-    const method = String(options?.method || 'GET').toUpperCase();
-    const response = await fetch(String(options.url), {
-      method,
-      mode:'cors', credentials:'omit',
-      headers: options?.headers || {},
-      body: method === 'POST' ? JSON.stringify(options.data || {}) : undefined,
-      cache:'no-store',
-      signal:controller.signal
+    const method=String(options.method || 'GET').toUpperCase();
+    const response=await fetch(String(options.url),{
+      method,mode:'cors',credentials:'omit',headers:options.headers || {},
+      body:method==='POST'?JSON.stringify(options.data||{}):undefined,
+      cache:'no-store',signal:controller.signal
     });
-    const raw = await response.text();
-    let data;
-    try { data=JSON.parse(raw); } catch(e) { data=raw; }
+    const raw=await response.text();
+    let data;try{data=JSON.parse(raw);}catch(e){data=raw;}
     return {status:response.status,data,headers:{},transport:'webview'};
-  } finally { clearTimeout(timeout); }
+  }finally{clearTimeout(timeout);}
+}
+function legacyPluginUnsupported(error) {
+  return /Only read-only search and update checks are allowed|Only the official DAGSTUDIO HTTPS server is allowed/i
+    .test(String(error?.message || error || ''));
 }
 async function nativeHttpWithBrowserFallback(options) {
+  const direct=hasAndroidMedia3 && typeof DAGCarMode.readOwnServer==='function' &&
+    ownServerRequest(options);
+  if(direct) {
+    try {
+      const response=await DAGCarMode.readOwnServer({
+        url:String(options.url),method:String(options.method||'GET'),
+        data:options.data || {},
+        sessionToken:String(options.headers?.['X-DAG-Session'] || '')
+      });
+      lastHttpTransport='trusted-ip-tls';
+      return response;
+    }catch(error){
+      // Legacy APKs can only route anonymous search and OTA. Only a
+      // confirmed "unsupported action" rejection is safe to retry as a write.
+      if(!legacyPluginUnsupported(error)){
+        if(safeWebviewRead(options)){
+          try {
+            const result=await browserNetworkRead(options);
+            lastHttpTransport='webview-fallback';
+            return result;
+          }catch(fallbackError) {
+            throw new Error('Verified HTTPS and WebView connection failed: '+
+              String(error?.message || error).slice(0,120));
+          }
+        }
+        throw error; // No duplicate mutations, including login/register.
+      }
+    }
+  }
   try {
     const response=await CapacitorHttp.request(options);
-    lastHttpTransport='native';
+    lastHttpTransport='capacitor-http';
     return response;
-  } catch(error) {
-    if (!nativeDnsError(error) || !safeWebviewRead(options)) throw error;
-    try {
-      const response=await browserNetworkRead(options);
-      lastHttpTransport='webview-fallback';
-      return response;
-    } catch(webError) {
-      // Final route for TEYES firmware with broken Android + WebView DNS.
-      // The native plugin keeps HTTPS SNI/certificate checks for the domain.
-      if (hasAndroidMedia3 && typeof DAGCarMode.readOwnServer === 'function') {
-        try {
-          const safe = safeWebviewRead(options);
-          if (safe) {
-            const response=await DAGCarMode.readOwnServer({
-              url: String(options.url),
-              method: String(options?.method || 'GET'),
-              data: options?.data || {}
-            });
-            lastHttpTransport='trusted-ip-tls';
-            return response;
-          }
-        } catch(pinnedError) {
-          throw new Error('Server connection failed via DNS, WebView and verified HTTPS IP: ' +
-            String(pinnedError?.message || pinnedError).slice(0,110));
-        }
-      }
-      const reason=String(webError?.message || webError || '').slice(0,100);
-      throw new Error('Native DNS failed; WebView fallback: '+reason);
-    }
+  }catch(error){
+    if(!nativeDnsError(error) || !safeWebviewRead(options))throw error;
+    const response=await browserNetworkRead(options);
+    lastHttpTransport='webview-fallback';
+    return response;
   }
 }
 

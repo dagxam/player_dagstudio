@@ -7,9 +7,9 @@ import java.util.List;
 import okhttp3.Dns;
 
 /**
- * DNS-only recovery for the DAGSTUDIO-owned HTTPS origin. A verified server
- * address observed during deployment is used only when Android's resolver
- * reports UnknownHostException. OkHttp keeps the original URL hostname for
+ * Verified HTTPS IP preference for the DAGSTUDIO-owned origin. The trusted
+ * address is used directly, avoiding Android DNS for this hostname.
+ * OkHttp keeps the original URL hostname for
  * SNI, hostname validation and certificate-chain verification.
  *
  * This is not a general DNS bypass and does not disable TLS checks. If hosting
@@ -21,13 +21,11 @@ public final class DAGServerDns implements Dns {
 
     @Override
     public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-        try {
-            return Dns.SYSTEM.lookup(hostname);
-        } catch (UnknownHostException dnsFailure) {
-            if (!HOST.equalsIgnoreCase(hostname)) throw dnsFailure;
-            return Collections.singletonList(
-                InetAddress.getByAddress(new byte[] {(byte)188, (byte)127, (byte)241, (byte)85})
-            );
-        }
+        if (!HOST.equalsIgnoreCase(hostname)) return Dns.SYSTEM.lookup(hostname);
+        InetAddress trusted = InetAddress.getByAddress(
+            new byte[] {(byte)188, (byte)127, (byte)241, (byte)85});
+        // Avoid waiting on the broken CC3 DNS resolver at all for our origin.
+        // TLS still validates the certificate against "pl.dagstudio.ru".
+        return Collections.singletonList(trusted);
     }
 }

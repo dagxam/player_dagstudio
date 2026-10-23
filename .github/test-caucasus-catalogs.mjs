@@ -20,7 +20,7 @@ assert.match(player,/Роза Мальсагова/);
 assert.match(player,/Мадина Кайтмазова/);
 assert.match(html,/studio-center\.js\?v=6/);
 assert.match(sw,/studio-center\.js\?v=6/);
-assert.match(player,/const WEB_BUILD_LABEL = '2318'/);
+assert.match(player,/const WEB_BUILD_LABEL = '2319'/);
 for(const u of ['https://www.jamendo.com/start','https://soundcloud.com/discover','https://musicbrainz.org/']) {
   assert.ok(center.includes(u),u);
 }
