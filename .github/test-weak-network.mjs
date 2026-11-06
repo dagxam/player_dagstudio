@@ -7,7 +7,7 @@ const css=readFileSync(new URL('../studio-touch.css',import.meta.url),'utf8');
 const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
-assert.match(js,/const WEB_BUILD_LABEL = '2320'/);
+assert.match(js,/const WEB_BUILD_LABEL = '2321'/);
 assert.match(android,/setBufferDurationsMs\(18000, 120000, 1700, 4700\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
 assert.match(js,/!getNetworkProfile\(\)\.weak && isCurrentTrackFullyReady\(\)/);
@@ -48,4 +48,9 @@ assert.equal(queued.length,1,'Keep waiting on existing stream');
 frozen=true;
 queued.shift().fn();
 assert.equal(recoveries,1,'Truly frozen playhead can recover');
+assert.match(js,/async function getStartupCachedAudio\(track, timeoutMs = 900\)/);
+assert.match(js,/Promise\.race\(\[pending, timedOut\]\)/);
+assert.match(js,/if \(expired && result\?\.isBlob && result\.url\) URL\.revokeObjectURL/);
+assert.match(js,/const cachedRes = await getStartupCachedAudio\(track\)/);
+assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
 console.log('WEAK_NETWORK_BUFFER_AND_MOBILE_LIST_AND_APK_UI_OK');
