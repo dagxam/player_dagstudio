@@ -253,7 +253,7 @@
         </button>
         <button type="button" id="ios-install-guide-btn" class="menu-list-btn" onclick="showIOSInstallGuide()" hidden><i class="fab fa-apple"></i> Установить на iPhone</button>
         <button id="android-apk-update-btn" type="button" class="menu-list-btn" onclick="updateAndroidPackage()" hidden><i class="fab fa-android"></i> Обновить Android APK</button>
-        <a id="android-apk-download-btn" class="menu-list-btn" href="https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk" target="_blank" style="text-decoration:none;" rel="noopener noreferrer" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать APK для Android</a>
+        <a id="android-apk-download-btn" class="menu-list-btn" href="https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk" style="text-decoration:none;" download="DAGSTUDIO-PLAYER-Preview.apk"><i class="fab fa-android"></i> Скачать APK для Android</a>
         <button type="button" class="menu-list-btn" onclick="openCacheDashboard()"><i class="fas fa-hard-drive"></i> Кэш и офлайн-хранилище</button>
         <button type="button" class="menu-list-btn" onclick="openPlayerDiagnostics()"><i class="fas fa-chart-line"></i> Проверка звука и сети</button>
         <button type="button" class="menu-list-btn" id="queue-menu-btn" onclick="openPlaybackQueue()"><i class="fas fa-list-ol"></i> Очередь воспроизведения <span id="queue-count"></span></button>
@@ -408,7 +408,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2323" defer></script>
+<script src="script.js?v=2324" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=15" defer></script>
 <script src="studio-center.js?v=6" defer></script>

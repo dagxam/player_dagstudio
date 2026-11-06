@@ -7,8 +7,8 @@ const css=readFileSync(new URL('../studio-touch.css',import.meta.url),'utf8');
 const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
-assert.match(js,/const WEB_BUILD_LABEL = '2323'/);
-assert.match(android,/setBufferDurationsMs\(18000, 120000, 1700, 4700\)/);
+assert.match(js,/const WEB_BUILD_LABEL = '2324'/);
+assert.match(android,/setBufferDurationsMs\(12000, 120000, 1100, 3200\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
 assert.match(js,/cacheTrackSilently\(finishedTrack, \{ reason: 'completed'/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
