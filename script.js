@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2323';
+const WEB_BUILD_LABEL = '2324';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -268,9 +268,21 @@ function configureAndroidDownloadLink() {
     const link = document.getElementById('android-apk-download-btn');
     if (!link) return;
     link.href = ANDROID_APK_LATEST_URL;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    // Never open a second browser window on CC3: it may display an empty
+    // page instead of sending the APK to Android's download manager.
+    link.removeAttribute('target');
+    link.removeAttribute('rel');
     link.setAttribute('download', 'DAGSTUDIO-PLAYER-Preview.apk');
+    link.onclick = function(event) {
+        if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
+        const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
+        if (installer && typeof installer.install === 'function') {
+            event.preventDefault();
+            window.updateAndroidPackage();
+        }
+        // Legacy APK without the native installer: let the Android system
+        // handle a direct HTTPS APK download, not a pop-up or GitHub page.
+    };
 }
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', configureAndroidDownloadLink);
@@ -514,7 +526,11 @@ window.updateAndroidPackage = async function() {
     const button=document.getElementById('android-apk-update-btn');
     const installer=window.DAG_NATIVE_BRIDGE?.apkInstaller;
     if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android' || !installer) {
-        showNotification('Проверка APK доступна в Android-приложении. Для сайта используйте кнопку скачивания APK.');
+        // Older APKs lack DAGCarMode.checkApkUpdate(): downloading a real
+        // .apk from our same-origin server is the only compatible fallback.
+        showConfirm('В этой версии нет встроенного установщика APK. Скачать файл напрямую с pl.dagstudio.ru?', function() {
+            window.location.href = ANDROID_APK_LATEST_URL;
+        });
         return;
     }
     if (mainAudio && !mainAudio.paused && !mainAudio.ended) {
