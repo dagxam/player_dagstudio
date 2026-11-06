@@ -1757,6 +1757,7 @@ async function cacheTrackSilently(trackOrUrl, options = {}) {
     // No silent download on playlist creation, pause, recommendations or an
     // incomplete listen. An explicit user download uses dedicated queues.
     if (options.reason !== 'completed') return;
+    if (!isUrlStillInAnyPlaylist(trackOrUrl)) return;
     const track = normalizeCacheTrack(trackOrUrl);
     const resolvedUrl = canonicalTrackUrl(track);
     if (!resolvedUrl || !/^https?:\/\//i.test(resolvedUrl) || navigator.onLine === false) return;
@@ -1913,9 +1914,8 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
 }
 
 function syncPlaylistOfflineCache() {
-    // Saved playlists sync across devices, but each device must earn its own
-    // automatic offline copy through a complete listen. Manual downloads
-    // remain available through the explicit offline controls.
+    // Playlist metadata syncs across devices. Automatic audio saving is
+    // deliberately disabled here; only a fully heard track is eligible.
     return;
     if (navigator.onLine === false) return;
 
