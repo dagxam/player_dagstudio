@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2330';
+const CACHE_NAME = 'dagstudio-player-shell-v2331';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -7,7 +7,7 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2227',
     '/modern.css?v=16',
-    '/script.js?v=2321',
+    '/script.js?v=2322',
     '/studio.css?v=6',
     '/studio.js?v=5',
     '/studio-next.css?v=20',
@@ -102,7 +102,10 @@ self.addEventListener('fetch', function(event) {
                 .catch(function() { return null; });
 
             if (!cached) {
-                return (await network) || (await caches.match('/'));
+                return (await network) || (await caches.match('/')) ||
+                    new Response('Нет соединения. Повторите открытие страницы.', {
+                        status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                    });
             }
 
             const timeout = new Promise(function(resolve) {
@@ -171,7 +174,13 @@ self.addEventListener('fetch', function(event) {
                         .catch(function() {});
                 }
                 return response;
+            }).catch(function(error) {
+                // A rejected network request must never become an unhandled
+                // FetchEvent rejection; the cache can still serve an offline icon.
+                return caches.match(request).then(function(fallback) {
+                    return fallback || Response.error();
+                });
             });
-        })
+        }).catch(function() { return Response.error(); })
     );
 });

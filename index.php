@@ -8,7 +8,7 @@
     <meta name="application-name" content="DAGSTUDIO PLAYER">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="referrer" content="no-referrer">
-    <link rel="manifest" href="/manifest.json?v=2216">
+    <link rel="manifest" href="/manifest.json?v=2217">
     <link rel="icon" type="image/png" sizes="512x512" href="/images/faviconch.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/images/icon-192.png">
     
@@ -408,7 +408,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2321" defer></script>
+<script src="script.js?v=2322" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=15" defer></script>
 <script src="studio-center.js?v=6" defer></script>
