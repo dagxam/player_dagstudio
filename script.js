@@ -4511,7 +4511,7 @@ async function findWaveNextTrack(){
             const repeated=history.has(radioTrackIdentity(track))?35:0;
             const sameArtist=artist===prior?7:0;
             return {track,score:artistMatch+genreMatch+taste+recency+
-                sourceHealthScore(track.source)-repeated-sameArtist};
+                (typeof sourceHealthScore==='function'?sourceHealthScore(track.source):0)-repeated-sameArtist};
         }).filter(Boolean).sort((x,y)=>y.score-x.score);
     }
     // Rotate artist/genre directions. On good networks try two different
@@ -5823,6 +5823,35 @@ function renderQuickMixView() {
         setQuickMixStatus(quickMixCurrent.loading?'Ищем новые релизы по всем музыкальным источникам…':
             'Нет подтверждённых новинок. Прокрутите вниз для продолжения поиска.');
 }
+// A temporary provider failure must not make the initial Wave require
+// another manual click. Only the Wave retries; other mixes are unchanged.
+let waveFirstRetryTimer=null;
+function scheduleWaveFirstRetry(requestId,attempt) {
+    clearTimeout(waveFirstRetryTimer);
+    const delay=Math.min(20000,2500+attempt*2500);
+    waveFirstRetryTimer=setTimeout(async ()=>{
+        waveFirstRetryTimer=null;
+        if(requestId!==quickMixRequestId||quickMixCurrent?.key!=='wave'||
+            currentTab!=='mix:wave'||playbackPlaylist[currentIndex]?._waveRadio)return;
+        if(navigator.onLine===false){
+            scheduleWaveFirstRetry(requestId,attempt+1);
+            return;
+        }
+        const candidate=await findWaveNextTrack().catch(()=>null);
+        if(requestId!==quickMixRequestId||quickMixCurrent?.key!=='wave'||
+            currentTab!=='mix:wave')return;
+        if(!candidate){
+            scheduleWaveFirstRetry(requestId,attempt+1);
+            return;
+        }
+        quickMixCurrent.loading=false;
+        quickMixCurrent.tracks=[candidate];
+        playlist=[candidate];
+        renderQuickMixView();
+        playTrack(0).catch(()=>{});
+    },delay);
+}
+
 async function startQuickMix(key) {
     const seeds=key==='wave'?waveLibrarySeeds():[];
     // Wave is ONLINE discovery, not a replay of the user's own playlists.
@@ -5863,7 +5892,11 @@ async function startQuickMix(key) {
         if(!first)first=await findWaveNextTrack();
         if(requestId!==quickMixRequestId || quickMixCurrent?.key!=='wave')return;
         quickMixCurrent.loading=false;
-        if(!first){setQuickMixStatus('Новые похожие композиции пока не найдены. Попробуйте ещё раз.');return;}
+        if(!first){
+            setQuickMixStatus('Ищем ещё — «Моя волна» продолжит подбор автоматически…');
+            scheduleWaveFirstRetry(requestId,0);
+            return;
+        }
         quickMixCurrent.tracks=[first];
         playlist=[first];
         currentTab='mix:wave';
