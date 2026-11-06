@@ -1822,6 +1822,39 @@ async function getDeviceCachedAudio(trackOrUrl) {
     };
 }
 
+/**
+ * A slow browser CacheStorage/IndexedDB read must not block a user-initiated
+ * Play gesture. Late successful blob lookups are released to avoid leaking URLs.
+ * Fully offline users retain the original cache lookup (no deadline).
+ */
+async function getStartupCachedAudio(track, timeoutMs = 900) {
+    if (IS_NATIVE_APP || navigator.onLine === false || !('caches' in window)) {
+        return getDeviceCachedAudio(track);
+    }
+    let expired = false;
+    let timeoutId;
+    const pending = getDeviceCachedAudio(track).then(result => {
+        if (expired && result?.isBlob && result.url) URL.revokeObjectURL(result.url);
+        return result;
+    });
+    const timedOut = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            expired = true;
+            resolve(null);
+        }, timeoutMs);
+    });
+    try {
+        const result = await Promise.race([pending, timedOut]);
+        if (result) return result;
+        const url = resolveMediaUrl(track.url);
+        return { url: shouldProxyMedia(track)
+            ? buildProxyUrl(track, { weak: isWeakConnection() }) : url,
+            isBlob: false, inCache: false };
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 function isUrlStillInAnyPlaylist(trackOrUrl) {
     const resolved = canonicalTrackUrl(trackOrUrl);
     if (!resolved) return false;
@@ -3597,7 +3630,7 @@ async function recoverCurrentStreamInternal(reason, track) {
     // Retry the original URL on weak networks; failover remains available
     // after the retry budget is exhausted or the source is definitively bad.
     if(track._streamRetries===2&&(track._sourceSwitches||0)<3 &&
-       !getNetworkProfile().weak){
+       (reason === 'media-error' || !getNetworkProfile().weak)){
         let changed=false;
         try{changed=await refreshSavedTrackSource(track);}catch(error){
             recordPlayerEvent('alternate-provider-search-failed');}
@@ -4098,8 +4131,11 @@ async function playTrack(index, options = {}) {
                 ? buildProxyUrl(track, { weak: isWeakConnection(), norange: true, retry: 0 })
                 : resolveMediaUrl(track.url);
         } else if (track.url && isRemoteMediaUrl(track.url)) {
-            const cachedRes = await getDeviceCachedAudio(track);
-            if (token !== currentPlaybackToken) return;
+            const cachedRes = await getStartupCachedAudio(track);
+            if (token !== currentPlaybackToken) {
+                if (cachedRes?.isBlob && cachedRes.url) URL.revokeObjectURL(cachedRes.url);
+                return;
+            }
 
             if (cachedRes.inCache) {
                 finalUrl = NATIVE_MEDIA3_ACTIVE
