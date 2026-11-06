@@ -52,8 +52,10 @@ public final class DAGAudioEngine {
         // search API, otherwise music would still fail after search recovers.
         OkHttpClient streamClient = new OkHttpClient.Builder()
             .dns(new DAGServerDns())
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            // Fail a dead cellular connection promptly; slow transfers retain a
+            // generous inactivity timeout and are handled by Media3 retry.
+            .connectTimeout(12, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
             .followRedirects(false)
             .followSslRedirects(false)
             .build();
@@ -65,7 +67,10 @@ public final class DAGAudioEngine {
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30000, 150000, 3000, 6000)
+            // Start after a short playable buffer instead of waiting for
+            // multiple seconds of audio on a weak mobile connection. Retain
+            // a larger rebuffer threshold to prevent rapid track skipping.
+            .setBufferDurationsMs(12000, 120000, 1500, 4500)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
             .build();
