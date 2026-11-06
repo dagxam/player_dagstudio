@@ -10,7 +10,7 @@ const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 assert.match(js,/const WEB_BUILD_LABEL = '2323'/);
 assert.match(android,/setBufferDurationsMs\(18000, 120000, 1700, 4700\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
-assert.match(js,/!getNetworkProfile\(\)\.weak && isCurrentTrackFullyReady\(\)/);
+assert.match(js,/cacheTrackSilently\(finishedTrack, \{ reason: 'completed'/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
 assert.match(css,/\.studio-showcase\.showcase-mobile-list/);
 assert.match(layout,/root\.classList\.add\('showcase-mobile-list'\)/);
