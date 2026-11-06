@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2322';
+const WEB_BUILD_LABEL = '2323';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -1562,7 +1562,8 @@ async function processNativeCacheQueue() {
 
             const job = nativeCacheQueue.shift();
             if (!job) break;
-            if (mainAudio && !mainAudio.paused && job.reason !== 'next') {
+            if (mainAudio && !mainAudio.paused && job.reason !== 'next' &&
+                job.reason !== 'completed') {
                 nativeCacheQueue.unshift(job);
                 scheduleNativeCacheWorker(15000);
                 break;
@@ -1753,6 +1754,9 @@ async function processWebCacheQueue() {
 }
 
 async function cacheTrackSilently(trackOrUrl, options = {}) {
+    // No silent download on playlist creation, pause, recommendations or an
+    // incomplete listen. An explicit user download uses dedicated queues.
+    if (options.reason !== 'completed') return;
     const track = normalizeCacheTrack(trackOrUrl);
     const resolvedUrl = canonicalTrackUrl(track);
     if (!resolvedUrl || !/^https?:\/\//i.test(resolvedUrl) || navigator.onLine === false) return;
@@ -1909,6 +1913,10 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
 }
 
 function syncPlaylistOfflineCache() {
+    // Saved playlists sync across devices, but each device must earn its own
+    // automatic offline copy through a complete listen. Manual downloads
+    // remain available through the explicit offline controls.
+    return;
     if (navigator.onLine === false) return;
 
     // Просим браузер хранить кэш устойчивее к автоматической очистке.
@@ -3248,7 +3256,6 @@ async function addLinkToPlaylist(plId) {
     const response = await api('add_track', { playlist_id: plId, track: trackData });
     if (!response.success) return showNotification(response.error || 'Не удалось добавить трек.');
     const synced = await loadUserData(true);
-    cacheTrackSilently(trackData, { reason: 'playlist', priority: true });
     document.getElementById('tm-add-link-area').style.display = 'none';
     if (synced) renderTrackManagerList(playlists.find(p => p.id == plId));
     else showNotification('Трек добавлен на сервер, список обновится при следующей синхронизации.');
@@ -3705,16 +3712,8 @@ mainAudio.addEventListener('playing', function() {
         }
     }, 12000);
 
-    // Прослушанный онлайн-трек автоматически сохраняется на устройстве.
-    if (track && navigator.onLine !== false && isRemoteMediaUrl(track.url) && !track._playingFromCache) {
-        setTimeout(function() {
-            if (token === currentPlaybackToken && track === playbackPlaylist[currentIndex] &&
-                isFinite(mainAudio.currentTime) && mainAudio.currentTime >= 5 &&
-                !getNetworkProfile().weak && isCurrentTrackFullyReady()) {
-                cacheTrackSilently(track, { reason: 'played', priority: true });
-            }
-        }, 6000);
-    }
+    // Streaming is allowed immediately. Automatic offline publication
+    // happens only after a verified full-length listen.
 });
 
 mainAudio.addEventListener('pause', function() {
@@ -3725,6 +3724,31 @@ mainAudio.addEventListener('pause', function() {
         saveNativePlaybackSnapshot(true);
     }
 });
+
+// Track actual uninterrupted media progression, not just a seek near the
+// end. Playback gaps/restarts do not count as listened seconds.
+function countTrackListening(track, currentTime) {
+    if (!track || !Number.isFinite(currentTime)) return;
+    if (currentTime <= 2) track._listenedWasAtStart = true;
+    const previous = Number(track._listenedLastPosition);
+    if (track._listenedLastPosition !== null && Number.isFinite(previous)) {
+        const delta = currentTime - previous;
+        if (delta > 0 && delta <= 5 && playbackWanted && !mainAudio.paused)
+            track._listenedSeconds = (Number(track._listenedSeconds) || 0) + delta;
+    }
+    track._listenedLastPosition = currentTime;
+}
+
+function wasTrackFullyHeard(track) {
+    if (!track || !track._listenedWasAtStart) return false;
+    const duration = Number(mainAudio.duration);
+    const heard = Number(track._listenedSeconds) || 0;
+    const end = Number(mainAudio.currentTime) || 0;
+    // Without a finite duration completion cannot be proven safely.
+    return Number.isFinite(duration) && duration > 4 &&
+        end >= duration - 3 &&
+        heard >= duration * 0.93;
+}
 
 function isPrematureTrackEnd(position,duration) {
     const elapsed=Number(position);
@@ -3782,8 +3806,9 @@ mainAudio.addEventListener('ended', function() {
 
     const finishedTrack = playbackPlaylist[currentIndex];
     if(finishedTrack)tasteRecord('finish',finishedTrack);
-    if (finishedTrack && navigator.onLine !== false && isRemoteMediaUrl(finishedTrack.url)) {
-        cacheTrackSilently(finishedTrack, { reason: 'played', priority: true });
+    if (finishedTrack && navigator.onLine !== false &&
+        isRemoteMediaUrl(finishedTrack.url) && wasTrackFullyHeard(finishedTrack)) {
+        cacheTrackSilently(finishedTrack, { reason: 'completed', priority: true });
     }
 
     if (isRepeat) playTrack(currentIndex, {fromPlayback:true}); else playNext();
@@ -3827,6 +3852,7 @@ mainAudio.addEventListener('timeupdate', function() {
     const track = playbackPlaylist[currentIndex];
     if (track && isFinite(mainAudio.currentTime) && mainAudio.currentTime > 0) {
         track._resumeTime = mainAudio.currentTime;
+        countTrackListening(track, Number(mainAudio.currentTime));
         saveNativePlaybackSnapshot();
         maybePrefetchSmartRadio();
         if(mainAudio.currentTime>=10&&track._serverRecordedForUrl!==track.url){
@@ -3856,14 +3882,7 @@ mainAudio.addEventListener('timeupdate', function() {
             tasteRecord('listen',track);
         }
 
-        // Дополнительная страховка: после 8 секунд онлайн-прослушивания
-        // ставим трек в очередь постоянного кэша только один раз за запуск.
-        if (IS_NATIVE_APP && navigator.onLine !== false && mainAudio.currentTime >= 8 &&
-            !getNetworkProfile().weak && isCurrentTrackFullyReady() &&
-            isRemoteMediaUrl(track.url) && !track._playingFromCache && !track._cacheQueuedForPlay) {
-            track._cacheQueuedForPlay = true;
-            cacheTrackSilently(track, { reason: 'played', priority: true });
-        }
+        // Do not enqueue a completed offline file after a partial listen.
     }
 });
 
@@ -4062,6 +4081,9 @@ async function playTrack(index, options = {}) {
     const token = currentPlaybackToken;
 
     if (!options.recovery) {
+        track._listenedSeconds = 0;
+        track._listenedLastPosition = null;
+        track._listenedWasAtStart = false;
         track._streamRetries = 0;
         track._earlyEndRetries = 0;
         track._cachedRecoveryAttempts = 0;
@@ -4262,13 +4284,7 @@ function pausePlayback() {
     releaseWakeLock();
     syncCarNativeMedia(false);
     saveNativePlaybackSnapshot(true);
-    // Пауза останавливает зависший запрос воспроизведения, но запускает
-    // отдельное скачивание текущей композиции в кэш без автозапуска.
-    if (pausedTrack && isRemoteMediaUrl(pausedTrack.url) && navigator.onLine !== false &&
-        !pausedTrack._playingFromCache) {
-        artistEl.textContent = 'Пауза · сохраняем трек для офлайн-прослушивания…';
-        cacheTrackSilently(pausedTrack, { reason: 'paused-current', priority: true });
-    }
+    // Pausing must never publish an unfinished automatic offline download.
 }
 function resumePlayback() {
     const track = playbackPlaylist[currentIndex];
@@ -6308,10 +6324,8 @@ async function addToPlaylist(plId) {
         ? 'Трек добавлен! Сохраним его офлайн при доступном интернете.'
         : 'Трек добавлен на сервер. Список обновится после восстановления сети.'); 
     
-    // Как только трек добавлен в плейлист, даем команду на его кэширование в фоне!
-    if (navigator.onLine && isRemoteMediaUrl(trackData.url)) {
-        cacheTrackSilently(trackData, { reason: 'playlist', priority: true });
-    }
+    // Playlist entries sync to all devices; offline bytes are device-local
+    // and are committed automatically only after a complete listen.
 }
 
 function openMenu() {
