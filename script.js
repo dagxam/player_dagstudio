@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2325';
+const WEB_BUILD_LABEL = '2326';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -3899,7 +3899,14 @@ mainAudio.addEventListener('error', function() {
     recordPlayerEvent('media-error',mediaCode);
     if(!track._playingFromCache)sourceHealthUpdate(track,'error');
     showLoader(false);
-    // Do not skip this song to a different offline track on media errors.
+    // Wave-only: a definitively unsupported source should not leave radio
+    // spinning for minutes. Immediately discover another suggestion.
+    if (mediaCode===4 && playbackTab==='mix:wave' && track._waveRadio) {
+        artistEl.textContent='Источник не поддерживается — ищем другую песню…';
+        playNext();
+        return;
+    }
+    // Do not skip a saved playlist track on recoverable media errors.
     if (mediaCode === 4 && (track._streamRetries || 0) >= MAX_STREAM_RETRIES) {
         artistEl.textContent = 'Источник не поддерживается на устройстве';
         updateState(false);
@@ -4158,7 +4165,11 @@ async function playTrack(index, options = {}) {
                 ? buildProxyUrl(track, { weak: isWeakConnection(), norange: true, retry: 0 })
                 : resolveMediaUrl(track.url);
         } else if (track.url && isRemoteMediaUrl(track.url)) {
-            const cachedRes = await getStartupCachedAudio(track);
+            // Wave discoveries are never saved-playlist tracks: skip the
+            // browser CacheStorage check and start the network stream now.
+            const cachedRes = playbackTab==='mix:wave' && track._waveRadio
+                ? {url:resolveMediaUrl(track.url),isBlob:false,inCache:false}
+                : await getStartupCachedAudio(track);
             if (token !== currentPlaybackToken) {
                 if (cachedRes?.isBlob && cachedRes.url) URL.revokeObjectURL(cachedRes.url);
                 return;
