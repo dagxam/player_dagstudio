@@ -6553,6 +6553,21 @@ if (IS_NATIVE_APP) {
 }
 
 if (IS_NATIVE_APP) {
+    // Check for a newer signed APK or OTA manifest after the interface opens.
+    // Only the alert is automatic: downloads and installation require consent.
+    setTimeout(function() {
+        offerNativeUpdateOnLaunch().catch(error =>
+            console.warn('Update notification unavailable:', error));
+    }, 5000);
+    window.addEventListener('dag-native-state', function(event) {
+        if (event.detail?.isActive) {
+            setTimeout(function() {
+                offerNativeUpdateOnLaunch().catch(() => {});
+            }, 4000);
+        }
+    });
+}
+if (IS_NATIVE_APP) {
     // Никаких фоновых OTA-скачиваний и updater.set() по таймеру или при возврате
     // из сна магнитолы: OTA запускается только кнопкой меню.
     window.addEventListener('dag-android-back', function() {
