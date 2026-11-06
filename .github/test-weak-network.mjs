@@ -11,7 +11,7 @@ assert.match(js,/const WEB_BUILD_LABEL = '2321'/);
 assert.match(android,/setBufferDurationsMs\(18000, 120000, 1700, 4700\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
 assert.match(js,/!getNetworkProfile\(\)\.weak && isCurrentTrackFullyReady\(\)/);
-assert.match(js,/!getNetworkProfile\(\)\.weak\)\{/);
+assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
 assert.match(css,/\.studio-showcase\.showcase-mobile-list/);
 assert.match(layout,/root\.classList\.add\('showcase-mobile-list'\)/);
 assert.match(layout,/root\.classList\.remove\('showcase-mobile-list'\)/);
