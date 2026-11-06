@@ -46,6 +46,7 @@ jobs:
           node .github/test-in-app-apk-update.mjs
           node .github/test-fast-start.mjs
           node .github/test-weak-network.mjs
+          node .github/test-listen-cache.mjs
           node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs
