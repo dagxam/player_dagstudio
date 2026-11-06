@@ -483,3 +483,39 @@
   font-size:.57rem;line-height:1.25;
  }
 }
+
+/* Weak-network/car compact view: the library must remain readable even when
+   the player artwork, toolbar and Android system bars consume vertical space. */
+@media (max-width:768px) {
+ .main-container.studio-showcase:not(.showcase-wave-only)>.left-col {
+  height:clamp(260px,43dvh,400px)!important;
+  flex:0 0 clamp(260px,43dvh,400px)!important;
+  padding-top:calc(var(--dag-safe-top) + 58px)!important;
+ }
+ .main-container.studio-showcase:not(.showcase-wave-only)>.right-col {
+  flex:1 1 0%!important;min-height:160px!important;
+  overflow:hidden!important;
+ }
+ .studio-showcase>.right-col.showcase-list .playlist-area,
+ .studio-showcase>.right-col.showcase-list .track-list,
+ .studio-showcase>.right-col.showcase-list #track-list {
+  min-height:0!important;max-height:none!important;
+  overflow-y:auto!important;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+ }
+ .studio-showcase>.right-col.showcase-list .track-row {
+  min-height:54px!important;box-sizing:border-box!important;
+  max-width:100%!important;
+ }
+ .studio-showcase>.right-col.showcase-list .track-row .track-details,
+ .studio-showcase>.right-col.showcase-list .track-row .track-info,
+ .studio-showcase>.right-col.showcase-list .track-row .track-name {
+  min-width:0!important;overflow:hidden;text-overflow:ellipsis;
+ }
+}
+@media(max-width:768px) and (max-height:620px) {
+ .main-container.studio-showcase:not(.showcase-wave-only)>.left-col {
+  height:clamp(220px,40dvh,300px)!important;
+  flex-basis:clamp(220px,40dvh,300px)!important;
+ }
+}
