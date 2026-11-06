@@ -12,6 +12,7 @@ on:
       - "native/**"
       - "scripts/configure-android-media.mjs"
       - ".github/test-in-app-apk-update.mjs"
+      - ".github/test-weak-network.mjs"
       - ".github/test-profile-theme.mjs"
       - ".github/test-trusted-ip-dns.mjs"
       - ".github/test-native-http-fallback.mjs"
@@ -83,6 +84,9 @@ jobs:
         run: |
           node .github/test-trusted-ip-dns.mjs
           node .github/test-profile-theme.mjs
+
+      - name: Test low bandwidth playback and mobile song list
+        run: node .github/test-weak-network.mjs
 
       - name: Test in-app Android APK updater
         run: |

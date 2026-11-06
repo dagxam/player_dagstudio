@@ -47,10 +47,13 @@ let showingCollection=true;
 function showCurated(){
  showingCollection=true;right.classList.add('showcase-curated');
  right.classList.remove('showcase-list');
+ root.classList.remove('showcase-mobile-list');
  activate('wave');
 }
 function showList(key){
  showingCollection=false;
+ if (key !== 'wave') root.classList.remove('showcase-wave-only');
+ root.classList.add('showcase-mobile-list');
  // Switch away from favourites without losing the existing playing queue.
  if(key!=='likes'&&document.getElementById('studio-header-likes')?.classList.contains('active'))
   window.openStudioLikes?.();

@@ -29,7 +29,6 @@ import java.io.File;
 /**
  * Android-only audio engine. The website still uses HTML5 Audio.
  * Stream buffering and a bounded on-disk cache run outside the WebView.
- * Startup thresholds are tuned for fluctuating TEYES cellular connections.
  */
 public final class DAGAudioEngine {
     private static final long DISK_CACHE_BYTES = 160L * 1024L * 1024L;
@@ -53,10 +52,8 @@ public final class DAGAudioEngine {
         // search API, otherwise music would still fail after search recovers.
         OkHttpClient streamClient = new OkHttpClient.Builder()
             .dns(new DAGServerDns())
-            // Fail a dead cellular connection promptly; slow transfers retain a
-            // generous inactivity timeout and are handled by Media3 retry.
-            .connectTimeout(12, TimeUnit.SECONDS)
-            .readTimeout(45, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
             .followRedirects(false)
             .followSslRedirects(false)
             .build();
@@ -67,18 +64,17 @@ public final class DAGAudioEngine {
             .setCache(cache)
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        // Start as soon as a modest playable buffer exists; retain enough
+        // rebuffer protection for cellular handovers and weak car hotspots.
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            // Start after a short playable buffer instead of waiting for
-            // multiple seconds of audio on a weak mobile connection. Retain
-            // a larger rebuffer threshold to prevent rapid track skipping.
-            .setBufferDurationsMs(12000, 120000, 1500, 4500)
+            .setBufferDurationsMs(18000, 120000, 1700, 4700)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
             .build();
         player = new ExoPlayer.Builder(context)
             .setLoadControl(control)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(source)
-                .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(5)))
+                .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(8)))
             .setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)

@@ -27,11 +27,14 @@ assert.match(build,/cp native\/android\/DAGApkUpdater\.java/);
 assert.match(build,/Deploy APK mirror for DNS-restricted CC3 devices/);
 assert.match(build,/NATIVE_APK_MIRROR_TLS_SHA256_OK/);
 assert.match(bridge,/apkInstaller: \{/);
-assert.match(script,/const WEB_BUILD_LABEL = '2319'/);
+assert.match(script,/const WEB_BUILD_LABEL = '2320'/);
 const manual=script.slice(script.indexOf('window.manualUpdateApplication ='),
-                          script.indexOf('let serviceWorkerRegistrationPromise'));
+                          script.indexOf('window.updateAndroidPackage ='));
 assert.match(manual,/checkNativeLiveUpdate\(true, true\)/);
 assert.doesNotMatch(manual,/installer\.check\(|installer\.install\(|apkInstaller/);
+assert.match(script,/window\.updateAndroidPackage = async function/);
+assert.match(script,/installer\.check\(\)/);
+assert.match(script,/installer\.install\(\)/);
 assert.match(java,/MANIFEST_TTL_MS/);
 assert.match(java,/builder\.header\("Range", "bytes="/);
 assert.match(java,/Content-Range/);

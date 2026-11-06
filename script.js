@@ -81,7 +81,7 @@ const NATIVE_UPDATE_META_URL =
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
-const WEB_BUILD_LABEL = '2319';
+const WEB_BUILD_LABEL = '2320';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -401,90 +401,6 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
     }
 }
 
-
-// Check at startup, but never download or switch an OTA bundle while audio
-// plays. The driver must explicitly accept an available update.
-let dagUpdateOfferBusy = false;
-async function offerNativeUpdateOnLaunch() {
-    if (!IS_NATIVE_APP || NATIVE_PLATFORM === 'ios' || dagUpdateOfferBusy ||
-        navigator.onLine === false) return;
-    dagUpdateOfferBusy = true;
-    try {
-        const native = window.DAG_NATIVE_BRIDGE;
-        let kind = '', version = '';
-        if (native?.apkInstaller?.check) {
-            try {
-                const apk = await native.apkInstaller.check();
-                if (apk?.available === true) {
-                    kind = 'apk';
-                    version = String(apk.version || 'новая версия');
-                }
-            } catch (error) {
-                console.warn('Android APK version check unavailable:', error);
-            }
-        }
-        if (!kind) {
-            const meta = await fetchOtaManifest();
-            const installed = await getInstalledBundleVersion();
-            const builtIn = String(window.DAG_NATIVE_BUILD_COMMIT || '');
-            const isSameBuiltIn = !installed && /^[a-f0-9]{40}$/i.test(builtIn) &&
-                builtIn === String(meta.commit || '');
-            if (!isSameBuiltIn && installed !== String(meta.version) &&
-                (compareOtaVersions(installed, String(meta.version)) === null ||
-                 compareOtaVersions(installed, String(meta.version)) < 0)) {
-                kind = 'ota';
-                version = String(meta.version);
-            }
-        }
-        if (!kind) return;
-        const offerKey = 'dag_update_offered_' + kind + '_' + version;
-        if (sessionStorage.getItem(offerKey) === '1') return;
-        sessionStorage.setItem(offerKey, '1');
-        const box = document.createElement('section');
-        box.className = 'dag-update-offer';
-        box.setAttribute('role', 'dialog');
-        box.setAttribute('aria-label', 'Доступно обновление DAGSTUDIO PLAYER');
-        const heading = document.createElement('strong');
-        heading.textContent = 'Доступно обновление';
-        const detail = document.createElement('p');
-        detail.textContent = kind === 'apk'
-            ? 'Новая версия приложения ' + version + '. Для обновления потребуется подтверждение Android.'
-            : 'Новая версия плеера ' + version + '. Онлайн-обновление применится после вашего подтверждения.';
-        const buttons = document.createElement('div');
-        const later = document.createElement('button');
-        later.type = 'button';
-        later.textContent = 'Позже';
-        const update = document.createElement('button');
-        update.type = 'button';
-        update.textContent = 'Обновить';
-        update.className = 'dag-update-accept';
-        later.addEventListener('click', () => box.remove());
-        update.addEventListener('click', async () => {
-            if (mainAudio && !mainAudio.paused && !mainAudio.ended) {
-                showNotification('Поставьте музыку на паузу перед обновлением.');
-                return;
-            }
-            box.remove();
-            if (kind === 'apk') {
-                try { await native.apkInstaller.install(); }
-                catch (error) {
-                    showNotification('APK не установлен: ' + String(error?.message || error));
-                }
-            } else {
-                await window.manualUpdateApplication();
-            }
-        });
-        buttons.append(later, update);
-        box.append(heading, detail, buttons);
-        document.body.appendChild(box);
-    } catch (error) {
-        // Offline and DNS errors must never interrupt playback or user login.
-        console.warn('Startup update check unavailable:', error);
-    } finally {
-        dagUpdateOfferBusy = false;
-    }
-}
-
 window.manualUpdateApplication = async function() {
     // Во время музыки ручное обновление тоже не должно внезапно прерывать звук.
     if (IS_NATIVE_APP && mainAudio && !mainAudio.paused && !mainAudio.ended) {
@@ -588,6 +504,49 @@ window.manualUpdateApplication = async function() {
         setManualUpdateButtonState('is-error', 'Повторить обновление');
         recordConnectivityFailure(error);
         showNotification('Онлайн-обновление не выполнено. ' + explainConnectionFailure(error));
+    }
+};
+
+// OTA changes the web interface; a native APK update needs a separate,
+// explicit user confirmation and Android's own package installer.
+window.updateAndroidPackage = async function() {
+    const button=document.getElementById('android-apk-update-btn');
+    const installer=window.DAG_NATIVE_BRIDGE?.apkInstaller;
+    if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android' || !installer) {
+        showNotification('Проверка APK доступна в Android-приложении. Для сайта используйте кнопку скачивания APK.');
+        return;
+    }
+    if (mainAudio && !mainAudio.paused && !mainAudio.ended) {
+        showNotification('Перед установкой APK поставьте музыку на паузу.');
+        return;
+    }
+    if (button?.disabled) return;
+    if (button) {button.disabled=true;button.textContent='Проверяем Android APK…';}
+    try {
+        const info=await installer.check();
+        if (!info?.available) {
+            showNotification('Последняя доступная версия Android APK уже установлена.');
+            return;
+        }
+        showConfirm('Доступна Android APK '+String(info.version||'')+
+            '. Скачать и проверить подпись перед установкой?',async()=>{
+            if(button){button.disabled=true;button.textContent='Загружаем APK…';}
+            try {
+                const result=await installer.install();
+                if(result?.status==='current')
+                    showNotification('Android APK уже обновлена.');
+                else if(result?.status==='installer-opened')
+                    showNotification('Подтвердите установку в системном окне Android.');
+            }catch(error) {
+                showNotification('Обновление APK: '+explainConnectionFailure(error));
+            }finally{
+                if(button){button.disabled=false;button.innerHTML='<i class="fab fa-android"></i> Обновить Android APK';}
+            }
+        });
+    } catch(error) {
+        showNotification('Не удалось проверить APK. '+explainConnectionFailure(error));
+    } finally {
+        if(button){button.disabled=false;button.innerHTML='<i class="fab fa-android"></i> Обновить Android APK';}
     }
 };
 
@@ -2214,6 +2173,8 @@ function refreshIOSInstallControls() {
     const androidApk=document.getElementById('android-apk-download-btn');
     // Never invite iPhone users to download an Android-only APK.
     if(androidApk)androidApk.hidden=isIOS;
+    const nativeApkUpdate=document.getElementById('android-apk-update-btn');
+    if(nativeApkUpdate)nativeApkUpdate.hidden=!(IS_NATIVE_APP&&NATIVE_PLATFORM==='android');
 }
 refreshIOSInstallControls();
 window.addEventListener('appinstalled',refreshIOSInstallControls);
@@ -3503,19 +3464,27 @@ function scheduleStreamRecovery(reason, delay) {
     let wait = typeof delay === 'number' ? delay : (net.veryWeak ? 26000 : (net.weak ? 16000 : 8000));
 
     if (reason === 'waiting' || reason === 'stalled') {
-        // На 2G колебания буфера нормальны. Не обрываем поток через 4 секунды.
-        wait = net.veryWeak ? 26000 : (net.weak ? 18000 : 13000);
+        // Slow networks can pause delivery for tens of seconds without losing
+        // the connection. Give already-open streams time to refill their buffer.
+        wait = net.veryWeak ? 30000 : (net.weak ? 23000 : 13000);
     } else if (typeof delay !== 'number' && AUDIO_COMPAT_PROFILE.legacyAndroid) {
         wait = net.weak ? 12000 : 8000;
     }
 
     streamRecoveryTimer = setTimeout(function() {
+        streamRecoveryTimer = null;
         if (token !== currentPlaybackToken || mainAudio.ended || !playbackWanted) return;
-        if ((reason === 'waiting' || reason === 'stalled') &&
-            bufferedSecondsAhead() > 1 && !playbackIsFrozen()) {
-            // Buffered audio can still be progressing: do not tear it down.
-            showLoader(false);
-            return;
+        if (reason === 'waiting' || reason === 'stalled') {
+            if (bufferedSecondsAhead() > 1 && !playbackIsFrozen()) {
+                showLoader(false);
+                return;
+            }
+            // Restarting a still-buffering weak-network stream wastes bytes
+            // already transferred. Wait for evidence the playhead really froze.
+            if (net.weak && !playbackIsFrozen()) {
+                scheduleStreamRecovery(reason);
+                return;
+            }
         }
         recoverCurrentStream(reason);
     }, wait);
@@ -3623,7 +3592,11 @@ async function recoverCurrentStreamInternal(reason, track) {
         return;
     }
 
-    if(track._streamRetries===2&&(track._sourceSwitches||0)<3){
+    // Searching alternate providers consumes the same scarce bandwidth.
+    // Retry the original URL on weak networks; failover remains available
+    // after the retry budget is exhausted or the source is definitively bad.
+    if(track._streamRetries===2&&(track._sourceSwitches||0)<3 &&
+       !getNetworkProfile().weak){
         let changed=false;
         try{changed=await refreshSavedTrackSource(track);}catch(error){
             recordPlayerEvent('alternate-provider-search-failed');}
@@ -3702,7 +3675,8 @@ mainAudio.addEventListener('playing', function() {
     if (track && navigator.onLine !== false && isRemoteMediaUrl(track.url) && !track._playingFromCache) {
         setTimeout(function() {
             if (token === currentPlaybackToken && track === playbackPlaylist[currentIndex] &&
-                isFinite(mainAudio.currentTime) && mainAudio.currentTime >= 5) {
+                isFinite(mainAudio.currentTime) && mainAudio.currentTime >= 5 &&
+                !getNetworkProfile().weak && isCurrentTrackFullyReady()) {
                 cacheTrackSilently(track, { reason: 'played', priority: true });
             }
         }, 6000);
@@ -3851,6 +3825,7 @@ mainAudio.addEventListener('timeupdate', function() {
         // Дополнительная страховка: после 8 секунд онлайн-прослушивания
         // ставим трек в очередь постоянного кэша только один раз за запуск.
         if (IS_NATIVE_APP && navigator.onLine !== false && mainAudio.currentTime >= 8 &&
+            !getNetworkProfile().weak && isCurrentTrackFullyReady() &&
             isRemoteMediaUrl(track.url) && !track._playingFromCache && !track._cacheQueuedForPlay) {
             track._cacheQueuedForPlay = true;
             cacheTrackSilently(track, { reason: 'played', priority: true });
@@ -6576,15 +6551,6 @@ if (IS_NATIVE_APP) {
     },90000);
 }
 
-if (IS_NATIVE_APP) {
-    // A lightweight version check runs after startup; no automatic installation.
-    setTimeout(() => offerNativeUpdateOnLaunch().catch(() => {}), 5000);
-    window.addEventListener('dag-native-state', event => {
-        if (event.detail?.isActive) {
-            setTimeout(() => offerNativeUpdateOnLaunch().catch(() => {}), 3500);
-        }
-    });
-}
 if (IS_NATIVE_APP) {
     // Никаких фоновых OTA-скачиваний и updater.set() по таймеру или при возврате
     // из сна магнитолы: OTA запускается только кнопкой меню.

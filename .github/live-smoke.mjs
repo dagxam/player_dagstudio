@@ -1408,6 +1408,40 @@ try {
   }
   await page.setViewport({width:1024,height:600});
 
+  // iPhone-sized view: song list must occupy a real scrollable area,
+  // including after returning from fullscreen Wave mode.
+  for (const viewport of [{width:390,height:844},{width:375,height:667}]) {
+    await page.setViewport(viewport);
+    const mobileList=await page.evaluate(()=>{
+      const root=document.querySelector('.main-container.studio-showcase');
+      root?.classList.add('showcase-wave-only');
+      window.studioShowList?.('search');
+      if(typeof switchTab==='function')switchTab('search');
+      const player=root?.querySelector(':scope > .left-col');
+      const panel=root?.querySelector(':scope > .right-col');
+      const list=panel?.querySelector('.playlist-area');
+      const playerBox=player?.getBoundingClientRect();
+      const panelBox=panel?.getBoundingClientRect();
+      const songsBox=list?.getBoundingClientRect();
+      return {
+        compact:!!root?.classList.contains('showcase-mobile-list'),
+        waveClosed:!root?.classList.contains('showcase-wave-only'),
+        playerHeight:Math.round(playerBox?.height||0),
+        panelHeight:Math.round(panelBox?.height||0),
+        songsHeight:Math.round(songsBox?.height||0),
+        songsVisible:!!songsBox && songsBox.bottom>songsBox.top &&
+          getComputedStyle(list).display!=='none',
+        fits:!!panelBox && panelBox.top<innerHeight-110 &&
+          panelBox.bottom<=innerHeight+2
+      };
+    });
+    console.log('MOBILE_TRACK_LIST_VISIBLE',JSON.stringify({viewport,...mobileList}));
+    if(!mobileList.compact||!mobileList.waveClosed||!mobileList.songsVisible||
+       mobileList.songsHeight<145||mobileList.playerHeight>viewport.height*.49||
+       !mobileList.fits)throw new Error('Phone song list hidden behind the player');
+  }
+  await page.setViewport({width:1024,height:600});
+
   // Live search + audio relay smoke test. Read only the first streamed chunk.
   const searchSmoke = await page.evaluate(async () => {
     const result = await window.api('search_global', {

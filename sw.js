@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2328';
+const CACHE_NAME = 'dagstudio-player-shell-v2329';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -7,13 +7,13 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2227',
     '/modern.css?v=16',
-    '/script.js?v=2319',
+    '/script.js?v=2320',
     '/studio.css?v=6',
     '/studio.js?v=5',
     '/studio-next.css?v=20',
-    '/studio-next.js?v=14',
+    '/studio-next.js?v=15',
     '/studio-center.js?v=6',
-    '/studio-touch.css?v=11',
+    '/studio-touch.css?v=12',
     '/vendor/fontawesome/css/all.min.css?v=6722',
     '/vendor/fontawesome/webfonts/fa-solid-900.woff2',
     '/vendor/fontawesome/webfonts/fa-regular-400.woff2',
