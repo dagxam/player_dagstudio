@@ -200,6 +200,7 @@ const audioCache = {
   }
 };
 
+// Release sync: native + OTA bundles share the verified HTTPS transport.
 // On some CC3 firmwares Android's native DNS resolver fails while Chromium
 // WebView can access the exact same HTTPS site. Retry only idempotent reads
 // in the WebView network stack, never account/playlist writes.
