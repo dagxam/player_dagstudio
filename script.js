@@ -1914,32 +1914,8 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
 }
 
 function syncPlaylistOfflineCache() {
-    // Playlist metadata syncs across devices. Automatic audio saving is
-    // deliberately disabled here; only a fully heard track is eligible.
-    return;
-    if (navigator.onLine === false) return;
-
-    // Просим браузер хранить кэш устойчивее к автоматической очистке.
-    if (!IS_NATIVE_APP && navigator.storage && typeof navigator.storage.persist === 'function') {
-        navigator.storage.persist().catch(function() {});
-    }
-
-    const seen = new Set();
-    // Automatic preparation is limited to explicitly liked/favorite lists;
-    // downloading every playlist silently can exhaust TEYES storage.
-    playlists.filter(pl=>/любим|избран|favorite|liked/i.test(String(pl.name||''))).forEach(pl => {
-        (pl.tracks || []).forEach(track => {
-            const resolved = canonicalTrackUrl(track);
-            if (!resolved || seen.has(resolved)) return;
-            seen.add(resolved);
-
-            if (IS_NATIVE_APP) {
-                enqueueNativeTrackCache(track, 'playlist', false);
-            } else {
-                enqueueWebTrackCache(track, 'playlist', false);
-            }
-        });
-    });
+    // Playlist metadata syncs across devices, but offline media stays
+    // device-local and is saved automatically only after a complete listen.
 }
 
 function getOfflineCachedTracks() {
