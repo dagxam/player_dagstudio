@@ -52,8 +52,8 @@ public final class DAGAudioEngine {
         // search API, otherwise music would still fail after search recovers.
         OkHttpClient streamClient = new OkHttpClient.Builder()
             .dns(new DAGServerDns())
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(11, TimeUnit.SECONDS)
+            .readTimeout(35, TimeUnit.SECONDS)
             .followRedirects(false)
             .followSslRedirects(false)
             .build();
@@ -67,7 +67,7 @@ public final class DAGAudioEngine {
         // Start as soon as a modest playable buffer exists; retain enough
         // rebuffer protection for cellular handovers and weak car hotspots.
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(18000, 120000, 1700, 4700)
+            .setBufferDurationsMs(12000, 120000, 1100, 3200)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
             .build();
