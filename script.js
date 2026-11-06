@@ -401,6 +401,90 @@ async function checkNativeLiveUpdate(force = false, manual = false) {
     }
 }
 
+
+// Check at startup, but never download or switch an OTA bundle while audio
+// plays. The driver must explicitly accept an available update.
+let dagUpdateOfferBusy = false;
+async function offerNativeUpdateOnLaunch() {
+    if (!IS_NATIVE_APP || NATIVE_PLATFORM === 'ios' || dagUpdateOfferBusy ||
+        navigator.onLine === false) return;
+    dagUpdateOfferBusy = true;
+    try {
+        const native = window.DAG_NATIVE_BRIDGE;
+        let kind = '', version = '';
+        if (native?.apkInstaller?.check) {
+            try {
+                const apk = await native.apkInstaller.check();
+                if (apk?.available === true) {
+                    kind = 'apk';
+                    version = String(apk.version || 'новая версия');
+                }
+            } catch (error) {
+                console.warn('Android APK version check unavailable:', error);
+            }
+        }
+        if (!kind) {
+            const meta = await fetchOtaManifest();
+            const installed = await getInstalledBundleVersion();
+            const builtIn = String(window.DAG_NATIVE_BUILD_COMMIT || '');
+            const isSameBuiltIn = !installed && /^[a-f0-9]{40}$/i.test(builtIn) &&
+                builtIn === String(meta.commit || '');
+            if (!isSameBuiltIn && installed !== String(meta.version) &&
+                (compareOtaVersions(installed, String(meta.version)) === null ||
+                 compareOtaVersions(installed, String(meta.version)) < 0)) {
+                kind = 'ota';
+                version = String(meta.version);
+            }
+        }
+        if (!kind) return;
+        const offerKey = 'dag_update_offered_' + kind + '_' + version;
+        if (sessionStorage.getItem(offerKey) === '1') return;
+        sessionStorage.setItem(offerKey, '1');
+        const box = document.createElement('section');
+        box.className = 'dag-update-offer';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-label', 'Доступно обновление DAGSTUDIO PLAYER');
+        const heading = document.createElement('strong');
+        heading.textContent = 'Доступно обновление';
+        const detail = document.createElement('p');
+        detail.textContent = kind === 'apk'
+            ? 'Новая версия приложения ' + version + '. Для обновления потребуется подтверждение Android.'
+            : 'Новая версия плеера ' + version + '. Онлайн-обновление применится после вашего подтверждения.';
+        const buttons = document.createElement('div');
+        const later = document.createElement('button');
+        later.type = 'button';
+        later.textContent = 'Позже';
+        const update = document.createElement('button');
+        update.type = 'button';
+        update.textContent = 'Обновить';
+        update.className = 'dag-update-accept';
+        later.addEventListener('click', () => box.remove());
+        update.addEventListener('click', async () => {
+            if (mainAudio && !mainAudio.paused && !mainAudio.ended) {
+                showNotification('Поставьте музыку на паузу перед обновлением.');
+                return;
+            }
+            box.remove();
+            if (kind === 'apk') {
+                try { await native.apkInstaller.install(); }
+                catch (error) {
+                    showNotification('APK не установлен: ' + String(error?.message || error));
+                }
+            } else {
+                await window.manualUpdateApplication();
+            }
+        });
+        buttons.append(later, update);
+        box.append(heading, detail, buttons);
+        document.body.appendChild(box);
+    } catch (error) {
+        // Offline and DNS errors must never interrupt playback or user login.
+        console.warn('Startup update check unavailable:', error);
+    } finally {
+        dagUpdateOfferBusy = false;
+    }
+}
+
 window.manualUpdateApplication = async function() {
     // Во время музыки ручное обновление тоже не должно внезапно прерывать звук.
     if (IS_NATIVE_APP && mainAudio && !mainAudio.paused && !mainAudio.ended) {
@@ -6492,6 +6576,15 @@ if (IS_NATIVE_APP) {
     },90000);
 }
 
+if (IS_NATIVE_APP) {
+    // A lightweight version check runs after startup; no automatic installation.
+    setTimeout(() => offerNativeUpdateOnLaunch().catch(() => {}), 5000);
+    window.addEventListener('dag-native-state', event => {
+        if (event.detail?.isActive) {
+            setTimeout(() => offerNativeUpdateOnLaunch().catch(() => {}), 3500);
+        }
+    });
+}
 if (IS_NATIVE_APP) {
     // Никаких фоновых OTA-скачиваний и updater.set() по таймеру или при возврате
     // из сна магнитолы: OTA запускается только кнопкой меню.
