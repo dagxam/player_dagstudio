@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2324';
+const WEB_BUILD_LABEL = '2325';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -4483,69 +4483,70 @@ async function findWaveNextTrack(){
     if(navigator.onLine===false)return null;
     const library=waveLibrarySeeds();
     if(!library.length)return null;
-    // Never play a song already saved in any playlist, including excluded
-    // collections. Exclusions also keep their performers out of wave seeds.
     const excluded=new Set((playlists||[]).filter(pl=>playlistExcludedFromLikes(pl.id))
         .flatMap(pl=>pl.tracks||[]).map(t=>tasteTrackId(t)));
-    const saved=(playlists||[]).flatMap(pl=>pl.tracks||[]);
-    const known=[...saved,...playbackPlaylist,...playbackQueue];
+    const known=[...(playlists||[]).flatMap(pl=>pl.tracks||[]),
+        ...playbackPlaylist,...playbackQueue];
     const titles=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
     const urls=new Set(known.map(t=>String(t.url||'')));
-    const seen=track=>!track?.url||excluded.has(tasteTrackId(track))||urls.has(String(track.url))||
-        titles.has(normalizeTrackIdentity(track.artist)+'|'+normalizeTrackIdentity(track.title));
-    const prior=playbackPlaylist[currentIndex]?.artist||'';
     const history=new Set(radioRecentTracks('wave'));
-    let previouslyPlayed=null;
-    // Prefer verified recent tracks and other singers; the user shouldn't hear
-    // the same performer repeatedly just because a server ranked them first.
-    function choose(pool){
-        const eligible=quickMixRankTracks(quickMixUnique(pool).filter(t=>!seen(t)),
-             {mode:'popular'});
-        if(!eligible.length)return null;
-        const fresh=eligible.filter(t=>{
-            const date=quickMixReleaseTimestamp(t);
-            return date&&Date.now()-date<=365*86400000;
-        });
-        const candidates=fresh.length?fresh:eligible;
-        const other=candidates.filter(t=>
-            normalizeTrackIdentity(t.artist)!==normalizeTrackIdentity(prior));
-        const choices=other.length?other:candidates;
-        const unheard=choices.filter(t=>!history.has(radioTrackIdentity(t)));
-        if(!unheard.length){
-            if(!previouslyPlayed)previouslyPlayed=choices[0];
-            return null;
-        }
-        // Take one of the leading recommendations, not always result #1.
-        const shortlist=unheard.slice(0,Math.min(6,unheard.length));
-        return shortlist[Math.floor(Math.random()*shortlist.length)]||null;
+    const prior=normalizeTrackIdentity(playbackPlaylist[currentIndex]?.artist);
+    const seedArtists=[...new Set(library.map(t=>normalizeTrackIdentity(t.artist)).filter(Boolean))];
+    const seedGenres=[...new Set(library.map(t=>normalizeTrackIdentity(t.genre)).filter(Boolean))];
+    const seen=t=>!t?.url||!t?.title||!t?.artist||excluded.has(tasteTrackId(t))||
+        urls.has(String(t.url))||titles.has(normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title));
+    // Explicitly saved music is the primary taste signal. A genre match and
+    // previously liked performer improve relevance; a dislike disqualifies.
+    function rankedCandidates(pool){
+        const unique=quickMixUnique(pool).filter(t=>!seen(t));
+        return unique.map(track=>{
+            const artist=normalizeTrackIdentity(track.artist);
+            const genre=normalizeTrackIdentity(track.genre);
+            const taste=tasteCandidateScore(track,seedArtists);
+            if(taste<=-1000)return null;
+            const artistMatch=seedArtists.includes(artist)?16:0;
+            const genreMatch=genre&&seedGenres.includes(genre)?9:0;
+            const fresh=quickMixReleaseTimestamp(track);
+            const recency=fresh&&Date.now()-fresh<365*86400000?2:0;
+            const repeated=history.has(radioTrackIdentity(track))?35:0;
+            const sameArtist=artist===prior?7:0;
+            return {track,score:artistMatch+genreMatch+taste+recency+
+                sourceHealthScore(track.source)-repeated-sameArtist};
+        }).filter(Boolean).sort((x,y)=>y.score-x.score);
     }
-    // The library supplies search directions only: NEVER use its saved audio
-    // as a playable result. Old preference data from excluded playlists must
-    // not leak into the queries either.
-    const names=[...new Set([
-       ...library.map(t=>String(t.artist||'').trim()),
-       ...library.map(t=>String(t.genre||'').trim())
-    ])].filter(Boolean).slice(0,90);
+    // Rotate artist/genre directions. On good networks try two different
+    // directions concurrently, instead of waiting for three sequential APIs.
+    const names=[...new Set([...library.map(t=>String(t.artist||'').trim()),
+        ...library.map(t=>String(t.genre||'').trim())])].filter(Boolean).slice(0,90);
     if(!names.length)return null;
     const net=getNetworkProfile();
-    // Rotate artists and pages so a finished song advances discovery instead of
-    // replaying the first search page or repeating only one singer.
-    for(let i=0;i<Math.min(net.weak?2:3,names.length);i++){
-        const count=nextWaveSearchCursor();
-        const query=names[count%names.length];
-        const page=1+Math.floor(count/names.length)%12;
+    const count=Math.min(net.weak?1:2,names.length);
+    const queries=[];
+    for(let i=0;i<count;i++){
+        const cursor=nextWaveSearchCursor();
+        queries.push({query:names[cursor%names.length],
+            page:1+Math.floor(cursor/names.length)%12});
+    }
+    const results=await Promise.all(queries.map(async ({query,page})=>{
         try{
             const response=await radioSearchPage(query,page,net);
-            if(response?.success&&Array.isArray(response.data)){
-                const found=choose(response.data);
-                if(found)return {...found,_smartRadio:true,_waveRadio:true};
-            }
-        }catch(e){recordPlayerEvent('wave-discovery-error');}
-    }
-    // Only relax the rotating history after trying other search directions.
-    // Without this, a small provider catalog could leave radio permanently idle.
-    return previouslyPlayed?{...previouslyPlayed,_smartRadio:true,_waveRadio:true}:null;
+            return response?.success&&Array.isArray(response.data)?response.data:[];
+        }catch(error){
+            recordPlayerEvent('wave-discovery-error');
+            return [];
+        }
+    }));
+    const ranked=rankedCandidates(results.flat());
+    if(!ranked.length)return null;
+    // Never loop on already saved tracks, and prefer unplayed discoveries.
+    const fresh=ranked.filter(item=>!history.has(radioTrackIdentity(item.track)));
+    const eligible=fresh.length?fresh:ranked;
+    const best=eligible[0].score;
+    const shortlist=eligible.filter(item=>item.score>=best-5).slice(0,6);
+    const picked=shortlist[Math.floor(Math.random()*shortlist.length)]?.track;
+    return picked?{...picked,_smartRadio:true,_waveRadio:true}:null;
 }
+
 // Prepare the first recommendation while the player is idle. This is only a
 // background discovery/cache hint: audio never starts without a user action.
 let waveWarmState=null,waveWarmTimer=null;
@@ -4844,7 +4845,8 @@ function maybePrefetchSmartRadio() {
     // Only search/download when enough of the current song is buffered; on
     // mobile radio we must not trade reliable sound for recommendations.
     if (!playbackPlaylist[currentIndex]._playingFromCache &&
-        !isCurrentTrackFullyReady() && bufferedSecondsAhead() < 12) return;
+        !isCurrentTrackFullyReady() &&
+        bufferedSecondsAhead() < (playbackTab==='mix:wave'?4:12)) return;
     const token=currentPlaybackToken, serial=smartRadioRequestSerial;
     if (smartRadioPrefetch?.token === token && smartRadioPrefetch.serial === serial) return;
     const state={token,serial,candidate:null,promise:null};
@@ -4887,7 +4889,9 @@ function scheduleContinuousRadioRetry(){
     if(!isContinuousRadio()||!playbackWanted||radioRetryTimer)return;
     const token=currentPlaybackToken,serial=smartRadioRequestSerial;
     const mode=playbackTab;
-    const delay=Math.min(45000,3500+radioRetryAttempts++*4500);
+    const delay=playbackTab==='mix:wave'
+        ?Math.min(18000,1800+radioRetryAttempts++*2400)
+        :Math.min(45000,3500+radioRetryAttempts++*4500);
     radioRetryTimer=setTimeout(()=>{
         radioRetryTimer=null;
         if(playbackWanted&&playbackTab===mode&&
@@ -5849,7 +5853,9 @@ async function startQuickMix(key) {
         setQuickMixStatus('Ищем похожую музыку в сети…');
         const warm=waveWarmState?.owner===tasteOwnerKey()?waveWarmState:null;
         let first=warm?.candidate||null;
-        if(!first&&warm?.promise)first=await warm.promise;
+        if(!first&&warm?.promise)first=await Promise.race([
+            warm.promise,new Promise(resolve=>setTimeout(()=>resolve(null),2200))
+        ]);
         if(first&&!waveWarmCandidateAllowed(first))first=null;
         // Every launch consumes its prepared selection; the next opening
         // searches from the advanced cursor and excludes recent plays.
