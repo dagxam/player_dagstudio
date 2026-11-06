@@ -280,8 +280,13 @@ function configureAndroidDownloadLink() {
             event.preventDefault();
             window.updateAndroidPackage();
         }
-        // Legacy APK without the native installer: let the Android system
-        // handle a direct HTTPS APK download, not a pop-up or GitHub page.
+        // Legacy APK without the native installer: use the Android browser
+        // download manager instead of the Capacitor WebView.
+        if (typeof window.DAG_NATIVE_BRIDGE?.openExternal === 'function') {
+            event.preventDefault();
+            window.DAG_NATIVE_BRIDGE.openExternal({url:ANDROID_APK_LATEST_URL})
+                .catch(() => window.updateAndroidPackage());
+        }
     };
 }
 if (document.readyState === 'loading') {
@@ -528,8 +533,16 @@ window.updateAndroidPackage = async function() {
     if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android' || !installer) {
         // Older APKs lack DAGCarMode.checkApkUpdate(): downloading a real
         // .apk from our same-origin server is the only compatible fallback.
-        showConfirm('В этой версии нет встроенного установщика APK. Скачать файл напрямую с pl.dagstudio.ru?', function() {
-            window.location.href = ANDROID_APK_LATEST_URL;
+        showConfirm('В этой версии нет встроенного установщика APK. Открыть загрузку в системном браузере Android?', async function() {
+            try {
+                const open = window.DAG_NATIVE_BRIDGE?.openExternal;
+                if (typeof open === 'function')
+                    await open({ url: ANDROID_APK_LATEST_URL });
+                else
+                    window.location.assign(ANDROID_APK_LATEST_URL);
+            } catch (error) {
+                showNotification('Не удалось открыть системный браузер. Откройте pl.dagstudio.ru/apk/ на устройстве.');
+            }
         });
         return;
     }
