@@ -29,6 +29,7 @@ import java.io.File;
 /**
  * Android-only audio engine. The website still uses HTML5 Audio.
  * Stream buffering and a bounded on-disk cache run outside the WebView.
+ * Startup thresholds are tuned for fluctuating TEYES cellular connections.
  */
 public final class DAGAudioEngine {
     private static final long DISK_CACHE_BYTES = 160L * 1024L * 1024L;
