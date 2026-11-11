@@ -8,6 +8,9 @@ const bridge=readFileSync(new URL('../native/native-bridge.js',import.meta.url),
 const gradle=readFileSync(new URL('./workflows/build-android.yml',import.meta.url),'utf8');
 assert.match(dns,/FALLBACK_IP = "188.127.241.85"/);
 assert.match(dns,/Collections\.singletonList\(trusted\)/);
+assert.match(dns,/Dns\\.SYSTEM\\.lookup\\(HOST\\)/);
+assert.match(dns,/resolver\\.execute/);
+assert.match(dns,/candidates\\.add\\(trusted\\)/);
 assert.match(dns,/Dns\.SYSTEM\.lookup\(hostname\)/);
 assert.match(plugin,/new DAGServerDns\(\)/);
 assert.match(plugin,/DAGServerDns\.HOST\.equalsIgnoreCase\(uri\.getHost\(\)\)/);
