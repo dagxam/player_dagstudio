@@ -37,6 +37,7 @@ jobs:
           node --check studio-next.js
           node --check studio-center.js
           node --check sw.js
+          node .github/test-cc3-offline-failover.mjs
           node .github/test-ota-update.mjs
           node .github/test-connectivity.mjs
           node .github/test-end-to-end-network.mjs
@@ -66,6 +67,12 @@ jobs:
           test -s studio-touch.css
           test -s studio-center.js
           python -m json.tool manifest.json > /dev/null
+
+      - name: Verify shared web and Android UI before FTP publication
+        run: |
+          npm install --no-audit --no-fund
+          npm run native:web
+          node .github/test-web-apk-parity.mjs
 
       - name: Local auth and playlist integration test
         run: |
