@@ -40,6 +40,7 @@ jobs:
           node --check www/script.js
           node --check www/native-bridge.js
           test -s www/index.html
+          node .github/test-web-apk-parity.mjs
 
   compile-android:
     runs-on: ubuntu-latest
@@ -59,6 +60,7 @@ jobs:
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - run: npm install --no-audit --no-fund
       - run: npm run native:web
+      - run: node .github/test-web-apk-parity.mjs
       - name: Assemble debug APK without release or deployment
         run: |
           npx cap add android
