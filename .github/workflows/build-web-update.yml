@@ -7,6 +7,8 @@ on:
     paths:
       - "index.php"
       - "script.js"
+      - "sw.js"
+      - ".github/test-web-apk-parity.mjs"
       - "style.css"
       - "modern.css"
       - "studio.css"
@@ -71,6 +73,7 @@ jobs:
           ! grep -qi 'cdnjs.cloudflare.com/ajax/libs/font-awesome' www/index.html
           node --check www/script.js
           node --check www/native-bridge.js
+          node .github/test-web-apk-parity.mjs
           grep -q 'DAG_NATIVE_APP' www/index.html
           grep -q "$GITHUB_SHA" www/index.html
           grep -q 'https://pl.dagstudio.ru' www/script.js
