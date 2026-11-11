@@ -1511,8 +1511,9 @@ function isCurrentTrackFullyReady() {
     try {
         const buffered = mainAudio.buffered;
         for (let i = 0; i < buffered.length; i++) {
-            if (buffered.start(i) <= 1 &&
-                buffered.end(i) >= Math.min(duration - 1.5, Number(mainAudio.currentTime || 0) + 60)) return true;
+            // A minute of buffer is NOT a complete track. Concurrent full
+            // downloads steal scarce bandwidth from the actual decoder.
+            if (buffered.start(i) <= 1 && buffered.end(i) >= duration - 1.5) return true;
         }
     } catch (error) {}
     return false;
@@ -4874,7 +4875,7 @@ function maybePrefetchSmartRadio() {
     // mobile radio we must not trade reliable sound for recommendations.
     if (!playbackPlaylist[currentIndex]._playingFromCache &&
         !isCurrentTrackFullyReady() &&
-        bufferedSecondsAhead() < (playbackTab==='mix:wave'?4:12)) return;
+        bufferedSecondsAhead() < (playbackTab==='mix:wave'?20:45)) return;
     const token=currentPlaybackToken, serial=smartRadioRequestSerial;
     if (smartRadioPrefetch?.token === token && smartRadioPrefetch.serial === serial) return;
     const state={token,serial,candidate:null,promise:null};
