@@ -7,7 +7,7 @@ const css=readFileSync(new URL('../studio-touch.css',import.meta.url),'utf8');
 const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
-assert.match(js,/const WEB_BUILD_LABEL = '2327'/);
+assert.match(js,/const WEB_BUILD_LABEL = '2328'/);
 assert.match(android,/setBufferDurationsMsForStreaming\(45000, 180000, 2500, 10000\)/);
 assert.match(android, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
@@ -17,8 +17,8 @@ assert.match(css,/\.studio-showcase\.showcase-mobile-list/);
 assert.match(layout,/root\.classList\.add\('showcase-mobile-list'\)/);
 assert.match(layout,/root\.classList\.remove\('showcase-mobile-list'\)/);
 assert.match(layout,/root\.classList\.remove\('showcase-wave-only'\)/);
-assert.match(index,/id="android-apk-update-btn"/);
-assert.match(js,/window\.updateAndroidPackage = async function/);
+assert.doesNotMatch(index,/id="android-apk-update-btn"/);
+assert.doesNotMatch(js,/window\.updateAndroidPackage = async function/);
 assert.match(js,/installer\.check\(\)/);
 assert.match(js,/installer\.install\(\)/);
 
@@ -55,5 +55,5 @@ assert.match(js,/if \(expired && result\?\.isBlob && result\.url\) URL\.revokeOb
 assert.match(js,/playbackTab==='mix:wave' && track\._waveRadio/);
 assert.match(js,/: await getStartupCachedAudio\(track\)/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
-assert.match(js,/register\('\/sw\.js\?v=2336'/);
+assert.match(js,/register\('\/sw\.js\?v=2337'/);
 console.log('WEAK_NETWORK_BUFFER_AND_MOBILE_LIST_AND_APK_UI_OK');

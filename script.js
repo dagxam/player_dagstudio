@@ -80,9 +80,9 @@ const NATIVE_UPDATE_META_URL =
     'https://pl.dagstudio.ru/ota-bridge.php';
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
+const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2327';
+const WEB_BUILD_LABEL = '2328';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -267,25 +267,23 @@ function compareOtaVersions(installed, available) {
 function configureAndroidDownloadLink() {
     const link = document.getElementById('android-apk-download-btn');
     if (!link) return;
-    link.href = ANDROID_APK_LATEST_URL;
-    // Never open a second browser window on CC3: it may display an empty
-    // page instead of sending the APK to Android's download manager.
+    // Same-origin endpoint sends Content-Disposition: attachment; browsers
+    // download the APK rather than try to display it in a WebView tab.
+    link.href = '/apk-download.php';
     link.removeAttribute('target');
-    link.removeAttribute('rel');
     link.setAttribute('download', 'DAGSTUDIO-PLAYER-Preview.apk');
     link.onclick = function(event) {
         if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
-        const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
-        if (installer && typeof installer.install === 'function') {
-            event.preventDefault();
-            window.updateAndroidPackage();
-        }
-        // Legacy APK without the native installer: use the Android browser
-        // download manager instead of the Capacitor WebView.
-        if (typeof window.DAG_NATIVE_BRIDGE?.openExternal === 'function') {
-            event.preventDefault();
-            window.DAG_NATIVE_BRIDGE.openExternal({url:ANDROID_APK_LATEST_URL})
-                .catch(() => window.updateAndroidPackage());
+        event.preventDefault();
+        // System browser/download manager can handle APK attachments. The
+        // Capacitor WebView itself often silently drops APK downloads.
+        const open = window.DAG_NATIVE_BRIDGE?.openExternal;
+        if (typeof open === 'function') {
+            open({url: ANDROID_APK_DOWNLOAD_URL}).catch(function() {
+                showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
+            });
+        } else {
+            showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
         }
     };
 }
@@ -486,36 +484,82 @@ window.manualUpdateApplication = async function() {
             return;
         }
 
-        // This button updates the web UI using signed Capgo OTA only.
-        // A separate, explicit Download APK menu item handles native updates.
+        // A newer native APK takes precedence: an OTA web bundle cannot
+        // upgrade Java/Media3, DNS recovery or Android permissions.
+        const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
+        let apkCheckFailed = false;
+        if (NATIVE_PLATFORM === 'android') {
+            if (!installer || typeof installer.check !== 'function' ||
+                typeof installer.install !== 'function') {
+                apkCheckFailed = true;
+            } else {
+                try {
+                    const apk = await installer.check();
+                    if (apk?.available) {
+                        setManualUpdateButtonState('is-ready', 'Доступно обновление приложения');
+                        showConfirm('Доступна новая версия Android ' +
+                            String(apk.version || '') +
+                            '. Скачать и установить обновление?', async function() {
+                            setManualUpdateButtonState('is-checking', 'Загружаем APK…');
+                            try {
+                                const outcome = await installer.install();
+                                if (outcome?.status === 'current') {
+                                    setManualUpdateButtonState('is-current', 'Установлена последняя версия');
+                                    showNotification('Android APK уже обновлена.');
+                                } else if (outcome?.status === 'installer-opened') {
+                                    setManualUpdateButtonState('is-ready', 'Подтвердите установку');
+                                    showNotification('Подтвердите обновление в системном окне Android.');
+                                }
+                            } catch (error) {
+                                setManualUpdateButtonState('is-error', 'Повторить обновление');
+                                showConfirm('Автоматическая установка не выполнена: ' +
+                                    explainConnectionFailure(error) +
+                                    '. Скачать APK через браузер?', function() {
+                                    openAndroidApkDownload();
+                                });
+                            }
+                        });
+                        return;
+                    }
+                } catch (error) {
+                    apkCheckFailed = true;
+                    console.warn('APK check failed; trying the web updater:', error);
+                }
+            }
+        }
+
         const result = await checkNativeLiveUpdate(true, true);
-
         if (result.status === 'updated') {
-            // Обычно сюда управление уже не вернётся: updater.set()
-            // сразу перезапускает приложение с новой версией.
+            // updater.set() switches bundles and normally reloads the WebView.
             return;
         }
-
         if (result.status === 'current' || result.status === 'throttled') {
-            setManualUpdateButtonState('is-current', 'Установлена последняя версия');
             await refreshAppVersionInfo();
-            showNotification('У вас уже установлена последняя версия DAGSTUDIO PLAYER.');
-            setTimeout(function() {
-                setManualUpdateButtonState('', 'Обновить приложение');
-            }, 2600);
+            if (apkCheckFailed && NATIVE_PLATFORM === 'android') {
+                setManualUpdateButtonState('is-ready', 'Скачать APK');
+                showConfirm('Обновления веб-части не найдены, но проверить версию APK не удалось. Скачать APK через браузер?', function() {
+                    openAndroidApkDownload();
+                });
+            } else {
+                setManualUpdateButtonState('is-current', 'Установлена последняя версия');
+                showNotification('У вас уже установлена последняя версия DAGSTUDIO PLAYER.');
+                setTimeout(function() {
+                    setManualUpdateButtonState('', 'Обновить приложение');
+                }, 2600);
+            }
             return;
         }
-
         if (result.status === 'busy') {
-            // Автоматическая проверка уже работает: не блокируем кнопку навсегда.
-            setManualUpdateButtonState('is-ready', 'Обновление уже выполняется · Проверить ещё раз');
+            setManualUpdateButtonState('is-ready', 'Обновление уже выполняется');
             return;
         }
-
-        if (result.status === 'unavailable') {
-            throw new Error('В этой сборке недоступен встроенный модуль обновления.');
+        if (NATIVE_PLATFORM === 'android') {
+            setManualUpdateButtonState('is-ready', 'Скачать APK');
+            showConfirm('Встроенное обновление сейчас недоступно. Скачать последнюю APK через браузер Android?', function() {
+                openAndroidApkDownload();
+            });
+            return;
         }
-
         throw new Error(result.error || 'Не удалось проверить обновление');
     } catch (error) {
         console.error('Manual OTA update failed:', error);
@@ -525,65 +569,25 @@ window.manualUpdateApplication = async function() {
     }
 };
 
-// OTA changes the web interface; a native APK update needs a separate,
-// explicit user confirmation and Android's own package installer.
-window.updateAndroidPackage = async function() {
-    const button=document.getElementById('android-apk-update-btn');
-    const installer=window.DAG_NATIVE_BRIDGE?.apkInstaller;
-    if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android' || !installer) {
-        // Older APKs lack DAGCarMode.checkApkUpdate(): downloading a real
-        // .apk from our same-origin server is the only compatible fallback.
-        showConfirm('В этой версии нет встроенного установщика APK. Открыть загрузку в системном браузере Android?', async function() {
-            try {
-                const open = window.DAG_NATIVE_BRIDGE?.openExternal;
-                if (typeof open === 'function')
-                    await open({ url: ANDROID_APK_LATEST_URL });
-                else
-                    window.location.assign(ANDROID_APK_LATEST_URL);
-            } catch (error) {
-                showNotification('Не удалось открыть системный браузер. Откройте pl.dagstudio.ru/apk/ на устройстве.');
-            }
+// Use the device's browser to download the verified first-party APK
+// attachment. Never pass APK bytes into the WebView as a navigation.
+function openAndroidApkDownload() {
+    const open = window.DAG_NATIVE_BRIDGE?.openExternal;
+    if (IS_NATIVE_APP && NATIVE_PLATFORM === 'android' && typeof open === 'function') {
+        open({url: ANDROID_APK_DOWNLOAD_URL}).catch(function() {
+            showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
         });
-        return;
+    } else if (!IS_NATIVE_APP) {
+        window.location.assign('/apk-download.php');
+    } else {
+        showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
     }
-    if (mainAudio && !mainAudio.paused && !mainAudio.ended) {
-        showNotification('Перед установкой APK поставьте музыку на паузу.');
-        return;
-    }
-    if (button?.disabled) return;
-    if (button) {button.disabled=true;button.textContent='Проверяем Android APK…';}
-    try {
-        const info=await installer.check();
-        if (!info?.available) {
-            showNotification('Последняя доступная версия Android APK уже установлена.');
-            return;
-        }
-        showConfirm('Доступна Android APK '+String(info.version||'')+
-            '. Скачать и проверить подпись перед установкой?',async()=>{
-            if(button){button.disabled=true;button.textContent='Загружаем APK…';}
-            try {
-                const result=await installer.install();
-                if(result?.status==='current')
-                    showNotification('Android APK уже обновлена.');
-                else if(result?.status==='installer-opened')
-                    showNotification('Подтвердите установку в системном окне Android.');
-            }catch(error) {
-                showNotification('Обновление APK: '+explainConnectionFailure(error));
-            }finally{
-                if(button){button.disabled=false;button.innerHTML='<i class="fab fa-android"></i> Обновить Android APK';}
-            }
-        });
-    } catch(error) {
-        showNotification('Не удалось проверить APK. '+explainConnectionFailure(error));
-    } finally {
-        if(button){button.disabled=false;button.innerHTML='<i class="fab fa-android"></i> Обновить Android APK';}
-    }
-};
+}
 
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2336', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2337', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -595,8 +599,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2336') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2336', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2337') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2337', '1');
         window.location.reload();
     });
 }
@@ -2222,8 +2226,6 @@ function refreshIOSInstallControls() {
     const androidApk=document.getElementById('android-apk-download-btn');
     // Never invite iPhone users to download an Android-only APK.
     if(androidApk)androidApk.hidden=isIOS;
-    const nativeApkUpdate=document.getElementById('android-apk-update-btn');
-    if(nativeApkUpdate)nativeApkUpdate.hidden=!(IS_NATIVE_APP&&NATIVE_PLATFORM==='android');
 }
 refreshIOSInstallControls();
 window.addEventListener('appinstalled',refreshIOSInstallControls);

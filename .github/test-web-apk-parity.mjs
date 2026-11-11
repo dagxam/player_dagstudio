@@ -29,6 +29,11 @@ for (const id of ['studio-header-wave','studio-header-likes','btn-pl-select','qu
   assert.ok(website.includes('id="'+id+'"'), 'Website UI missing '+id);
   assert.ok(app.includes('id="'+id+'"'), 'APK UI missing '+id);
 }
+assert.ok(!website.includes('id="android-apk-update-btn"'));
+assert.ok(!app.includes('id="android-apk-update-btn"'));
+assert.ok(website.includes('href="/apk-download.php"'));
+assert.ok(app.includes('href="/apk-download.php"'));
+assert.ok(website.includes('onclick="manualUpdateApplication()"'));
 assert.ok(!website.includes('id="studio-header-offline"'));
 assert.ok(!app.includes('id="studio-header-offline"'));
 assert.ok(app.includes('window.DAG_NATIVE_APP = true'));
