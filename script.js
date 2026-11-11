@@ -3602,8 +3602,11 @@ async function recoverCurrentStreamInternal(reason, track) {
         networkRetryPending = true;
         showLoader(false);
         titleEl.textContent = track.title;
-        artistEl.textContent = 'Нет сети и локальной копии этого трека';
+        artistEl.textContent = 'Нет сети — проверяем другие сохранённые треки';
         updateState(false);
+        if (IS_NATIVE_APP && playbackTab !== 'offline') {
+            startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
+        }
         return;
     }
 
