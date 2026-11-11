@@ -8,7 +8,7 @@ const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
 assert.match(js,/const WEB_BUILD_LABEL = '2326'/);
-assert.match(android,/setBufferDurationsMs\(12000, 120000, 1100, 3200\)/);
+assert.match(android,/setBufferDurationsMs\(18000, 150000, 900, 5000\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
 assert.match(js,/cacheTrackSilently\(finishedTrack, \{ reason: 'completed'/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
