@@ -64,10 +64,12 @@ public final class DAGAudioEngine {
             .setCache(cache)
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        // Start as soon as a modest playable buffer exists; retain enough
-        // rebuffer protection for cellular handovers and weak car hotspots.
+        // The radio link is shared with navigation and background apps.
+        // Prefer a deep streaming reservoir and refill it before it runs dry.
+        // Local cache files should still start immediately.
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(18000, 150000, 900, 5000)
+            .setBufferDurationsMsForStreaming(45000, 180000, 2500, 10000)
+            .setBufferDurationsMsForLocalPlayback(1000, 50000, 500, 1000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
             .build();
