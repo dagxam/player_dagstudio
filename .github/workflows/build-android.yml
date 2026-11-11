@@ -146,6 +146,7 @@ jobs:
           cp native/android/DAGMediaService.java android/app/src/main/java/ru/dagstudio/player/DAGMediaService.java
           cp native/android/DAGAudioEngine.java android/app/src/main/java/ru/dagstudio/player/DAGAudioEngine.java
           cp native/android/DAGServerDns.java android/app/src/main/java/ru/dagstudio/player/DAGServerDns.java
+          cp native/android/DAGUpdaterDns.java android/app/src/main/java/ru/dagstudio/player/DAGUpdaterDns.java
           cp native/android/DAGApkUpdater.java android/app/src/main/java/ru/dagstudio/player/DAGApkUpdater.java
           node scripts/configure-android-media.mjs
           cat >> android/app/build.gradle <<'MEDIA3_GRADLE'
