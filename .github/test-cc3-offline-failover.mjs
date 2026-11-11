@@ -11,11 +11,12 @@ assert.match(page, /id="cache-dashboard-modal"/, 'Cached audio stays manageable'
 assert.match(script, /startOfflineListening\(\{auto:true,autoplay:true\}\)/);
 assert.match(script, /getDeviceCachedAudio\(track\)/);
 assert.match(script, /await getDeviceCachedAudio\(track\)/);
-assert.match(script, /buffered\.end\(i\) >= Math\.min\(duration - 1\.5/);
+assert.match(script, /buffered\.end\(i\) >= duration - 1\.5/);
 assert.match(dns, /Dns\.SYSTEM\.lookup\(HOST\)/);
 assert.match(dns, /resolver\.execute/);
 assert.match(dns, /candidates\.add\(trusted\)/);
-assert.match(media, /setBufferDurationsMs\(18000, 150000, 900, 5000\)/);
+assert.match(media, /setBufferDurationsMsForStreaming\(45000, 180000, 2500, 10000\)/);
+assert.match(media, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 const nativeCache = read('../native/native-bridge.js');
 const audioNative = read('../native/android/DAGCarModePlugin.java');
 const otaNative = read('../native/android/DAGUpdaterDns.java');
