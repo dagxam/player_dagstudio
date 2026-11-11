@@ -51,7 +51,6 @@
             <button class="icon-btn header-eq-btn" onclick="openEqualizer()" type="button" aria-label="Эквалайзер" title="Эквалайзер"><i class="fas fa-sliders"></i></button>
             <button id="studio-header-wave" class="studio-top-btn studio-wave-btn" type="button" onclick="openStudioWave()" title="Слушать Мою волну" aria-label="Моя волна"><i class="fas fa-wave-square" aria-hidden="true"></i><span>МОЯ ВОЛНА</span></button>
             <button id="studio-header-likes" class="studio-top-btn" type="button" onclick="openStudioLikes()" title="Мне нравится" aria-label="Мне нравится" aria-pressed="false"><i class="fas fa-heart" aria-hidden="true"></i><span>МНЕ НРАВИТСЯ</span></button>
-            <button id="studio-header-offline" class="studio-top-btn studio-offline-btn" type="button" onclick="openOfflineListening()" title="Слушать сохранённые без интернета" aria-label="Офлайн-прослушивание"><i class="fas fa-cloud-arrow-down" aria-hidden="true"></i><span>ОФЛАЙН</span></button>
             <button class="pl-select-btn header-playlists-btn" id="btn-pl-select" onclick="openPlaylistSelect()" type="button" aria-label="Плейлисты" title="Плейлисты">
                 <i class="fas fa-folder-open" aria-hidden="true"></i><span class="header-playlists-label">ПЛЕЙЛИСТЫ</span>
             </button>
