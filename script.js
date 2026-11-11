@@ -1499,8 +1499,8 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
     return true;
 }
 
-// Следующий трек готовим только когда текущий файл уже целиком в буфере
-// либо воспроизводится из локального кэша: не забираем скорость у текущего трека.
+// Загружать следующий трек можно только с большим запасом буфера
+// текущего: фоновая загрузка не должна лишать Media3 пропускной способности.
 let nextTrackPrefetchKey = '';
 function isCurrentTrackFullyReady() {
     const active = playbackPlaylist[currentIndex];
@@ -1511,7 +1511,8 @@ function isCurrentTrackFullyReady() {
     try {
         const buffered = mainAudio.buffered;
         for (let i = 0; i < buffered.length; i++) {
-            if (buffered.start(i) <= 1 && buffered.end(i) >= duration - 1.5) return true;
+            if (buffered.start(i) <= 1 &&
+                buffered.end(i) >= Math.min(duration - 1.5, Number(mainAudio.currentTime || 0) + 60)) return true;
         }
     } catch (error) {}
     return false;
@@ -4008,20 +4009,29 @@ async function startOfflineListening(options={}){
 window.openOfflineListening=function(){return startOfflineListening({autoplay:true});};
 window.addEventListener('offline', function() {
     recordPlayerEvent('network-offline');
-    if (currentIndex < 0 || mainAudio.ended) return;
-    // Keep the selected song and attempt recovery from its own cache.
-
+    if (currentIndex < 0 || mainAudio.ended || !playbackWanted) return;
     const track = playbackPlaylist[currentIndex];
     if (track && track._playingFromCache) return;
-
-    // Если текущего сетевого буфера уже недостаточно, сразу переключаемся
-    // на сохранённый локальный файл, если он есть.
-    if (mainAudio.paused || mainAudio.readyState < 3) {
-        recoverCurrentStream('network-offline');
-    } else {
+    const selectedToken = currentPlaybackToken;
+    // Preserve the buffered song while sound continues. At a stall, check
+    // the current complete file first; otherwise use any verified local song.
+    if (!mainAudio.paused && mainAudio.readyState >= 3) {
         networkRetryPending = true;
-        artistEl.textContent = 'Сигнал потерян — используем буфер';
+        artistEl.textContent = 'Нет сети — играет загруженный буфер';
+        return;
     }
+    (async function() {
+        const cached = track ? await getDeviceCachedAudio(track) : null;
+        if (cached?.isBlob && cached.url) URL.revokeObjectURL(cached.url);
+        if (selectedToken !== currentPlaybackToken || navigator.onLine !== false ||
+            !playbackWanted) return;
+        if (cached?.inCache) {
+            recoverCurrentStream('network-offline');
+        } else {
+            // No explicit Offline tab: switch only if a complete file exists.
+            await startOfflineListening({auto:true,autoplay:true});
+        }
+    })().catch(error => console.warn('Local failover unavailable:',error));
 });
 
 window.addEventListener('online', function() {
@@ -4199,8 +4209,12 @@ async function playTrack(index, options = {}) {
             networkRetryPending = true;
             showLoader(false);
             titleEl.textContent = track.title;
-            artistEl.textContent = 'Нет сети и трек ещё не сохранён на устройстве';
+            artistEl.textContent = 'Нет сети — ищем сохранённую музыку';
             updateState(false);
+            if (IS_NATIVE_APP && playbackTab !== 'offline') {
+                // Do not loop if the device has no complete cached audio.
+                startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
+            }
             return;
         }
 
