@@ -306,3 +306,15 @@ jobs:
         run: |
           echo "FTP deployment is prepared but disabled until repository secrets are added."
           echo "Required: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD and FTP_SERVER_DIR."
+
+      - name: Verify APK download link serves a real attachment
+        if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
+        run: |
+          set -e
+          curl --fail --silent --show-error --location --head --retry 3 --retry-delay 3 --max-time 45 \
+            "https://pl.dagstudio.ru/apk-download.php?check=$GITHUB_SHA" -o /tmp/dag-apk-download-headers.txt
+          grep -qi '^content-disposition: attachment; filename="DAGSTUDIO-PLAYER-Preview.apk"' /tmp/dag-apk-download-headers.txt
+          grep -qi '^content-type: application/vnd.android.package-archive' /tmp/dag-apk-download-headers.txt
+          BYTES="$(awk 'tolower($1)=="content-length:" {gsub("\r","",$2); print $2}' /tmp/dag-apk-download-headers.txt | tail -n 1)"
+          test "${BYTES:-0}" -gt 1000000
+          echo "APK_ATTACHMENT_DOWNLOAD_VERIFIED bytes=$BYTES"
