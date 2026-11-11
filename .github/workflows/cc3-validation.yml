@@ -64,7 +64,7 @@ jobs:
           npx cap add android
           npx cap sync android
           mkdir -p android/app/src/main/java/ru/dagstudio/player
-          for source in MainActivity DAGCarModePlugin DAGMediaService DAGAudioEngine DAGServerDns DAGApkUpdater; do
+          for source in MainActivity DAGCarModePlugin DAGMediaService DAGAudioEngine DAGServerDns DAGUpdaterDns DAGApkUpdater; do
             cp "native/android/$source.java" "android/app/src/main/java/ru/dagstudio/player/$source.java"
           done
           node scripts/configure-android-media.mjs
