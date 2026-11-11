@@ -39,7 +39,7 @@ for(const url of [
  'https://soundcloud.com/discover',
  'https://musicbrainz.org/'
 ]) assert.ok(center.includes(url),url);
-assert.match(html,/script\.js\?v=2327/);
+assert.match(html,/script\.js\?v=2328/);
 assert.match(html,/studio-center\.js\?v=6/);
-assert.match(sw,/script\.js\?v=2327/);
+assert.match(sw,/script\.js\?v=2328/);
 console.log('OFFICIAL_MUSIC_FEED_JAMENDO_OPT_IN_CATALOGS_CC_ATTRIBUTION_OK');
