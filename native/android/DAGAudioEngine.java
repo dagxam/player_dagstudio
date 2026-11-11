@@ -31,7 +31,7 @@ import java.io.File;
  * Stream buffering and a bounded on-disk cache run outside the WebView.
  */
 public final class DAGAudioEngine {
-    private static final long DISK_CACHE_BYTES = 160L * 1024L * 1024L;
+    private static final long DISK_CACHE_BYTES = 256L * 1024L * 1024L;
     private static JSObject lastStatus = new JSObject();
     private final ExoPlayer player;
     private final SimpleCache cache;
@@ -67,7 +67,7 @@ public final class DAGAudioEngine {
         // Start as soon as a modest playable buffer exists; retain enough
         // rebuffer protection for cellular handovers and weak car hotspots.
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(12000, 120000, 1100, 3200)
+            .setBufferDurationsMs(18000, 150000, 900, 5000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
             .build();
