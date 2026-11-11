@@ -33,6 +33,8 @@ public class DAGCarModePlugin extends Plugin {
     @Override
     public void load() {
         current = new WeakReference<>(this);
+        // Capgo OTA downloads otherwise use Android's broken system DNS on CC3.
+        DAGUpdaterDns.install();
     }
 
     static synchronized void notifyMediaCommand(String action) {
