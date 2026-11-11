@@ -1,0 +1,91 @@
+name: CC3 network and offline regression tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "script.js"
+      - "index.php"
+      - ".github/test-*.mjs"
+      - ".github/workflows/cc3-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - name: JavaScript syntax and secure-network tests
+        run: |
+          node --check script.js
+          node --check native/native-bridge.js
+          node .github/test-cc3-offline-failover.mjs
+          node .github/test-trusted-ip-dns.mjs
+          node .github/test-native-http-fallback.mjs
+          node .github/test-end-to-end-network.mjs
+          node .github/test-weak-network.mjs
+          node .github/test-native-media.mjs
+          node .github/test-ota-update.mjs
+      - name: Native web bundle
+        run: |
+          npm run native:web
+          node --check www/script.js
+          node --check www/native-bridge.js
+          test -s www/index.html
+          node .github/test-web-apk-parity.mjs
+
+  compile-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - run: npm install --no-audit --no-fund
+      - run: npm run native:web
+      - run: node .github/test-web-apk-parity.mjs
+      - name: Assemble debug APK without release or deployment
+        run: |
+          npx cap add android
+          npx cap sync android
+          mkdir -p android/app/src/main/java/ru/dagstudio/player
+          for source in MainActivity DAGCarModePlugin DAGMediaService DAGAudioEngine DAGServerDns DAGUpdaterDns DAGApkUpdater; do
+            cp "native/android/$source.java" "android/app/src/main/java/ru/dagstudio/player/$source.java"
+          done
+          node scripts/configure-android-media.mjs
+          cat >> android/app/build.gradle <<'GRADLE'
+          dependencies {
+            implementation "androidx.media3:media3-exoplayer:1.11.1"
+            implementation "androidx.media3:media3-datasource:1.11.1"
+            implementation "androidx.media3:media3-datasource-okhttp:1.11.1"
+            implementation "com.squareup.okhttp3:okhttp:4.12.0"
+            implementation "androidx.media3:media3-database:1.11.1"
+          }
+          GRADLE
+          sed -i 's/-all.zip/-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties
+          cd android
+          ./gradlew --no-daemon assembleDebug
+      - name: Publish installable CC3 test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DAGSTUDIO-PLAYER-CC3-test-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

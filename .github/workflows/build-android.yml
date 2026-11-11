@@ -6,6 +6,18 @@ on:
       - main
     paths:
       - "package.json"
+      - "index.php"
+      - "script.js"
+      - "sw.js"
+      - "style.css"
+      - "modern.css"
+      - "studio.css"
+      - "studio.js"
+      - "studio-next.js"
+      - "studio-center.js"
+      - "studio-next.css"
+      - "studio-touch.css"
+      - ".github/test-web-apk-parity.mjs"
       - "capacitor.config.json"
       - "scripts/build-native-web.mjs"
       - "vendor/fontawesome/**"
@@ -131,6 +143,8 @@ jobs:
         env:
           DAG_NATIVE_BUILD_VERSION: "1.0.${{ github.run_number }}-preview"
         run: npm run native:web
+      - name: Assert exact website/OTA/APK code parity
+        run: node .github/test-web-apk-parity.mjs
 
       - name: Create Android project
         run: |
@@ -146,6 +160,7 @@ jobs:
           cp native/android/DAGMediaService.java android/app/src/main/java/ru/dagstudio/player/DAGMediaService.java
           cp native/android/DAGAudioEngine.java android/app/src/main/java/ru/dagstudio/player/DAGAudioEngine.java
           cp native/android/DAGServerDns.java android/app/src/main/java/ru/dagstudio/player/DAGServerDns.java
+          cp native/android/DAGUpdaterDns.java android/app/src/main/java/ru/dagstudio/player/DAGUpdaterDns.java
           cp native/android/DAGApkUpdater.java android/app/src/main/java/ru/dagstudio/player/DAGApkUpdater.java
           node scripts/configure-android-media.mjs
           cat >> android/app/build.gradle <<'MEDIA3_GRADLE'

@@ -116,6 +116,18 @@ const audioCache = {
     let expectedBytes = 0;
     try {
       try {
+        // On CC3 FileTransfer resolves pl.dagstudio.ru via broken Android DNS.
+        // Download complete audio via the same verified HTTPS transport as Media3.
+        const official = new URL(url);
+        const nativeAudio = hasAndroidMedia3 &&
+          official.protocol === 'https:' && official.hostname === 'pl.dagstudio.ru' &&
+          (!official.port || official.port === '443') &&
+          (official.pathname === '/proxy.php' || official.pathname.startsWith('/uploads/'));
+        if (nativeAudio) {
+          await DAGCarMode.downloadOwnAudio({
+            url, key, extension: safeExtension(options?.extension)
+          });
+        } else {
         progressListener = await FileTransfer.addListener('progress', data => {
           const total = Number(data?.contentLength || 0);
           const received = Number(data?.bytes || 0);
@@ -128,6 +140,7 @@ const audioCache = {
           url, path: stagingUri.uri, headers: options?.headers || {}, progress: true,
           connectTimeout, readTimeout
         });
+        }
       } catch (error) {
         // Legacy Android fallback, still staged. Do not touch a valid old cache.
         await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});

@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_LATEST_URL = 'https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2326';
+const WEB_BUILD_LABEL = '2327';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -583,7 +583,7 @@ window.updateAndroidPackage = async function() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2331', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2336', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -595,8 +595,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2331') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2331', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2336') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2336', '1');
         window.location.reload();
     });
 }
@@ -1499,8 +1499,8 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
     return true;
 }
 
-// Следующий трек готовим только когда текущий файл уже целиком в буфере
-// либо воспроизводится из локального кэша: не забираем скорость у текущего трека.
+// Загружать следующий трек можно только с большим запасом буфера
+// текущего: фоновая загрузка не должна лишать Media3 пропускной способности.
 let nextTrackPrefetchKey = '';
 function isCurrentTrackFullyReady() {
     const active = playbackPlaylist[currentIndex];
@@ -1511,6 +1511,8 @@ function isCurrentTrackFullyReady() {
     try {
         const buffered = mainAudio.buffered;
         for (let i = 0; i < buffered.length; i++) {
+            // A minute of buffer is NOT a complete track. Concurrent full
+            // downloads steal scarce bandwidth from the actual decoder.
             if (buffered.start(i) <= 1 && buffered.end(i) >= duration - 1.5) return true;
         }
     } catch (error) {}
@@ -3601,8 +3603,11 @@ async function recoverCurrentStreamInternal(reason, track) {
         networkRetryPending = true;
         showLoader(false);
         titleEl.textContent = track.title;
-        artistEl.textContent = 'Нет сети и локальной копии этого трека';
+        artistEl.textContent = 'Нет сети — проверяем другие сохранённые треки';
         updateState(false);
+        if (playbackTab !== 'offline') {
+            startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
+        }
         return;
     }
 
@@ -4008,20 +4013,29 @@ async function startOfflineListening(options={}){
 window.openOfflineListening=function(){return startOfflineListening({autoplay:true});};
 window.addEventListener('offline', function() {
     recordPlayerEvent('network-offline');
-    if (currentIndex < 0 || mainAudio.ended) return;
-    // Keep the selected song and attempt recovery from its own cache.
-
+    if (currentIndex < 0 || mainAudio.ended || !playbackWanted) return;
     const track = playbackPlaylist[currentIndex];
     if (track && track._playingFromCache) return;
-
-    // Если текущего сетевого буфера уже недостаточно, сразу переключаемся
-    // на сохранённый локальный файл, если он есть.
-    if (mainAudio.paused || mainAudio.readyState < 3) {
-        recoverCurrentStream('network-offline');
-    } else {
+    const selectedToken = currentPlaybackToken;
+    // Preserve the buffered song while sound continues. At a stall, check
+    // the current complete file first; otherwise use any verified local song.
+    if (!mainAudio.paused && mainAudio.readyState >= 3) {
         networkRetryPending = true;
-        artistEl.textContent = 'Сигнал потерян — используем буфер';
+        artistEl.textContent = 'Нет сети — играет загруженный буфер';
+        return;
     }
+    (async function() {
+        const cached = track ? await getDeviceCachedAudio(track) : null;
+        if (cached?.isBlob && cached.url) URL.revokeObjectURL(cached.url);
+        if (selectedToken !== currentPlaybackToken || navigator.onLine !== false ||
+            !playbackWanted) return;
+        if (cached?.inCache) {
+            recoverCurrentStream('network-offline');
+        } else {
+            // No explicit Offline tab: switch only if a complete file exists.
+            await startOfflineListening({auto:true,autoplay:true});
+        }
+    })().catch(error => console.warn('Local failover unavailable:',error));
 });
 
 window.addEventListener('online', function() {
@@ -4199,8 +4213,12 @@ async function playTrack(index, options = {}) {
             networkRetryPending = true;
             showLoader(false);
             titleEl.textContent = track.title;
-            artistEl.textContent = 'Нет сети и трек ещё не сохранён на устройстве';
+            artistEl.textContent = 'Нет сети — ищем сохранённую музыку';
             updateState(false);
+            if (playbackTab !== 'offline') {
+                // Do not loop if the device has no complete cached audio.
+                startOfflineListening({auto:true,autoplay:true}).catch(()=>{});
+            }
             return;
         }
 
@@ -4857,7 +4875,7 @@ function maybePrefetchSmartRadio() {
     // mobile radio we must not trade reliable sound for recommendations.
     if (!playbackPlaylist[currentIndex]._playingFromCache &&
         !isCurrentTrackFullyReady() &&
-        bufferedSecondsAhead() < (playbackTab==='mix:wave'?4:12)) return;
+        bufferedSecondsAhead() < (playbackTab==='mix:wave'?20:45)) return;
     const token=currentPlaybackToken, serial=smartRadioRequestSerial;
     if (smartRadioPrefetch?.token === token && smartRadioPrefetch.serial === serial) return;
     const state={token,serial,candidate:null,promise:null};
