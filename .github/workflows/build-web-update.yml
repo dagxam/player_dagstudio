@@ -9,6 +9,7 @@ on:
       - "script.js"
       - "sw.js"
       - ".github/test-web-apk-parity.mjs"
+      - ".github/test-fast-start.mjs"
       - ".github/test-local-icons.mjs"
       - ".github/test-caucasus-catalogs.mjs"
       - ".github/test-official-music.mjs"
