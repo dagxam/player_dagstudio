@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import android.os.Build;
 import android.os.SystemClock;
 import java.lang.ref.WeakReference;
@@ -162,6 +165,94 @@ public class DAGCarModePlugin extends Plugin {
         } catch (Exception error) {
             call.reject("Invalid official server request", error);
         }
+    }
+
+    /**
+     * Stream only the official HTTPS media proxy into private app staging.
+     * This avoids the CC3 platform DNS resolver used by generic FileTransfer.
+     * The WebView never supplies filesystem paths or a destination host.
+     */
+    @PluginMethod
+    public void downloadOwnAudio(PluginCall call) {
+        final String value = call.getString("url", "");
+        final String key = call.getString("key", "");
+        final String extension = call.getString("extension", "mp3");
+        if (!key.matches("(?i)[a-f0-9]{8,128}") ||
+            !extension.matches("(?i)mp3|m4a|aac|ogg|opus|wav|flac|mp4|webm")) {
+            call.reject("Invalid audio cache key");
+            return;
+        }
+        final URL uri;
+        try {
+            uri = new URL(value);
+            if (!"https".equalsIgnoreCase(uri.getProtocol()) ||
+                !DAGServerDns.HOST.equalsIgnoreCase(uri.getHost()) ||
+                (uri.getPort() != -1 && uri.getPort() != 443) ||
+                uri.getUserInfo() != null ||
+                !("/proxy.php".equals(uri.getPath()) ||
+                  uri.getPath().startsWith("/uploads/"))) {
+                call.reject("Only official HTTPS audio endpoints are allowed");
+                return;
+            }
+        } catch (Exception error) {
+            call.reject("Invalid official audio URL", error);
+            return;
+        }
+        new Thread(() -> {
+            File dir = new File(getContext().getFilesDir(), "audio-cache");
+            File target = new File(dir, key.toLowerCase(java.util.Locale.ROOT) +
+                "." + extension.toLowerCase(java.util.Locale.ROOT) + ".downloading");
+            final long maxBytes = 100L * 1024L * 1024L;
+            OkHttpClient client = new OkHttpClient.Builder()
+                .dns(new DAGServerDns())
+                .connectTimeout(12, TimeUnit.SECONDS)
+                .readTimeout(80, TimeUnit.SECONDS)
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build();
+            try {
+                if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cache directory unavailable");
+                Request request = new Request.Builder()
+                    .url(value)
+                    .header("Accept", "audio/*")
+                    .header("Accept-Encoding", "identity")
+                    .build();
+                try (Response response = client.newCall(request).execute()) {
+                    if (response.code() != 200 || response.body() == null)
+                        throw new IOException("Audio endpoint HTTP " + response.code());
+                    String type = response.header("Content-Type", "").toLowerCase(java.util.Locale.ROOT);
+                    if (!type.startsWith("audio/") &&
+                        !type.startsWith("application/octet-stream"))
+                        throw new IOException("Server did not send audio");
+                    long length = response.body().contentLength();
+                    if (length > maxBytes) throw new IOException("Audio exceeds cache limit");
+                    long bytes = 0;
+                    try (InputStream input = response.body().byteStream();
+                         FileOutputStream output = new FileOutputStream(target, false)) {
+                        byte[] buffer = new byte[32768];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) {
+                            bytes += count;
+                            if (bytes > maxBytes) throw new IOException("Audio exceeds cache limit");
+                            output.write(buffer, 0, count);
+                        }
+                        output.getFD().sync();
+                    }
+                    if (bytes < 4096 || (length >= 0 && bytes != length))
+                        throw new IOException("Incomplete audio response");
+                    JSObject result = new JSObject();
+                    result.put("bytes", bytes);
+                    result.put("transport", "verified-https");
+                    call.resolve(result);
+                }
+            } catch (Exception error) {
+                target.delete();
+                call.reject("Verified HTTPS audio cache download failed: " + error.getMessage(), error);
+            } finally {
+                client.dispatcher().executorService().shutdown();
+                client.connectionPool().evictAll();
+            }
+        }, "dag-audio-cache-verified").start();
     }
 
     void emitApkUpdateProgress(JSObject event) {
