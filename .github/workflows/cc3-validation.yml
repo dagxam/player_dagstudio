@@ -32,6 +32,15 @@ jobs:
           node .github/test-native-http-fallback.mjs
           node .github/test-end-to-end-network.mjs
           node .github/test-weak-network.mjs
+          node .github/test-favorite-hearts.mjs
+          node .github/test-favorite-api.mjs
+          node .github/test-smart-radio.mjs
+          node .github/test-personal-radio.mjs
+          node .github/test-continuous-radio.mjs
+          node .github/test-listen-cache.mjs
+          node .github/test-offline-batch.mjs
+          node .github/test-source-switch.mjs
+          node .github/test-quick-mixes.mjs
           node .github/test-hitmos-provider.mjs
           node .github/test-native-media.mjs
           node .github/test-ota-update.mjs
