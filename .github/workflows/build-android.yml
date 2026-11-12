@@ -8,6 +8,8 @@ on:
       - "package.json"
       - "index.php"
       - "script.js"
+      - "api.php"
+      - ".github/test-hitmos-provider.mjs"
       - "sw.js"
       - "style.css"
       - "modern.css"
