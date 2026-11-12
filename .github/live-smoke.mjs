@@ -933,7 +933,7 @@ try {
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
     const url = document.querySelector('script[src^="script.js?v="]')?.getAttribute('src') || '/script.js';
-    const currentBuild = url.match(/[?&]v=(\\d+)/)?.[1];
+    const currentBuild = url.match(/[?&]v=(\d+)/)?.[1];
     const response = await fetch(url, { cache: 'no-store' });
     const code = await response.text();
     return {
