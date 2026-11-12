@@ -114,6 +114,7 @@
                 <button type="button" id="search-clear-btn" class="dag-search-clear" aria-label="Очистить поиск" hidden><i class="fas fa-xmark" aria-hidden="true"></i></button>
             </div>
             <div id="search-history" class="search-suggestions"></div>
+            <a class="external-music-source" id="hitmos-external-link" href="https://hitmos.fm/" target="_blank" rel="noopener noreferrer" aria-label="Открыть Hitmos.fm на отдельном сайте"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i> Открыть Hitmos.fm <small>Внешний музыкальный сайт</small></a>
         </div>
         
         <div class="active-pl-label" id="active-tab-name"></div>
@@ -406,7 +407,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2328" defer></script>
+<script src="script.js?v=2329" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=15" defer></script>
 <script src="studio-center.js?v=6" defer></script>
