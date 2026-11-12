@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2330';
+const WEB_BUILD_LABEL = '2331';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -587,7 +587,7 @@ function openAndroidApkDownload() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2339', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2340', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -599,8 +599,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2339') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2339', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2340') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2340', '1');
         window.location.reload();
     });
 }
@@ -5301,45 +5301,6 @@ mainAudio.addEventListener('timeupdate', updateProgress);
 mainAudio.addEventListener('progress', updateProgress);
 
 // --- GLOBAL SEARCH LOGIC ---
-// Hitmos.fm has no verified API for in-app tracks. Present it among
-// search results as an explicitly external catalog, never as a fake song.
-function renderHitmosExternalResult() {
-    if (currentTab !== 'search' || !currentSearchQuery || !listEl) return;
-    const row = document.createElement('a');
-    row.className = 'track-row hitmos-search-result';
-    row.href = 'https://hitmos.fm/';
-    row.target = '_blank';
-    row.rel = 'noopener noreferrer';
-    row.setAttribute('aria-label', 'Открыть Hitmos.fm для поиска музыки на внешнем сайте');
-
-    const icon = document.createElement('span');
-    icon.className = 'hitmos-search-icon';
-    icon.innerHTML = '<i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>';
-
-    const detail = document.createElement('span');
-    detail.className = 'hitmos-search-detail';
-    const title = document.createElement('strong');
-    title.textContent = 'Поиск на Hitmos.fm';
-    const subtitle = document.createElement('small');
-    subtitle.textContent = 'Внешний каталог · запрос: ' + currentSearchQuery +
-        ' · треки открываются на сайте';
-    detail.append(title, subtitle);
-
-    const arrow = document.createElement('i');
-    arrow.className = 'fas fa-arrow-up-right-from-square hitmos-search-arrow';
-    arrow.setAttribute('aria-hidden', 'true');
-    row.append(icon, detail, arrow);
-    row.addEventListener('click', function(event) {
-        if (!IS_NATIVE_APP) return;
-        const open = window.DAG_NATIVE_BRIDGE?.openExternal;
-        if (typeof open !== 'function') return;
-        event.preventDefault();
-        open({url:'https://hitmos.fm/'}).catch(function() {
-            showNotification('Не удалось открыть Hitmos.fm. Откройте сайт в браузере.');
-        });
-    });
-    listEl.prepend(row);
-}
 const mainSearchInput = document.getElementById('search-input');
 const searchHistoryBox = document.getElementById('search-history');
 const searchClearButton = document.getElementById('search-clear-btn');
@@ -5441,7 +5402,6 @@ function displaySearchMessage(message) {
     caption.className = 'dag-search-empty';
     caption.textContent = message;
     listEl.appendChild(caption);
-    renderHitmosExternalResult();
 }
 // New releases and trending charts from the official, public Audius API.
 // The entire request goes through our own HTTPS server (Android DNS fallback).
@@ -6279,8 +6239,7 @@ function renderPlaylist() {
         if (currentTab === 'search') msg = "Используйте поиск";
         
         listEl.innerHTML = `<div style="text-align:center; padding:40px; color:#444;">${msg}</div>`;
-        renderHitmosExternalResult();
-        return;
+            return;
     }
 
     playlist.forEach((t, i) => { 
@@ -6382,7 +6341,6 @@ function renderPlaylist() {
         fragment.appendChild(div); 
     }); 
     listEl.appendChild(fragment);
-    renderHitmosExternalResult();
     renderPlaylistOfflineFooter();
     if(currentIndex !== -1) updateActiveTrackInList(currentIndex);
     updatePlayingHeart();

@@ -495,6 +495,29 @@ elseif ($action === 'search_global') {
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
+    // Hitmos.fm is an independent service from Hitmoz.org. Enable its
+    // search only when an authorized HTTPS JSON API endpoint is supplied by
+    // the site operator. Never scrape protected pages or fabricate results.
+    // Expected JSON: {"tracks":[{"title":"...","artist":"...","audio_url":"https://..."}]}.
+    // Configure HITMOS_SEARCH_API_URL as a fixed HTTPS endpoint with no
+    // query string; we append q and page. The endpoint is server-side only.
+    $hitmos_api = trim((string)(getenv('HITMOS_SEARCH_API_URL') ?: ''));
+    $hitmos_url = parse_url($hitmos_api);
+    $hitmos_enabled = is_array($hitmos_url) &&
+        ($hitmos_url['scheme'] ?? '') === 'https' &&
+        !empty($hitmos_url['host']) && !isset($hitmos_url['port']) &&
+        !isset($hitmos_url['user']) && !isset($hitmos_url['pass']) &&
+        !isset($hitmos_url['query']) && !isset($hitmos_url['fragment']) &&
+        strlen($hitmos_api) <= 512 &&
+        !filter_var($hitmos_url['host'], FILTER_VALIDATE_IP) &&
+        strtolower((string)$hitmos_url['host']) !== 'localhost';
+    if ($hitmos_enabled) {
+        $urls['hitmos'] = $hitmos_api . '?' . http_build_query([
+            'q' => trim(strip_tags((string)$query_raw)),
+            'page' => $page
+        ], '', '&', PHP_QUERY_RFC3986);
+    }
+
     $multi = curl_multi_init();
     $channels = [];
 
@@ -502,7 +525,7 @@ elseif ($action === 'search_global') {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         // Do not redirect API credentials to another host.
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $key !== 'jamendo');
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $key !== 'jamendo' && $key !== 'hitmos');
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
@@ -555,6 +578,13 @@ elseif ($action === 'search_global') {
     }
     curl_multi_close($multi);
 
+    if (!$hitmos_enabled) {
+        $source_status['hitmos'] = [
+            'ok' => false, 'http' => 0, 'error' => '', 'configured' => false
+        ];
+    } else {
+        $source_status['hitmos']['configured'] = true;
+    }
     if (!$jamendo_enabled) {
         $source_status['jamendo'] = [
             'ok' => false, 'http' => 0, 'error' => '', 'configured' => false
@@ -644,6 +674,40 @@ elseif ($action === 'search_global') {
                     }
                 }
             }
+        }
+    }
+
+    // Hitmos.fm: only an explicitly configured JSON search API. No HTML
+    // scraping or website-page links passed off as playable audio.
+    if ($hitmos_enabled && !empty($responses['hitmos'])) {
+        $hitmos_data = json_decode((string)$responses['hitmos'], true);
+        $hitmos_tracks = $hitmos_data['tracks'] ?? null;
+        if (is_array($hitmos_tracks)) {
+            foreach (array_slice($hitmos_tracks, 0, 40) as $track) {
+                if (!is_array($track)) continue;
+                $title = mb_substr(trim(strip_tags((string)($track['title'] ?? ''))), 0, 180);
+                $artist = mb_substr(trim(strip_tags((string)($track['artist'] ?? 'Неизвестен'))), 0, 180);
+                $audio = trim((string)($track['audio_url'] ?? ''));
+                $audio_url = parse_url($audio);
+                $audio_host = strtolower((string)($audio_url['host'] ?? ''));
+                if ($title === '' || ($audio_url['scheme'] ?? '') !== 'https' ||
+                    !$audio_host || !preg_match('/^[a-z0-9.-]+$/', $audio_host) ||
+                    !str_contains($audio_host, '.') ||
+                    filter_var($audio_host, FILTER_VALIDATE_IP) ||
+                    isset($audio_url['user']) || isset($audio_url['pass']) ||
+                    isset($audio_url['port']) || strlen($audio) > 2048) continue;
+                $raw_results[] = [
+                    'title' => $title,
+                    'artist' => $artist,
+                    'url' => $audio,
+                    'type' => 'audio',
+                    'thumb' => 'images/cover.png',
+                    'source' => '[HITMOS]'
+                ];
+            }
+        } else {
+            $source_status['hitmos']['ok'] = false;
+            $source_status['hitmos']['error'] = 'Invalid authorized JSON response';
         }
     }
 
@@ -922,6 +986,7 @@ elseif ($action === 'search_global') {
         '[AUDIUS]' => [],
         '[VK]' => [],
         '[HITMOZ]' => [],
+        '[HITMOS]' => [],
         '[MUZOFOND]' => [],
         '[ZVOOQ]' => [],
         '[MUZVOX]' => [],
@@ -981,7 +1046,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[AUDIUS]', '[JAMENDO]', '[VK]', '[HITMOZ]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[AUDIUS]', '[JAMENDO]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -1009,7 +1074,7 @@ elseif ($action === 'search_global') {
     // without claiming that the audio stream was verified.
     $provider_source_keys = [
         'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
-        'hitmoz' => '[HITMOZ]', 'muzo' => '[MUZOFOND]',
+        'hitmoz' => '[HITMOZ]', 'hitmos' => '[HITMOS]', 'muzo' => '[MUZOFOND]',
         'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]',
         'jamendo' => '[JAMENDO]'
     ];

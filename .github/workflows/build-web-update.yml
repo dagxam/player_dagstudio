@@ -9,6 +9,8 @@ on:
       - "script.js"
       - "sw.js"
       - ".github/test-web-apk-parity.mjs"
+      - ".github/test-hitmos-provider.mjs"
+      - "api.php"
       - ".github/test-fast-start.mjs"
       - ".github/test-local-icons.mjs"
       - ".github/test-caucasus-catalogs.mjs"
@@ -86,6 +88,7 @@ jobs:
       - name: Test fast startup and OTA-only update actions
         run: |
           node .github/test-fast-start.mjs
+          node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
           node .github/test-profile-theme.mjs
           node .github/test-local-icons.mjs

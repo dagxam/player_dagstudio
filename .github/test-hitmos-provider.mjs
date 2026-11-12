@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const api = readFileSync(new URL('../api.php', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../index.php', import.meta.url), 'utf8');
+const script = readFileSync(new URL('../script.js', import.meta.url), 'utf8');
+assert.match(api, /HITMOS_SEARCH_API_URL/);
+assert.match(api, /\$urls\['hitmos'\]/);
+assert.match(api, /\$source_status\['hitmos'\]/);
+assert.match(api, /'configured' => false/);
+assert.match(api, /\$hitmos_data\['tracks'\]/);
+assert.match(api, /\$track\['audio_url'\]/);
+assert.match(api, /'source' => '\[HITMOS\]'/);
+assert.match(api, /'hitmos' => '\[HITMOS\]'/);
+assert.match(api, /CURLOPT_FOLLOWLOCATION, \$key !== 'jamendo' && \$key !== 'hitmos'/);
+assert.doesNotMatch(html, /hitmos-external-link/);
+assert.doesNotMatch(script, /renderHitmosExternalResult|hitmos-search-result/);
+console.log('HITMOS_JSON_ONLY_OPTIONAL_PROVIDER_NO_FAKE_RESULTS_OK');
