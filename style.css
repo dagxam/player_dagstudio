@@ -696,3 +696,32 @@ body, html {
 .external-music-source small { font-size: 10px; opacity: .66; font-weight: 400; }
 .external-music-source:hover,
 .external-music-source:focus-visible { border-color: currentColor; outline-offset: 2px; }
+
+/* Search results contain a clearly identified external Hitmos catalog entry. */
+.hitmos-search-result {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    text-decoration: none;
+    cursor: pointer;
+    color: inherit;
+    border-style: dashed;
+}
+.hitmos-search-result:hover, .hitmos-search-result:focus-visible {
+    border-color: currentColor;
+    outline-offset: 2px;
+}
+.hitmos-search-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 12px;
+    background: rgba(160, 160, 160, .12);
+}
+.hitmos-search-detail { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; gap: 3px; }
+.hitmos-search-detail strong { font-size: 13px; }
+.hitmos-search-detail small { font-size: 11px; opacity: .75; overflow-wrap: anywhere; }
+.hitmos-search-arrow { opacity: .65; margin-left: auto; }
