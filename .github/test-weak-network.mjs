@@ -7,7 +7,7 @@ const css=readFileSync(new URL('../studio-touch.css',import.meta.url),'utf8');
 const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
-assert.match(js,/const WEB_BUILD_LABEL = '2329'/);
+assert.match(js,/const WEB_BUILD_LABEL = '2330'/);
 assert.match(android,/setBufferDurationsMsForStreaming\(45000, 180000, 2500, 10000\)/);
 assert.match(android, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
@@ -55,5 +55,11 @@ assert.match(js,/if \(expired && result\?\.isBlob && result\.url\) URL\.revokeOb
 assert.match(js,/playbackTab==='mix:wave' && track\._waveRadio/);
 assert.match(js,/: await getStartupCachedAudio\(track\)/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
-assert.match(js,/register\('\/sw\.js\?v=2338'/);
+assert.match(js,/register\('\/sw\.js\?v=2339'/);
+// Hitmos is visible in the track results list, not as a misplaced search-field link.
+assert.doesNotMatch(index,/id="hitmos-external-link"/);
+assert.match(js,/function renderHitmosExternalResult\(\)/);
+assert.match(js,/listEl\.prepend\(row\)/);
+assert.match(js,/renderHitmosExternalResult\(\)/);
+assert.match(js,/Внешний каталог/);
 console.log('WEAK_NETWORK_BUFFER_AND_MOBILE_LIST_AND_APK_UI_OK');
