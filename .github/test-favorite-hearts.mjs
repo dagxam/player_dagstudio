@@ -6,6 +6,8 @@ const src=readFileSync(new URL('../script.js',import.meta.url),'utf8');
 const api=readFileSync(new URL('../api.php',import.meta.url),'utf8');
 const db=readFileSync(new URL('../db.php',import.meta.url),'utf8');
 const studio=readFileSync(new URL('../studio.js',import.meta.url),'utf8');
+const native=readFileSync(new URL('../native/android/DAGCarModePlugin.java',import.meta.url),'utf8');
+const bridge=readFileSync(new URL('../native/native-bridge.js',import.meta.url),'utf8');
 const between=(a,b)=>{
   const from=src.indexOf(a),to=src.indexOf(b,from+a.length);
   assert.ok(from>=0 && to>from,'Missing section: '+a);
@@ -16,6 +18,8 @@ assert.match(api,/\$pdo->beginTransaction\(\)/);
 assert.match(api,/\$pdo->commit\(\)/);
 assert.match(api,/\$pdo->rollBack\(\)/);
 assert.match(db,/idx_playlists_one_favorites_per_user/);
+assert.match(native,/"set_favorite"/);
+assert.match(bridge,/'set_favorite'/);
 assert.match(src,/onclick="event.stopPropagation\(\); toggleFavoriteTrack\(\$\{i\}\)"/);
 assert.match(src,/onclick="event.stopPropagation\(\); openSaveModal\(\$\{i\}\)"/);
 assert.match(src,/aria-pressed="\$\{isLiked\?'true':'false'\}"/);
