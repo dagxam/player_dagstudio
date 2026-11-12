@@ -6415,6 +6415,8 @@ function updatePlayingHeart() {
 }
 
 function refreshFavoriteControls(){
+    // The full-screen Wave owns its view; a heart tap must not redraw it.
+    if(currentTab === 'mix:wave'){updatePlayingHeart();return;}
     const scroller=document.querySelector('.playlist-area');
     const scrollY=scroller?.scrollTop||0;
     if(currentTab === 'studio-likes')playlist=likedPlaylistTracks();
