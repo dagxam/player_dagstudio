@@ -725,7 +725,7 @@ try {
     const existing=playlists.slice(),audio=document.getElementById('main-audio');
     const play=audio.play;let started=0;
     try{
-      playlists=[{id:'ui-test',name:'Favourite',tracks:[
+      playlists=[{id:'ui-test',type:'favorites',name:'Мне нравится',tracks:[
         {title:'Моя песня',artist:'DAGSTUDIO',url:'https://example.invalid/fav.mp3'}]}];
       audio.play=()=>{started++;return Promise.resolve();};
       document.getElementById('studio-header-likes').click();
@@ -758,17 +758,19 @@ try {
     const p1={id:471,name:'Visible',tracks:[{title:'A',artist:'One',url:'https://example.invalid/a.mp3'}]};
     const p2={id:472,name:'Excluded',tracks:[{title:'B',artist:'Two',url:'https://example.invalid/b.mp3'}]};
     try{
-      playlists=[p1,p2];
+      playlists=[p1,p2,{id:473,type:'favorites',name:'Мне нравится',tracks:p1.tracks.slice()}];
       setPlaylistExcludedFromLikes(472,true);
       const liked=likedPlaylistTracks();
-      const withoutExcluded=liked.length===1&&liked[0].title==='A';
+      const withoutExcluded=liked.length===1&&liked[0].title==='A'&&
+        !waveLibrarySeeds().some(t=>t.title==='B');
       setPlaylistExcludedFromLikes(472,false);
-      const restored=likedPlaylistTracks().length===2;
+      const restored=likedPlaylistTracks().length===1&&
+        waveLibrarySeeds().some(t=>t.title==='B');
       const heard={title:'History song',artist:'Another Artist',url:'https://example.invalid/history.mp3'};
       tasteRecord('listen',heard);
       const personal=tastePositiveTracks().some(t=>t.url===heard.url);
       const managerCheckbox=!!document.getElementById('tm-exclude-likes');
-      const topOffline=document.getElementById('studio-header-offline')?.getAttribute('onclick')==='openOfflineListening()';
+      const topOffline=!document.getElementById('studio-header-offline');
       const turnMode=typeof window.openOfflineListening==='function';
       return {withoutExcluded,restored,personal,managerCheckbox,topOffline,turnMode};
     }finally{
@@ -791,7 +793,7 @@ try {
         headerHidden:getComputedStyle(document.querySelector('.header-overlay')).display==='none',
         originalControlsRetained:!!document.querySelector('#btn-pl-select')&&
            !!document.querySelector('#studio-header-wave')&&
-           !!document.querySelector('#studio-header-offline')&&
+           !!document.querySelector('[data-showcase="offline"]')&&
            !!document.querySelector('.header-eq-btn'),
         logoPlay:document.getElementById('vinyl-wave-play').getAttribute('onclick')==='openStudioWave()',
         noOverflow:document.documentElement.scrollWidth<=innerWidth+3};

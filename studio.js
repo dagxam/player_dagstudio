@@ -70,7 +70,7 @@
     copy.appendChild(el('span','studio-library-eyebrow','ВАША МУЗЫКА'));
     copy.appendChild(el('h2','studio-library-heading','Мне нравится'));
     copy.appendChild(el('p','studio-library-caption',
-      songs.length+' треков · из ваших плейлистов'));
+      songs.length+' песен отмечено сердечком'));
     title.appendChild(copy);
     const close=el('button','studio-library-close');
     close.type='button';close.title='Вернуться к списку';close.setAttribute('aria-label','Вернуться к трекам');
@@ -82,7 +82,7 @@
       empty.appendChild(el('i','far fa-heart'));
       empty.appendChild(el('strong','','Здесь появятся любимые песни'));
       empty.appendChild(el('p','',
-        'Добавьте песни в плейлист и убедитесь, что он не исключён из «Мне нравится».'));
+        'Нажмите на сердечко рядом с песней, чтобы добавить её сюда.'));
       library.appendChild(empty);return;
     }
     const list=el('div','studio-liked-list');

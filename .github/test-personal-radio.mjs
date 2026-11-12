@@ -37,7 +37,10 @@ let positive=ctx.tastePositiveTracks();
 assert.equal(positive.length,1,'Wave is listening-based, not a copy of playlist favourites');
 assert.ok(positive.some(track=>track.url===completed.url));
 assert.ok(!positive.some(track=>track.url===saved.url));
-assert.equal(ctx.likedPlaylistTracks().length,1,'Saved songs are in Мне нравится');
+assert.equal(ctx.likedPlaylistTracks().length,0,
+ 'Ordinary playlists do not become favorites without a heart');
+ctx.playlists.push({id:3,type:'favorites',tracks:[saved]});
+assert.equal(ctx.likedPlaylistTracks().length,1,'Heart favorites are in Мне нравится');
 ctx.tasteRecord('dislike',completed);
 positive=ctx.tastePositiveTracks();
 assert.ok(!positive.some(track=>track.url===completed.url),'dislikes must not remain positive');

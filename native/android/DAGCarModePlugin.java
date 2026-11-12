@@ -113,7 +113,7 @@ public class DAGCarModePlugin extends Plugin {
                 "search_global", "official_audius_feed", "check_auth", "get_data",
                 "login", "register", "logout", "update_theme",
                 "create_playlist", "rename_playlist", "update_playlist_icon",
-                "update_playlist_cover", "delete_playlist", "add_track",
+                "update_playlist_cover", "delete_playlist", "add_track", "set_favorite",
                 "update_track_url", "delete_track", "upload_track"
             ));
             boolean safePost = "POST".equals(method) && "/api.php".equals(path) &&

@@ -24,8 +24,8 @@
     <!-- Icons bundled locally: no CDN or DNS dependency for Android/PWA. -->
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=6722">
     
-    <link rel="preload" href="style.css?v=2227" as="style">
-    <link rel="stylesheet" href="style.css?v=2227">
+    <link rel="preload" href="style.css?v=2228" as="style">
+    <link rel="stylesheet" href="style.css?v=2228">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=20">
@@ -73,7 +73,7 @@
             <div class="np-title" id="track-title">ВЫБЕРИТЕ ТРЕК</div>
             <div class="np-artist" id="track-artist">DAGSTUDIO PLAYER</div>
             <button type="button" id="now-playing-heart" class="now-playing-heart" onclick="savePlayingTrack()" disabled
-                title="Сохранить текущую песню" aria-label="Добавить текущую песню в плейлист"><i class="far fa-heart"></i></button>
+                title="Добавить в «Мне нравится»" aria-label="Добавить текущую песню в «Мне нравится»"><i class="far fa-heart"></i></button>
         </div>
         
         <div class="progress-area" id="prog-area">
@@ -300,7 +300,7 @@
                 </div>
                 <label class="studio-likes-exclusion" for="tm-exclude-likes">
                     <input type="checkbox" id="tm-exclude-likes" onchange="setPlaylistExcludedFromLikes(editingPlaylistId,this.checked)">
-                    <span><strong>Исключить из «Мне нравится»</strong><small>Не учитывать этот плейлист в персональных рекомендациях. Песни остаются на месте.</small></span>
+                    <span><strong>Не учитывать в «Моей волне»</strong><small>Не учитывать этот плейлист в персональных рекомендациях. Песни остаются на месте.</small></span>
                 </label>
             </section>
             <section class="playlist-editor-tracks" aria-label="Песни плейлиста">
@@ -406,7 +406,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2331" defer></script>
+<script src="script.js?v=2332" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=15" defer></script>
 <script src="studio-center.js?v=6" defer></script>

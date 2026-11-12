@@ -9,6 +9,7 @@ on:
       - "script.js"
       - "sw.js"
       - ".github/test-web-apk-parity.mjs"
+      - ".github/test-favorite-hearts.mjs"
       - ".github/test-hitmos-provider.mjs"
       - "api.php"
       - ".github/test-fast-start.mjs"
@@ -91,6 +92,7 @@ jobs:
           node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
           node .github/test-profile-theme.mjs
+          node .github/test-favorite-hearts.mjs
           node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs

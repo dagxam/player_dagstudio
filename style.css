@@ -725,3 +725,15 @@ body, html {
 .hitmos-search-detail strong { font-size: 13px; }
 .hitmos-search-detail small { font-size: 11px; opacity: .75; overflow-wrap: anywhere; }
 .hitmos-search-arrow { opacity: .65; margin-left: auto; }
+
+/* Accessible, reversible favorites hearts on search results, playlists and Wave. */
+.btn-list-action.favorite-heart.liked {
+    color: var(--accent-color, #ed6565);
+}
+.btn-list-action.favorite-heart:disabled {
+    cursor: progress;
+    opacity: .5;
+}
+#now-playing-heart[aria-pressed="true"] {
+    color: var(--accent-color, #ed6565);
+}

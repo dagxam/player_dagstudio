@@ -47,6 +47,7 @@ jobs:
           node .github/test-in-app-apk-update.mjs
           node .github/test-fast-start.mjs
           node .github/test-weak-network.mjs
+          node .github/test-favorite-hearts.mjs
           node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
           node .github/test-local-icons.mjs
@@ -74,6 +75,9 @@ jobs:
           npm install --no-audit --no-fund
           npm run native:web
           node .github/test-web-apk-parity.mjs
+
+      - name: Test favorite toggle via real PHP and SQLite
+        run: node .github/test-favorite-api.mjs
 
       - name: Local auth and playlist integration test
         run: |
