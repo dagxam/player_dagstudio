@@ -6285,24 +6285,34 @@ function renderPlaylist() {
         
         const downloadBtn = (t.url && isRemoteMediaUrl(t.url) &&
             t.source !== '[JAMENDO]' &&
-            !/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(t.url))) 
-            ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>` 
+            !/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(t.url)))
+            ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" aria-label="Скачать трек" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>`
             : '';
 
-        let actionBtn = ''; 
+        // Heart is a reversible "Мне нравится" toggle, not a save modal.
+        const isLiked = isFavoriteTrack(t);
+        const busy = favoriteToggleInFlight.has(tasteTrackId(t)||canonicalTrackUrl(t));
+        const heartBtn = `<button type="button" class="btn-list-action favorite-heart ${isLiked?'fas fa-heart liked':'far fa-heart'}"
+            title="${isLiked?'Убрать из «Мне нравится»':'Добавить в «Мне нравится»'}"
+            aria-label="${isLiked?'Убрать из «Мне нравится»':'Добавить в «Мне нравится»'}"
+            aria-pressed="${isLiked?'true':'false'}" ${busy?'disabled':''}
+            onclick="event.stopPropagation(); toggleFavoriteTrack(${i})"></button>`;
+        let actionBtn = '';
         if(currentTab === 'search' || currentTab === 'offline' || currentTab === 'studio-likes' || String(currentTab).startsWith('mix:')) {
-            const isLiked = playlists.some(pl => pl.tracks.some(track => track.url === t.url)); 
-            const likeClass = isLiked ? 'fas fa-heart liked' : 'far fa-heart'; 
             actionBtn = `
                 ${downloadBtn}
-                <button class="btn-list-action ${likeClass}" title="В плейлист" onclick="event.stopPropagation(); openSaveModal(${i})"></button>
-            `; 
-        } else { 
+                ${heartBtn}
+                <button type="button" class="btn-list-action" title="Добавить в другой плейлист" aria-label="Выбрать плейлист"
+                    onclick="event.stopPropagation(); openSaveModal(${i})"><i class="fas fa-plus"></i></button>
+            `;
+        } else {
             actionBtn = `
                 ${downloadBtn}
-                <button class="btn-list-action del" title="Удалить" onclick="event.stopPropagation(); window.deleteTrackGeneral('${t.id}', '${currentTab}')"><i class="fas fa-trash"></i></button>
-            `; 
-        } 
+                ${heartBtn}
+                <button type="button" class="btn-list-action del" title="Удалить из этого плейлиста" aria-label="Удалить трек из плейлиста"
+                    onclick="event.stopPropagation(); window.deleteTrackGeneral('${t.id}', '${currentTab}')"><i class="fas fa-trash"></i></button>
+            `;
+        }
         div.innerHTML = '';
 
         const left = document.createElement('div'); left.className = 'track-left';
