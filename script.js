@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2328';
+const WEB_BUILD_LABEL = '2329';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -587,7 +587,7 @@ function openAndroidApkDownload() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2337', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2338', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -599,8 +599,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2337') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2337', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2338') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2338', '1');
         window.location.reload();
     });
 }
@@ -5301,6 +5301,17 @@ mainAudio.addEventListener('timeupdate', updateProgress);
 mainAudio.addEventListener('progress', updateProgress);
 
 // --- GLOBAL SEARCH LOGIC ---
+// Hitmos.fm is an external site, not a licensed streaming backend.
+const hitmosLink = document.getElementById('hitmos-external-link');
+hitmosLink?.addEventListener('click', function(event) {
+    if (!IS_NATIVE_APP) return; // A normal browser can open the trusted link.
+    const open = window.DAG_NATIVE_BRIDGE?.openExternal;
+    if (typeof open !== 'function') return;
+    event.preventDefault();
+    open({url:'https://hitmos.fm/'}).catch(function() {
+        showNotification('Не удалось открыть Hitmos.fm. Откройте https://hitmos.fm/ в браузере.');
+    });
+});
 const mainSearchInput = document.getElementById('search-input');
 const searchHistoryBox = document.getElementById('search-history');
 const searchClearButton = document.getElementById('search-clear-btn');

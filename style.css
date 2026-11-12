@@ -676,3 +676,23 @@ body, html {
 @media (min-width:769px) and (max-height:760px) {
     .header-eq-btn { width:46px; height:46px; }
 }
+
+/* External music discovery: clearly separated from built-in streaming sources. */
+.external-music-source {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    margin: 10px 0 0;
+    padding: 8px 12px;
+    border: 1px solid rgba(160, 160, 160, .25);
+    border-radius: 11px;
+    color: inherit;
+    background: rgba(127, 127, 127, .07);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+.external-music-source small { font-size: 10px; opacity: .66; font-weight: 400; }
+.external-music-source:hover,
+.external-music-source:focus-visible { border-color: currentColor; outline-offset: 2px; }
