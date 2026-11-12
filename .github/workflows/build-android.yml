@@ -34,6 +34,9 @@ on:
       - ".github/test-native-media.mjs"
       - ".github/test-smart-radio.mjs"
       - ".github/test-personal-radio.mjs"
+      - ".github/test-favorite-hearts.mjs"
+      - ".github/test-favorite-api.mjs"
+      - "db.php"
       - ".github/test-continuous-radio.mjs"
       - ".github/test-source-switch.mjs"
       - ".github/test-quick-mixes.mjs"
@@ -137,6 +140,9 @@ jobs:
 
       - name: Test alternate stream source failover
         run: node .github/test-source-switch.mjs
+
+      - name: Verify reversible favorites and Wave continuity
+        run: node .github/test-favorite-hearts.mjs
 
       - name: Test quick mixes and favorite
         run: node .github/test-quick-mixes.mjs
