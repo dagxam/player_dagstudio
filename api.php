@@ -86,7 +86,7 @@ if (!$data) {
 }
 
 // Открываем сессию обратно только для действий, где она нужна
-if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'update_playlist_cover', 'delete_playlist', 'add_track', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
+if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'update_playlist_cover', 'delete_playlist', 'add_track', 'set_favorite', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
     @session_start();
 }
 
@@ -387,6 +387,79 @@ elseif ($action === 'add_track') {
         ]);
         echo json_encode(['success' => true]);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка добавления трека.']); }
+}
+// Atomic, idempotent favorite toggle. The dedicated "Мне нравится" playlist
+// syncs via get_data to both browsers and Android without touching other lists.
+elseif ($action === 'set_favorite') {
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['error' => 'Войдите в аккаунт, чтобы сохранять любимые песни.']);
+        exit;
+    }
+    $liked = ($data['liked'] ?? null) === true;
+    $track = $data['track'] ?? null;
+    if (!is_array($track) || !is_bool($data['liked'] ?? null)) {
+        echo json_encode(['error' => 'Некорректный запрос избранного.']);
+        exit;
+    }
+    $title = mb_substr(trim(strip_tags((string)($track['title'] ?? ''))), 0, 200);
+    $artist = mb_substr(trim(strip_tags((string)($track['artist'] ?? ''))), 0, 200);
+    $url = trim((string)($track['url'] ?? ''));
+    $thumb = mb_substr(strip_tags((string)($track['thumb'] ?? '')), 0, 2000);
+    // File URLs are never supported as favorites; only HTTP(S) or uploaded
+    // tracks belonging to this player may be saved.
+    $safeUrl = strlen($url) <= 2000 &&
+        (filter_var($url, FILTER_VALIDATE_URL) &&
+            in_array(strtolower((string)(parse_url($url, PHP_URL_SCHEME) ?: '')), ['http', 'https'], true) ||
+         preg_match('~^uploads/track_[a-zA-Z0-9_.-]+\\.(mp3|wav|ogg|m4a|aac|flac)$~D', $url));
+    if ($title === '' || $artist === '' || !$safeUrl) {
+        echo json_encode(['error' => 'Нельзя сохранить трек без названия, исполнителя и корректной ссылки.']);
+        exit;
+    }
+    try {
+        $pdo->beginTransaction();
+        $uid = (int)$_SESSION['user_id'];
+        $findPlaylist = $pdo->prepare("SELECT id FROM playlists
+            WHERE user_id = ? AND type = 'favorites' LIMIT 1");
+        $findPlaylist->execute([$uid]);
+        $favoriteId = (int)$findPlaylist->fetchColumn();
+        if (!$favoriteId && $liked) {
+            $pdo->prepare("INSERT INTO playlists (user_id, name, type)
+                VALUES (?, 'Мне нравится', 'favorites')")->execute([$uid]);
+            $favoriteId = (int)$pdo->lastInsertId();
+        }
+        $matching = [];
+        if ($favoriteId) {
+            $lookup = $pdo->prepare("SELECT id, title, artist, url FROM tracks WHERE playlist_id = ?");
+            $lookup->execute([$favoriteId]);
+            foreach ($lookup->fetchAll() as $saved) {
+                if ((string)$saved['url'] === $url ||
+                    (mb_strtolower(trim((string)$saved['title'])) === mb_strtolower($title) &&
+                     mb_strtolower(trim((string)$saved['artist'])) === mb_strtolower($artist))) {
+                    $matching[] = (int)$saved['id'];
+                }
+            }
+        }
+        $trackId = $matching[0] ?? null;
+        if ($liked && $favoriteId && !$matching) {
+            $insert = $pdo->prepare("INSERT INTO tracks
+                (playlist_id, title, artist, url, thumb, type) VALUES (?, ?, ?, ?, ?, 'audio')");
+            $insert->execute([$favoriteId, $title, $artist, $url, $thumb]);
+            $trackId = (int)$pdo->lastInsertId();
+        } elseif (!$liked && $matching) {
+            $delete = $pdo->prepare("DELETE FROM tracks WHERE id = ? AND playlist_id = ?");
+            foreach ($matching as $id) $delete->execute([$id, $favoriteId]);
+        }
+        $pdo->commit();
+        echo json_encode([
+            'success' => true, 'liked' => $liked,
+            'playlist_id' => $favoriteId ?: null,
+            'track_id' => $liked ? $trackId : null
+        ], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Set favorite failed: ' . $error->getMessage());
+        echo json_encode(['error' => 'Не удалось изменить избранное. Повторите попытку.']);
+    }
 }
 elseif ($action === 'delete_track') {
     if (!isset($_SESSION['user_id'])) exit;
