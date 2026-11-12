@@ -243,7 +243,7 @@ jobs:
           EXPECTED_SCRIPT="$(sed -n 's/.*src="\(script\.js?v=[0-9]*\)".*/\1/p' index.php | head -n 1)"
           test -n "$EXPECTED_SCRIPT"
           echo "$INDEX_HTML" | grep -Fq "$EXPECTED_SCRIPT"
-          EXPECTED_STYLE="$(sed -n 's/.*href="\\(style\\.css?v=[0-9]*\\)".*/\\1/p' index.php | head -n 1)"
+          EXPECTED_STYLE="$(sed -n 's/.*href="\(style\.css?v=[0-9]*\)".*/\1/p' index.php | head -n 1)"
           test -n "$EXPECTED_STYLE"
           echo "$INDEX_HTML" | grep -Fq "$EXPECTED_STYLE"
           echo "$INDEX_HTML" | grep -q 'modern.css?v=16'
