@@ -56,10 +56,8 @@ assert.match(js,/playbackTab==='mix:wave' && track\._waveRadio/);
 assert.match(js,/: await getStartupCachedAudio\(track\)/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
 assert.match(js,/register\('\/sw\.js\?v=2340'/);
-// Hitmos is visible in the track results list, not as a misplaced search-field link.
-assert.doesNotMatch(index,/id="hitmos-external-link"/);
-assert.match(js,/function renderHitmosExternalResult\(\)/);
-assert.match(js,/listEl\.prepend\(row\)/);
-assert.match(js,/renderHitmosExternalResult\(\)/);
-assert.match(js,/Внешний каталог/);
+// Only genuine, playable records returned by the unified API appear.
+assert.doesNotMatch(index,/hitmos-external-link/);
+assert.doesNotMatch(js,/renderHitmosExternalResult/);
+assert.doesNotMatch(js,/listEl\.prepend\(row\)/);
 console.log('WEAK_NETWORK_BUFFER_AND_MOBILE_LIST_AND_APK_UI_OK');
