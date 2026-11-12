@@ -33,6 +33,11 @@ try {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )");
 
+    // A reserved, per-account favorites playlist powers reversible hearts.
+    // Ordinary playlists remain unaffected and may contain the same songs.
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_playlists_one_favorites_per_user
+        ON playlists(user_id) WHERE type = 'favorites'");
+
     // Playlist symbols are stored separately; existing playlists remain intact.
     $pdo->exec("CREATE TABLE IF NOT EXISTS playlist_icons (
         playlist_id INTEGER PRIMARY KEY,
