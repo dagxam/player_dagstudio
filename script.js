@@ -6402,43 +6402,123 @@ function openPlaylistSelect(isSaving = false) {
 
 function updatePlayingHeart() {
     const button=document.getElementById('now-playing-heart');
-    if(!button) return;
+    if(!button)return;
     const track=playbackPlaylist[currentIndex];
-    button.disabled=!track?.url;
-    const liked=!!track?.url && playlists.some(pl=>Array.isArray(pl.tracks) &&
-        pl.tracks.some(t=>t.url===track.url || (normalizeTrackIdentity(t.title)===normalizeTrackIdentity(track.title) &&
-        normalizeTrackIdentity(t.artist)===normalizeTrackIdentity(track.artist))));
+    const identity=track ? (tasteTrackId(track)||canonicalTrackUrl(track)) : '';
+    const liked=isFavoriteTrack(track);
+    button.disabled=!track?.url || favoriteToggleInFlight.has(identity);
     button.classList.toggle('is-liked',liked);
     button.innerHTML=liked?'<i class="fas fa-heart"></i>':'<i class="far fa-heart"></i>';
-    button.setAttribute('aria-label',liked?'Добавить в другой плейлист':'Сохранить текущую песню в плейлист');
-    button.title=liked?'Есть в плейлисте · добавить в другой':'Сохранить текущую песню';
+    button.setAttribute('aria-pressed',liked?'true':'false');
+    button.setAttribute('aria-label',liked?'Убрать текущую песню из «Мне нравится»':'Добавить текущую песню в «Мне нравится»');
+    button.title=liked?'Убрать из «Мне нравится»':'Добавить в «Мне нравится»';
 }
-function savePlayingTrack() {
-    const track=playbackPlaylist[currentIndex];
-    if(!track?.url)return;
-    selectedTrackForSave=track;
+
+function refreshFavoriteControls(){
+    const scroller=document.querySelector('.playlist-area');
+    const scrollY=scroller?.scrollTop||0;
+    if(currentTab === 'studio-likes')playlist=likedPlaylistTracks();
+    // Do not touch the active playback list or replay the current song.
+    renderPlaylist();
+    if(scroller)scroller.scrollTop=scrollY;
+    updatePlayingHeart();
+}
+
+function tasteUndoLike(track){
+    const state=tasteLoad(),identity=tasteTrackId(track);
+    const entry=state.tracks?.[identity];
+    if(!entry?.like)return;
+    entry.like=false;
+    entry.positive=!!entry.finish;
+    entry.score=Math.max(-40,(Number(entry.score)||0)-5);
+    const artist=normalizeTrackIdentity(track.artist);
+    if(state.artists?.[artist]) {
+        const score=Number(state.artists[artist].score)||0;
+        state.artists[artist].score=Math.max(-40,score-5);
+        state.artists[artist].at=Date.now();
+    }
+    entry.at=Date.now();
+    tasteSave(state);
+}
+
+async function setTrackFavorite(track,forceLiked){
+    if(!track?.url || !track.title || !track.artist)return;
+    if(!currentUser){
+        showNotification('Войдите в аккаунт, чтобы добавлять любимые песни.');
+        return;
+    }
+    const key=tasteTrackId(track)||canonicalTrackUrl(track);
+    if(favoriteToggleInFlight.has(key))return;
+    const liked=typeof forceLiked==='boolean'?forceLiked:!isFavoriteTrack(track);
+    if(liked===isFavoriteTrack(track))return;
+    favoriteToggleInFlight.add(key);
+    refreshFavoriteControls();
+    try {
+        const result=await api('set_favorite', {
+            liked,
+            track:{title:track.title,artist:track.artist,url:track.url,
+                   thumb:track.thumb||'',type:'audio'}
+        });
+        if(!result?.success)throw new Error(result?.error||'Не удалось обновить избранное');
+        let favorite=favoritePlaylist();
+        if(!favorite && liked && result.playlist_id) {
+            favorite={id:result.playlist_id,name:'Мне нравится',type:'favorites',
+                icon:'heart',cover:'',tracks:[]};
+            playlists.unshift(favorite);
+        }
+        if(favorite){
+            favorite.tracks=(favorite.tracks||[]).filter(t=>!favoriteTrackMatches(t,track));
+            if(liked)favorite.tracks.push({
+                id:result.track_id,playlist_id:favorite.id,
+                title:track.title,artist:track.artist,url:track.url,
+                thumb:track.thumb||'',type:'audio'
+            });
+        }
+        if(liked) tasteRecord('like',track);
+        else tasteUndoLike(track);
+        saveOfflinePlaylistsSnapshot(playlists);
+        refreshFavoriteControls();
+        window.dispatchEvent(new CustomEvent('dag-library-changed'));
+        showNotification(liked?'Добавлено в «Мне нравится»':'Убрано из «Мне нравится»');
+        // Refresh with authoritative server IDs without delaying the heart.
+        loadUserData(true).catch(err=>console.warn('Favorites sync deferred:',err));
+    } catch(error) {
+        showNotification(String(error?.message||error||'Ошибка избранного'));
+    } finally {
+        favoriteToggleInFlight.delete(key);
+        refreshFavoriteControls();
+    }
+}
+window.toggleFavoriteTrack=function(index){
+    return setTrackFavorite(playlist[index]);
+};
+function savePlayingTrack(){
+    return setTrackFavorite(playbackPlaylist[currentIndex]);
+}
+function openSaveModal(index){
+    selectedTrackForSave=playlist[index];
     openPlaylistSelect(true);
 }
-function openSaveModal(index) { selectedTrackForSave = playlist[index]; openPlaylistSelect(true); }
 
-async function addToPlaylist(plId) { 
-    const track = selectedTrackForSave; const pl = playlists.find(p => p.id == plId); 
-    if(pl.tracks.some(t => t.url === track.url)) { showNotification("Уже есть"); return; } 
-    const trackData = { title: track.title, artist: track.artist, url: track.url || track.file, thumb: track.thumb, type: 'audio' }; 
-    const response = await api('add_track', { playlist_id: plId, track: trackData });
-    if (!response.success) return showNotification(response.error || 'Не удалось добавить трек.');
+async function addToPlaylist(plId){
+    const track=selectedTrackForSave;
+    const pl=playlists.find(p=>String(p.id)===String(plId));
+    if(!pl||!track?.url)return showNotification('Не удалось выбрать трек или плейлист.');
+    if(pl.type==='favorites'){
+        closeModal('save-modal');
+        return setTrackFavorite(track,true);
+    }
+    if((pl.tracks||[]).some(t=>favoriteTrackMatches(t,track))) {
+        return showNotification('Эта песня уже есть в плейлисте.');
+    }
+    const trackData={title:track.title,artist:track.artist,url:track.url,
+        thumb:track.thumb||'',type:'audio'};
+    const response=await api('add_track',{playlist_id:plId,track:trackData});
+    if(!response?.success)return showNotification(response?.error||'Не удалось добавить трек.');
     closeModal('save-modal');
-    tasteRecord('like',track);
-    const synced = await loadUserData(true);
-    updatePlayingHeart();
-    showNotification(synced
-        ? 'Трек добавлен! Сохраним его офлайн при доступном интернете.'
-        : 'Трек добавлен на сервер. Список обновится после восстановления сети.'); 
-    
-    // Playlist entries sync to all devices; offline bytes are device-local
-    // and are committed automatically only after a complete listen.
+    const synced=await loadUserData(true);
+    showNotification(synced?'Трек добавлен в плейлист':'Трек сохранён на сервере. Синхронизация повторится при подключении.');
 }
-
 function openMenu() {
     showDeviceCacheStatus();
     if (currentUser) {
