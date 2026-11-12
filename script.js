@@ -609,7 +609,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 let currentUser = null;
 let nativeApiReachable = true;
 let isRegMode = false; 
-let playlists = []; 
+let playlists = [];
+const favoriteToggleInFlight = new Set(); 
 let playlist = []; 
 let searchPlaylistCache = []; 
 let currentIndex = -1;
@@ -2338,8 +2339,18 @@ function renderCurrentPlaylistFromAccountData() {
     // the last offline snapshot or a fresh server sync).
     window.dispatchEvent(new Event('dag-playlists-updated'));
 
-    if (currentTab !== 'search') {
-        const pl = playlists.find(p => p.id == currentTab);
+    // Account sync must never interrupt an active Wave, charts, or offline
+    // station by unexpectedly switching tabs back to Search.
+    if (currentTab === 'search') {
+        playlist = searchPlaylistCache;
+        renderPlaylist();
+    } else if (currentTab === 'studio-likes') {
+        playlist = likedPlaylistTracks();
+        renderPlaylist();
+    } else if (currentTab === 'offline' || String(currentTab).startsWith('mix:')) {
+        // Continuous radio owns its playback/list state; leave it untouched.
+    } else {
+        const pl = playlists.find(p => String(p.id) === String(currentTab));
         if (pl) {
             playlist = [...(pl.tracks || [])];
             renderPlaylist();
@@ -2347,6 +2358,7 @@ function renderCurrentPlaylistFromAccountData() {
             switchTab('search');
         }
     }
+    window.dispatchEvent(new CustomEvent('dag-library-changed'));
 }
 
 function hydrateCachedAccount(username) {
@@ -4639,18 +4651,32 @@ function setPlaylistExcludedFromLikes(id,excluded) {
     try{localStorage.setItem(LIKES_EXCLUSIONS_PREFIX+tasteOwnerKey(),JSON.stringify(data));}catch(e){}
     window.dispatchEvent(new CustomEvent('dag-library-changed'));
 }
+// "Мне нравится" is the explicit, reversible heart collection.
+// Songs in regular playlists remain there but do not become liked implicitly.
+function favoritePlaylist(){
+    return playlists.find(pl => pl.type === 'favorites') || null;
+}
+function favoriteTrackMatches(left,right){
+    if(!left?.url || !right?.url)return false;
+    if(canonicalTrackUrl(left) === canonicalTrackUrl(right))return true;
+    const a=tasteTrackId(left),b=tasteTrackId(right);
+    return !!a && a===b && !!normalizeTrackIdentity(left.artist) && !!normalizeTrackIdentity(right.artist);
+}
+function isFavoriteTrack(track){
+    const favorite=favoritePlaylist();
+    return !!favorite && !!track?.url &&
+        (favorite.tracks||[]).some(saved => favoriteTrackMatches(saved,track));
+}
 function likedPlaylistTracks(){
-    const result=[],known=new Set();
-    for(const pl of playlists){
-        if(playlistExcludedFromLikes(pl.id))continue;
-        for(const t of pl.tracks||[]){
-            if(!t?.url)continue;
-            const id=tasteTrackId(t)||canonicalTrackUrl(t);
-            if(!id||known.has(id))continue;
-            known.add(id);result.push(t);
-        }
+    const favorite=favoritePlaylist(),found=[],seen=new Set();
+    if(!favorite)return found;
+    for(const track of favorite.tracks||[]){
+        if(!track?.url)continue;
+        const id=tasteTrackId(track)||canonicalTrackUrl(track);
+        if(!id||seen.has(id))continue;
+        seen.add(id);found.push(track);
     }
-    return result;
+    return found;
 }
 function tastePreferredArtists(seeds=[]) {
     const state=tasteLoad(),names=new Map();
