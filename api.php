@@ -189,7 +189,7 @@ elseif ($action === 'get_data') {
             $trackStmt->execute([$pl['id']]);
             $pl['tracks'] = $trackStmt->fetchAll(PDO::FETCH_ASSOC);
             $pl['source'] = 'db';
-            $pl['icon'] = $playlistIcons[(string)$pl['id']] ?? 'music'; 
+            $pl['icon'] = $playlistIcons[(string)$pl['id']] ?? ($pl['type'] === 'favorites' ? 'heart' : 'music'); 
             $pl['cover'] = $playlistCovers[(string)$pl['id']] ?? '';
         }
         echo json_encode($playlists);
