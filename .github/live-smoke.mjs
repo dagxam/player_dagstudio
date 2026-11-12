@@ -919,22 +919,25 @@ try {
 
   // Страховка CC3: в нативном коде не должно оставаться таймеров, вызывающих OTA set().
   const newDiscovery=await page.evaluate(async()=>{
-    const response=await fetch('/script.js?v=2302',{cache:'no-store'});
+    const response=await fetch(document.querySelector('script[src^="script.js?v="]')?.getAttribute('src') || '/script.js', {cache:'no-store'});
     const text=await response.text();
     return {paged: text.includes('async function loadMoreQuickMix()'),
       dedup:text.includes('quickMixUnique(collected,state.tracks)'),
       offlineIndex:text.includes('async function offlineTrackList()'),
-      offlineRecovery:!text.includes('startOfflineListening({auto:true,autoplay:true})') &&
-        text.includes("recoverCurrentStream('network-offline')"),
+      offlineRecovery:text.includes("recoverCurrentStream('network-offline')") &&
+        text.includes('await startOfflineListening({auto:true,autoplay:true})') &&
+        text.includes('if (!mainAudio.paused && mainAudio.readyState >= 3)'),
       listeningHistory:text.includes("tasteRecord('listen',track)")};
   });
   console.log('DISCOVERY_AND_OFFLINE_FEATURES',JSON.stringify(newDiscovery));
   if(Object.values(newDiscovery).some(x=>!x))throw new Error('Discover/offline source regression');
   const stabilitySource = await page.evaluate(async () => {
-    const response = await fetch('/script.js?v=2319', { cache: 'no-store' });
+    const url = document.querySelector('script[src^="script.js?v="]')?.getAttribute('src') || '/script.js';
+    const currentBuild = url.match(/[?&]v=(\\d+)/)?.[1];
+    const response = await fetch(url, { cache: 'no-store' });
     const code = await response.text();
     return {
-      isCurrent: code.includes("const WEB_BUILD_LABEL = '2319'"),
+      isCurrent: !!currentBuild && code.includes("const WEB_BUILD_LABEL = '" + currentBuild + "'"),
       profileSync: code.includes('async function synchronizeProfileTheme('),
       profileResume: code.includes("window.addEventListener('dag-native-state'"),
       searchUsesServer: code.includes("const result = await api('search_global'"),
@@ -1021,7 +1024,7 @@ try {
       carControls[k] !== 'function')) throw new Error('Car controls missing');
 
   const recoveryPatch = await page.evaluate(async () => {
-    const js = await (await fetch('/script.js?v=2302', {cache:'no-store'})).text();
+    const js = await (await fetch(document.querySelector('script[src^="script.js?v="]')?.getAttribute('src') || '/script.js', {cache:'no-store'})).text();
     return {
       frozenBufferGuard: js.includes("bufferedSecondsAhead() > 1 && !playbackIsFrozen()) return;"),
       watchDogIsIntentAware: js.includes("mainAudio.ended || !playbackWanted) return;")
