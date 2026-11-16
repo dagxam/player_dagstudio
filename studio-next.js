@@ -45,6 +45,10 @@ const add=(key,label,icon,fn)=>{
 };
 let showingCollection=true;
 function showCurated(){
+  // Leaving Likes must remove its overlay before showing playlist cards.
+  if(document.getElementById('studio-header-likes')?.classList.contains('active'))
+    window.openStudioLikes?.();
+
  showingCollection=true;right.classList.add('showcase-curated');
  right.classList.remove('showcase-list');
  root.classList.remove('showcase-mobile-list');
