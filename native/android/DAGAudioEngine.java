@@ -68,7 +68,7 @@ public final class DAGAudioEngine {
         // Prefer a deep streaming reservoir and refill it before it runs dry.
         // Local cache files should still start immediately.
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMsForStreaming(45000, 180000, 2500, 10000)
+            .setBufferDurationsMsForStreaming(35000, 180000, 1500, 4500)
             .setBufferDurationsMsForLocalPlayback(1000, 50000, 500, 1000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
