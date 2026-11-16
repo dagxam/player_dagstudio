@@ -1875,7 +1875,12 @@ async function getStartupCachedAudio(track, timeoutMs = 420) {
         (!IS_NATIVE_APP && !('caches' in window))) {
         return getDeviceCachedAudio(track);
     }
-    if (IS_NATIVE_APP && NATIVE_MEDIA3_ACTIVE) timeoutMs = Math.min(timeoutMs, 220);
+    if (IS_NATIVE_APP && NATIVE_MEDIA3_ACTIVE) {
+        // A verified, fully downloaded offline song is usually faster than
+        // any remote server. Allow its indexed file a little more lookup time.
+        const cachedEntry = readNativeAudioIndex()[canonicalTrackUrl(track)];
+        timeoutMs = cachedEntry?.path ? 800 : Math.min(timeoutMs, 220);
+    }
     let expired = false;
     let timeoutId;
     const pending = getDeviceCachedAudio(track).then(result => {
