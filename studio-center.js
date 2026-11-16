@@ -119,9 +119,18 @@ function showTracks(context,label,backTo){
  selectNav(context==='playlists'?'playlists':context==='charts'?'charts':'collections');
 }
 function openPlaylist(pl){
- showTracks('playlists',pl.name,'playlists');
- if(typeof switchTab==='function')switchTab(pl.id);
+  const selected=typeof playlists!=='undefined'?
+    playlists.find(item=>String(item.id)===String(pl.id)):null;
+  if(!selected){render('playlists');return;}
+  showTracks('playlists',selected.name,'playlists');
+  if(typeof switchTab==='function')switchTab(selected.id);
 }
+window.studioCenterOpenPlaylist=function(id){
+  const selected=typeof playlists!=='undefined'?
+    playlists.find(item=>String(item.id)===String(id)):null;
+  if(selected)openPlaylist(selected);
+  else render('playlists');
+};
 function showMix(key,label,backTo='collections'){
  showTracks(key==='charts'?'charts':'collections',label,backTo);
  if(typeof startQuickMix==='function')startQuickMix(key);
