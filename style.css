@@ -737,3 +737,28 @@ body, html {
 #now-playing-heart[aria-pressed="true"] {
     color: var(--accent-color, #ed6565);
 }
+
+/* Playlist picker: keyboard-usable buttons and a clearly visible current choice. */
+.playlist-select-btn {
+  font: inherit;
+  text-align: left;
+  min-height: 60px;
+  gap: 12px;
+  appearance: none;
+}
+.playlist-select-btn span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.playlist-select-btn small {
+  flex: 0 0 auto;
+  font-size: .75rem;
+  font-weight: 400;
+  opacity: .72;
+}
+.playlist-select-btn.is-selected {
+  border-color: var(--accent-color, #ce7860);
+  background: rgba(var(--theme-rgb,192,108,66),.12);
+}
+.playlist-select-btn:focus-visible {
+  outline: 2px solid var(--accent-color, #ce7860);
+  outline-offset: 2px;
+}
+.playlist-select-empty { padding: 20px 10px; text-align: center; opacity: .8; }

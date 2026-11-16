@@ -24,8 +24,8 @@
     <!-- Icons bundled locally: no CDN or DNS dependency for Android/PWA. -->
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=6722">
     
-    <link rel="preload" href="style.css?v=2228" as="style">
-    <link rel="stylesheet" href="style.css?v=2228">
+    <link rel="preload" href="style.css?v=2229" as="style">
+    <link rel="stylesheet" href="style.css?v=2229">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=20">
@@ -406,7 +406,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2332" defer></script>
+<script src="script.js?v=2333" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=15" defer></script>
 <script src="studio-center.js?v=6" defer></script>

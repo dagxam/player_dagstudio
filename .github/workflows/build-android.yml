@@ -35,6 +35,7 @@ on:
       - ".github/test-smart-radio.mjs"
       - ".github/test-personal-radio.mjs"
       - ".github/test-favorite-hearts.mjs"
+      - ".github/test-playlist-navigation.mjs"
       - ".github/test-favorite-api.mjs"
       - "db.php"
       - ".github/test-continuous-radio.mjs"
@@ -143,6 +144,9 @@ jobs:
 
       - name: Verify reversible favorites and Wave continuity
         run: node .github/test-favorite-hearts.mjs
+
+      - name: Test playlist selection and fast Media3 startup
+        run: node .github/test-playlist-navigation.mjs
 
       - name: Test quick mixes and favorite
         run: node .github/test-quick-mixes.mjs
