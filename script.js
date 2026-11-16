@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2332';
+const WEB_BUILD_LABEL = '2333';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -587,7 +587,7 @@ function openAndroidApkDownload() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2341', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2342', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -599,8 +599,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2341') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2341', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2342') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2342', '1');
         window.location.reload();
     });
 }
@@ -1868,10 +1868,14 @@ async function getDeviceCachedAudio(trackOrUrl) {
  * Play gesture. Late successful blob lookups are released to avoid leaking URLs.
  * Fully offline users retain the original cache lookup (no deadline).
  */
-async function getStartupCachedAudio(track, timeoutMs = 900) {
-    if (IS_NATIVE_APP || navigator.onLine === false || !('caches' in window)) {
+async function getStartupCachedAudio(track, timeoutMs = 420) {
+    // Media3 owns its streaming cache; a slow Android filesystem/Capacitor IPC
+    // query must not delay play. Offline still receives the full cache lookup.
+    if (navigator.onLine === false || (IS_NATIVE_APP && !NATIVE_MEDIA3_ACTIVE) ||
+        (!IS_NATIVE_APP && !('caches' in window))) {
         return getDeviceCachedAudio(track);
     }
+    if (IS_NATIVE_APP && NATIVE_MEDIA3_ACTIVE) timeoutMs = Math.min(timeoutMs, 220);
     let expired = false;
     let timeoutId;
     const pending = getDeviceCachedAudio(track).then(result => {
@@ -4170,9 +4174,14 @@ async function playTrack(index, options = {}) {
         currentBlobUrl = null;
     }
 
-    mainAudio.pause();
-    mainAudio.removeAttribute('src');
-    mainAudio.load();
+    // Media3 replaces the previous MediaItem in bridge.load().
+    // Separate asynchronous pause/stop calls can race the next load and
+    // unexpectedly silence a newly selected song on Android head units.
+    if (!NATIVE_MEDIA3_ACTIVE) {
+        mainAudio.pause();
+        mainAudio.removeAttribute('src');
+        mainAudio.load();
+    }
 
     let finalUrl = resolveMediaUrl(track.url);
     try {
@@ -6217,7 +6226,7 @@ function switchTab(id) {
     } else if(String(id).startsWith('mix:')&&quickMixCurrent?.key===String(id).slice(4)){
         renderQuickMixView();
     } else {
-        const pl = playlists.find(p => p.id == id); 
+        const pl = playlists.find(p => String(p.id) === String(id)); 
         if(pl) { 
             if(label) { label.innerText = pl.name.toUpperCase(); label.style.display = 'block'; } 
             if(searchContainer) searchContainer.style.display =
@@ -6382,23 +6391,49 @@ function renderPlaylist() {
     updatePlayingHeart();
 }
 
-function openPlaylistSelect(isSaving = false) { 
-    if(!currentUser) return showNotification("Сначала войдите!"); 
-    const list = document.getElementById('playlist-select-list'); 
-    list.innerHTML = ''; 
-    playlists.forEach(pl => { 
-        const btn = document.createElement('div'); btn.className = 'playlist-select-btn'; 
-        const nameSpan = document.createElement('span'); nameSpan.textContent = pl.name || '';
-        btn.appendChild(nameSpan);
-        btn.addEventListener('click', () => { 
-            if(isSaving) addToPlaylist(pl.id); 
-            else { closeModal('save-modal'); switchTab(pl.id); if(pl.tracks.length > 0) { playlist = [...pl.tracks]; playTrack(0); } } 
-        }); 
-        list.appendChild(btn); 
-    }); 
-    document.getElementById('save-modal').classList.add('show'); 
+function openPlaylistSelect(isSaving = false) {
+    if(!currentUser) return showNotification('Сначала войдите в аккаунт.');
+    const list=document.getElementById('playlist-select-list');
+    if(!list)return;
+    list.replaceChildren();
+    if(!playlists.length){
+        const empty=document.createElement('p');
+        empty.className='playlist-select-empty';
+        empty.textContent='Плейлистов пока нет. Создайте свой первый плейлист.';
+        list.appendChild(empty);
+    }
+    playlists.forEach(pl=>{
+        const btn=document.createElement('button');
+        btn.type='button';
+        btn.className='playlist-select-btn';
+        btn.setAttribute('aria-label',(isSaving?'Добавить песню в ':'Открыть ')+(pl.name||'плейлист'));
+        if(String(pl.id)===String(currentTab)) {
+            btn.classList.add('is-selected');
+            btn.setAttribute('aria-current','true');
+        }
+        const nameSpan=document.createElement('span');
+        nameSpan.textContent=pl.name||'Плейлист';
+        const count=document.createElement('small');
+        count.textContent=String((pl.tracks||[]).length)+' песен';
+        btn.append(nameSpan,count);
+        btn.addEventListener('click',()=>{
+            if(isSaving){
+                addToPlaylist(pl.id);
+                return;
+            }
+            closeModal('save-modal');
+            // Selecting a playlist displays its songs; it does not start song #1.
+            if(typeof window.studioCenterOpenPlaylist==='function')
+                window.studioCenterOpenPlaylist(pl.id);
+            else {
+                window.studioShowList?.('playlists');
+                switchTab(pl.id);
+            }
+        });
+        list.appendChild(btn);
+    });
+    document.getElementById('save-modal')?.classList.add('show');
 }
-
 
 function updatePlayingHeart() {
     const button=document.getElementById('now-playing-heart');
