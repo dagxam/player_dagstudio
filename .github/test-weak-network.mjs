@@ -7,8 +7,8 @@ const css=readFileSync(new URL('../studio-touch.css',import.meta.url),'utf8');
 const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
-assert.match(js,/const WEB_BUILD_LABEL = '2332'/);
-assert.match(android,/setBufferDurationsMsForStreaming\(45000, 180000, 2500, 10000\)/);
+assert.match(js,/const WEB_BUILD_LABEL = '2333'/);
+assert.match(android,/setBufferDurationsMsForStreaming\(35000, 180000, 1500, 4500\)/);
 assert.match(android, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
 assert.match(js,/cacheTrackSilently\(finishedTrack, \{ reason: 'completed'/);
@@ -49,13 +49,13 @@ assert.equal(queued.length,1,'Keep waiting on existing stream');
 frozen=true;
 queued.shift().fn();
 assert.equal(recoveries,1,'Truly frozen playhead can recover');
-assert.match(js,/async function getStartupCachedAudio\(track, timeoutMs = 900\)/);
+assert.match(js,/async function getStartupCachedAudio\(track, timeoutMs = 420\)/);
 assert.match(js,/Promise\.race\(\[pending, timedOut\]\)/);
 assert.match(js,/if \(expired && result\?\.isBlob && result\.url\) URL\.revokeObjectURL/);
 assert.match(js,/playbackTab==='mix:wave' && track\._waveRadio/);
 assert.match(js,/: await getStartupCachedAudio\(track\)/);
 assert.match(js,/reason === 'media-error' \|\| !getNetworkProfile\(\)\.weak/);
-assert.match(js,/register\('\/sw\.js\?v=2341'/);
+assert.match(js,/register\('\/sw\.js\?v=2342'/);
 // Only genuine, playable records returned by the unified API appear.
 assert.doesNotMatch(index,/hitmos-external-link/);
 assert.doesNotMatch(js,/renderHitmosExternalResult/);
