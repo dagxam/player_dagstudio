@@ -340,6 +340,8 @@ jobs:
           PY
 
       - name: Deploy APK mirror for DNS-restricted CC3 devices
+        id: apk_mirror_initial
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -349,6 +351,20 @@ jobs:
           port: ${{ secrets.FTP_PORT || 21 }}
           local-dir: ./apk-publish/
           server-dir: /www/pl.dagstudio.ru/apk/
+          timeout: 180000
+
+      - name: Retry APK mirror upload after transient FTP timeout
+        if: ${{ steps.apk_mirror_initial.outcome == 'failure' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          local-dir: ./apk-publish/
+          server-dir: /www/pl.dagstudio.ru/apk/
+          timeout: 180000
 
       - name: Verify HTTPS APK mirror, SHA256 and release identity
         run: |
