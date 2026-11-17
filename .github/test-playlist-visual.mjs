@@ -71,8 +71,8 @@ for(const breakpoint of ['@media(max-width:768px)','@media(max-width:370px)',
  '@media(min-width:769px) and (max-width:1199px)'])assert.ok(css.includes(breakpoint));
 assert.match(html,/studio-vision\.css\?v=2/);
 assert.match(html,/studio-center\.js\?v=7/);
-assert.match(sw,/dagstudio-player-shell-v2349/);
-assert.ok(sw.includes("'/studio-vision.css?v=2'"));
+assert.match(sw,/dagstudio-player-shell-v2350/);
+assert.ok(sw.includes("'/studio-vision.css?v=3'"));
 assert.ok(sw.includes("'/studio-center.js?v=7'"));
 assert.match(bridge,/copyFile\(join\(root, 'studio-center\.js'\)/);
 assert.match(bridge,/copyFile\(join\(root, 'studio-vision\.css'\)/);
