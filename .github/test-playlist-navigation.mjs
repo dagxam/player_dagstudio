@@ -76,7 +76,7 @@ assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs,
 assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*mainAudio\.pause\(\);\s*mainAudio\.removeAttribute\('src'\)/);
 assert.match(html,/script\.js\?v=2334/);
 assert.match(sw,/script\.js\?v=2334/);
-const sidebarEntries=[...shell.matchAll(/^add\\('([^']+)','([^']+)'/gm)]
+const sidebarEntries=[...shell.matchAll(/^add\('([^']+)','([^']+)'/gm)]
   .map(([,key,label])=>[key,label]);
 assert.deepEqual(sidebarEntries,[
   ['wave','Моя волна'],['playlists','Плейлисты'],
