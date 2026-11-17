@@ -53,6 +53,7 @@ jobs:
           node .github/test-rainbow-offline.mjs
           node .github/test-fast-search-wave.mjs
           node .github/test-vision-ui.mjs
+          node .github/test-search-history-ui.mjs
           node .github/test-collapsed-collections.mjs
           node .github/test-playlist-visual.mjs
           node .github/test-update-notifications.mjs
@@ -293,7 +294,7 @@ jobs:
           grep -q 'id="android-apk-download-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-update-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-version-footer"' <<< "$INDEX_HTML"
-          grep -q 'studio-vision.css?v=4' <<< "$INDEX_HTML"
+          grep -q 'studio-vision.css?v=5' <<< "$INDEX_HTML"
           grep -q 'studio-vision.js?v=2' <<< "$INDEX_HTML"
           for asset in studio-vision.css studio-vision.js images/vision-hero.svg; do
             curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 25 \
