@@ -18,8 +18,8 @@ assert.match(center,/Встроенный поиск музыки работае
 assert.match(player,/Эльмира Магомедова/);
 assert.match(player,/Роза Мальсагова/);
 assert.match(player,/Мадина Кайтмазова/);
-assert.match(html,/studio-center\.js\?v=6/);
-assert.match(sw,/studio-center\.js\?v=6/);
+assert.match(html,/studio-center\.js\?v=7/);
+assert.match(sw,/studio-center\.js\?v=7/);
 assert.match(player,/const WEB_BUILD_LABEL = '2337'/);
 for(const u of ['https://www.jamendo.com/start','https://soundcloud.com/discover','https://musicbrainz.org/']) {
   assert.ok(center.includes(u),u);
