@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2336';
+const WEB_BUILD_LABEL = '2337';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -769,7 +769,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2346', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2347', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -6819,6 +6819,12 @@ function updatePlayingHeart() {
     button.setAttribute('aria-pressed',liked?'true':'false');
     button.setAttribute('aria-label',liked?'Убрать текущую песню из «Мне нравится»':'Добавить текущую песню в «Мне нравится»');
     button.title=liked?'Убрать из «Мне нравится»':'Добавить в «Мне нравится»';
+    const waveSave=document.getElementById('wave-add-playlist-btn');
+    if(waveSave){
+        const enabled=Boolean(track?.url&&playbackTab==='mix:wave');
+        waveSave.hidden=!enabled;
+        waveSave.disabled=!enabled;
+    }
 }
 
 function refreshFavoriteControls(){
@@ -6903,6 +6909,14 @@ window.toggleFavoriteTrack=function(index){
 };
 function savePlayingTrack(){
     return setTrackFavorite(playbackPlaylist[currentIndex]);
+}
+// The Wave's fullscreen view hides track rows, including their + actions.
+// Save the selected playback track without switching lists or pausing music.
+function saveWavePlayingTrack(){
+    const track=playbackPlaylist[currentIndex];
+    if(!track?.url || playbackTab!=='mix:wave')return;
+    selectedTrackForSave=track;
+    openPlaylistSelect(true);
 }
 function openSaveModal(index){
     selectedTrackForSave=playlist[index];
