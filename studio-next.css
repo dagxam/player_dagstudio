@@ -1628,3 +1628,25 @@
  font-size:.67rem;color:var(--theme-muted,#9da2aa)}
 @media(max-width:440px){#menu-modal .theme-options .theme-choice{
  min-height:58px!important;height:58px!important}}
+
+/* Add-to-playlist access on the fullscreen Wave, where the song list is hidden. */
+.studio-showcase>.left-col .wave-add-playlist-btn{
+ position:absolute!important;left:5px!important;top:50%!important;
+ transform:translateY(-50%)!important;z-index:3;
+ display:grid;place-items:center;width:48px;height:48px;min-width:48px;
+ padding:0;border:1px solid var(--showcase-accent,var(--theme-bright,#daab85));
+ border-radius:50%;background:rgba(var(--theme-rgb,192,108,66),.14);
+ box-shadow:0 0 14px rgba(var(--theme-rgb,192,108,66),.14);
+ color:var(--showcase-accent,var(--theme-bright,#fff));
+ font-size:1.08rem;cursor:pointer;transition:background .2s,transform .2s;
+}
+.studio-showcase>.left-col .wave-add-playlist-btn:hover:not(:disabled),
+.studio-showcase>.left-col .wave-add-playlist-btn:focus-visible{
+ background:rgba(var(--theme-rgb,192,108,66),.29)!important;outline-offset:2px;
+}
+.studio-showcase>.left-col .wave-add-playlist-btn[hidden]{display:none!important}
+@media(max-width:768px),(max-height:680px){
+ .studio-showcase>.left-col .wave-add-playlist-btn{
+  left:0!important;width:40px;height:40px;min-width:40px;font-size:.96rem;
+ }
+}
