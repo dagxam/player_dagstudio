@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="style.css?v=2229">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=21">
+    <link rel="stylesheet" href="studio-next.css?v=22">
     <link rel="stylesheet" href="studio-touch.css?v=12">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>(function(){var done=false;function reveal(){if(done)return;done=true;document.documentElement.classList.remove('studio-booting');}window.addEventListener('dag-ui-ready',reveal,{once:true});document.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#studio-navigation'))reveal();});setTimeout(reveal,3500);})();</script>
@@ -259,6 +259,12 @@
                         <button type="button" class="theme-dot theme-choice theme-choice-green" data-theme="green" onclick="setTheme('green')" aria-label="Зелёная тема" aria-pressed="false"><i class="fas fa-leaf" aria-hidden="true"></i><span>Лес</span></button>
                         <button type="button" class="theme-dot theme-choice theme-choice-blue" data-theme="blue" onclick="setTheme('blue')" aria-label="Синяя тема" aria-pressed="false"><i class="fas fa-water" aria-hidden="true"></i><span>Океан</span></button>
                         <button type="button" class="theme-dot theme-choice theme-choice-purple" data-theme="purple" onclick="setTheme('purple')" aria-label="Фиолетовая тема" aria-pressed="false"><i class="fas fa-gem" aria-hidden="true"></i><span>Неон</span></button>
+                        <button type="button" class="theme-dot theme-choice theme-choice-rainbow" data-theme="rainbow" onclick="setTheme('rainbow')" aria-label="Радужная тема с автоматической сменой цветов" aria-pressed="false"><i class="fas fa-palette" aria-hidden="true"></i><span>Радуга</span></button>
+                    </div>
+                    <div id="rainbow-speed-control" class="rainbow-speed-control" hidden>
+                        <label for="rainbow-speed-input"><i class="fas fa-gauge-high" aria-hidden="true"></i> Скорость смены цветов <strong id="rainbow-speed-value">16 с / круг</strong></label>
+                        <input type="range" id="rainbow-speed-input" min="4" max="60" step="2" value="16" oninput="setRainbowSpeed(this.value)" aria-label="Длительность радужного цикла в секундах">
+                        <div class="rainbow-speed-hints"><span>Быстрее</span><span>Медленнее</span></div>
                     </div>
                 </div>
                 <div class="menu-column-label">Приложение</div>
@@ -422,9 +428,9 @@
     </div>
 </div>
 
-<script src="script.js?v=2335" defer></script>
+<script src="script.js?v=2336" defer></script>
 <script src="studio.js?v=5" defer></script>
-<script src="studio-next.js?v=16" defer></script>
+<script src="studio-next.js?v=17" defer></script>
 <script src="studio-center.js?v=6" defer></script>
 
 </body>
