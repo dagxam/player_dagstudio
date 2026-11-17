@@ -7,7 +7,7 @@ const css=readFileSync(new URL('../studio-touch.css',import.meta.url),'utf8');
 const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
-assert.match(js,/const WEB_BUILD_LABEL = '2337'/);
+assert.match(js,/const WEB_BUILD_LABEL = '2338'/);
 assert.match(android,/setBufferDurationsMsForStreaming\(35000, 180000, 1000, 4500\)/);
 assert.match(android, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
