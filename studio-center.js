@@ -109,6 +109,52 @@ function card(info,action,edit){
  }
  return shell;
 }
+
+function playlistCountLabel(value,one,few,many){
+ const n=Math.max(0,Number(value)||0),last=n%10,hundred=n%100;
+ const ending=(hundred>=11&&hundred<=14)?many:last===1?one:last>=2&&last<=4?few:many;
+ return n.toLocaleString('ru-RU')+' '+ending;
+}
+// Playlist cards have their own visual layout; playback and editing still
+// call the existing playlist controller and full-screen track manager.
+function playlistCard(pl){
+ const name=String(pl?.name||'Плейлист');
+ const amount=Array.isArray(pl?.tracks)?pl.tracks.length:0;
+ const shell=make('article','showcase-playlist-card');
+ const open=make('button','showcase-playlist-open');
+ open.type='button';open.title='Открыть '+name;
+ open.setAttribute('aria-label','Открыть плейлист '+name);
+ const art=make('span','showcase-playlist-cover');
+ const background=make('span','showcase-playlist-fallback');
+ const glyph=typeof playlistIconName==='function'?playlistIconName(pl?.icon):'music';
+ background.appendChild(make('i','fas fa-'+glyph));
+ art.appendChild(background);
+ const cover=pl?.cover&&typeof playlistCoverUrl==='function'?playlistCoverUrl(pl.cover):'';
+ if(cover){
+   const img=make('img','showcase-playlist-cover-image');
+   img.src=cover;img.alt='';img.loading='lazy';img.decoding='async';
+   img.addEventListener('error',()=>img.remove(),{once:true});
+   art.appendChild(img);
+ }
+ const hover=make('span','showcase-playlist-hover');
+ hover.appendChild(make('i','fas fa-play'));
+ art.appendChild(hover);
+ const info=make('span','showcase-playlist-info');
+ info.appendChild(make('strong','showcase-playlist-name',name));
+ info.appendChild(make('small','showcase-playlist-count',playlistCountLabel(amount,'трек','трека','треков')));
+ open.append(art,info);
+ open.addEventListener('click',()=>openPlaylist(pl));
+ const edit=make('button','showcase-playlist-edit');edit.type='button';
+ edit.title='Редактировать '+name;
+ edit.setAttribute('aria-label',edit.title);
+ edit.appendChild(make('i','fas fa-pen'));
+ edit.addEventListener('click',()=>{
+   if(typeof openTrackManager==='function')openTrackManager(pl.id,pl.name,pl.type);
+ });
+ shell.append(open,edit);
+ return shell;
+}
+
 function showTracks(context,label,backTo){
  root.classList.remove('showcase-wave-only');
  view='tracks';returnView=backTo||'collections';
@@ -147,37 +193,47 @@ function render(mode='home'){
  root.classList.remove('showcase-wave-only');
  view=mode;lastMode=mode;
  window.studioShowCurated?.();
- bar.hidden=true;gallery.replaceChildren(galleryHead(mode));
- const grid=make('div','showcase-curation-list');
+ bar.hidden=true;
+ gallery.classList.toggle('showcase-playlist-library',mode==='playlists');
+ gallery.replaceChildren(galleryHead(mode));
+ const grid=make('div',mode==='playlists'?'showcase-curation-list showcase-playlist-grid':'showcase-curation-list');
  if(mode==='playlists'){
   selectNav('playlists');
   const data=(typeof playlists!=='undefined'&&Array.isArray(playlists))?playlists:[];
-  data.forEach(pl=>{
-   const total=(pl.tracks||[]).length;
-   const icon=typeof playlistIconName==='function'?playlistIconName(pl.icon):'music';
-   grid.appendChild(card({title:pl.name||'Плейлист',desc:total+' треков',icon,art:'artist',cover:pl.cover},
-    ()=>openPlaylist(pl),()=>typeof openTrackManager==='function'&&openTrackManager(pl.id,pl.name,pl.type)));
-  });
-  if(!data.length)grid.appendChild(make('p','showcase-center-empty',
-   typeof currentUser!=='undefined'&&currentUser?'Плейлистов пока нет. Создайте первый.':
-   'Войдите в аккаунт, чтобы увидеть свои плейлисты.'));
-  gallery.appendChild(grid);
-  const actions=make('div','showcase-center-actions');
+  const songCount=data.reduce((n,pl)=>n+(Array.isArray(pl?.tracks)?pl.tracks.length:0),0);
+  const stats=make('div','showcase-playlist-stats');
+  stats.appendChild(make('p','',
+    playlistCountLabel(data.length,'плейлист','плейлиста','плейлистов')+' · '+
+    playlistCountLabel(songCount,'трек','трека','треков')));
+  gallery.appendChild(stats);
+  const actions=make('div','showcase-center-actions showcase-playlist-toolbar');
   const create=make('button','showcase-center-action');
-  create.type='button';create.appendChild(make('i','fas fa-plus'));
+  create.type='button';create.classList.add('showcase-playlist-create');create.appendChild(make('i','fas fa-plus'));
   create.appendChild(make('span','','Создать плейлист'));
   create.addEventListener('click',()=>{
    if(!currentUser)openMenu?.();
    else if(typeof openNewPlModal==='function')openNewPlModal();
   });
   const manage=make('button','showcase-center-action');
-  manage.type='button';manage.appendChild(make('i','fas fa-sliders'));
+  manage.type='button';manage.classList.add('showcase-playlist-manage');manage.appendChild(make('i','fas fa-sliders'));
   manage.appendChild(make('span','','Управление'));
   manage.addEventListener('click',()=>{
    if(!currentUser)openMenu?.();
    else if(typeof openManagePlaylists==='function')openManagePlaylists();
   });
   actions.append(create,manage);gallery.appendChild(actions);
+  data.forEach(pl=>grid.appendChild(playlistCard(pl)));
+  if(!data.length){
+   const empty=make('div','showcase-playlist-empty');
+   empty.appendChild(make('i','fas fa-music'));
+   empty.appendChild(make('strong','', 'Здесь будут ваши плейлисты'));
+   empty.appendChild(make('p','',
+    typeof currentUser!=='undefined'&&currentUser?
+      'Создайте первый плейлист и добавьте любимые треки.':
+      'Войдите в аккаунт, чтобы создавать плейлисты и сохранять музыку.'));
+   grid.appendChild(empty);
+  }
+  gallery.appendChild(grid);
  }else if(mode==='regions'){
   selectNav('collections');
   const caucasus=typeof QUICK_MIXES!=='undefined'?QUICK_MIXES.caucasus:null;
