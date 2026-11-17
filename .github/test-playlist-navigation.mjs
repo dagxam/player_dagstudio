@@ -74,15 +74,15 @@ assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 420\)
 assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
 assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
 assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*mainAudio\.pause\(\);\s*mainAudio\.removeAttribute\('src'\)/);
-assert.match(html,/script\.js\?v=2335/);
-assert.match(sw,/script\.js\?v=2335/);
+assert.match(html,/script\.js\?v=2336/);
+assert.match(sw,/script\.js\?v=2336/);
 const sidebarEntries=[...shell.matchAll(/^add\('([^']+)','([^']+)'/gm)]
   .map(([,key,label])=>[key,label]);
 assert.deepEqual(sidebarEntries,[
-  ['wave','Моя волна'],['playlists','Плейлисты'],
+  ['search','Поиск'],['wave','Моя волна'],['playlists','Плейлисты'],
   ['likes','Мне нравится'],['offline','Офлайн'],
   ['collections','Подборки'],['settings','Настройки']
-], 'Sidebar must contain exactly six sections in the requested order');
+], 'Sidebar must contain exactly seven sections in the requested order');
 assert.doesNotMatch(shell,/const sidebarBottom=/,
   'No additional promo/actions should appear beneath the navigation');
 console.log('PLAYLIST_PICKER_NO_AUTOPLAY_STABLE_ID_LIKES_AND_FAST_MEDIA3_START_OK');
