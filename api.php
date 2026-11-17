@@ -526,12 +526,16 @@ elseif ($action === 'search_global') {
     if ($page < 1) $page = 1;
 
     $weak_client = (($data['network'] ?? '') === 'weak') || !empty($data['save_data']);
+    // Fast first paint: still fan out to every configured provider, but cap
+    // the initial waiting budget. A second full pass fills in slow sources.
+    $fast_search = ($data['mode'] ?? '') === 'fast' && $page === 1;
     // Slow user connectivity does not imply a fast connection from PHP to providers.
     // Give the upstream services time to answer instead of discarding viable results.
-    $provider_connect_timeout = $weak_client ? 3 : 4;
-    $provider_timeout = $weak_client ? 7 : 8;
-    $muzca_detail_limit = $weak_client ? 5 : 12;
-    $result_limit = $weak_client ? 30 : 50;
+    $provider_connect_timeout = $fast_search ? 2 : ($weak_client ? 3 : 4);
+    $provider_timeout = $fast_search ? 3 : ($weak_client ? 7 : 8);
+    // Muzca detail pages cost an additional 3–5s: defer to the full pass.
+    $muzca_detail_limit = $fast_search ? 0 : ($weak_client ? 5 : 12);
+    $result_limit = $fast_search ? 25 : ($weak_client ? 30 : 50);
 
     if (empty($query_encode)) {
         echo json_encode(['success' => true, 'data' => []]);
