@@ -4,37 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "index.php"
-      - "script.js"
-      - "sw.js"
-      - ".github/test-web-apk-parity.mjs"
-      - ".github/test-favorite-hearts.mjs"
-      - ".github/test-wave-themes.mjs"
-      - ".github/test-playlist-navigation.mjs"
-      - ".github/test-hitmos-provider.mjs"
-      - "api.php"
-      - ".github/test-fast-start.mjs"
-      - ".github/test-local-icons.mjs"
-      - ".github/test-caucasus-catalogs.mjs"
-      - ".github/test-official-music.mjs"
-      - ".github/test-in-app-apk-update.mjs"
-      - "style.css"
-      - "modern.css"
-      - "studio.css"
-      - "studio.js"
-      - "studio-next.js"
-      - "studio-center.js"
-      - "studio-next.css"
-      - "studio-touch.css"
-      - "images/**"
-      - "vendor/fontawesome/**"
-      - "scripts/build-native-web.mjs"
-      - "native/native-bridge.js"
-      - "native/native-audio-adapter.js"
-      - "package.json"
-      - "capacitor.config.json"
-      - ".github/workflows/build-web-update.yml"
   workflow_dispatch:
 
 permissions:
@@ -97,6 +66,7 @@ jobs:
           node .github/test-favorite-hearts.mjs
           node .github/test-wave-themes.mjs
           node .github/test-playlist-navigation.mjs
+          node .github/test-update-notifications.mjs
           node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
           node .github/test-caucasus-catalogs.mjs
