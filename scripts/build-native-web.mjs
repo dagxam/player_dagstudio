@@ -12,6 +12,9 @@ await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
 let html = await readFile(join(root, 'index.php'), 'utf8');
+// Native HTML carries a concrete release identity for diagnostics.
+html = html.replace('content="__DAG_BUILD_COMMIT__"',
+  'content="' + (process.env.GITHUB_SHA || 'native') + '"');
 if (html.includes('<?php')) {
   throw new Error('index.php contains PHP code and cannot be packaged directly into the native shell.');
 }
