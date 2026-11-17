@@ -43,6 +43,9 @@ jobs:
           test -f www/studio.css
           test -f www/studio.js
           test -f www/studio-touch.css
+          test -f www/studio-vision.js
+          test -f www/studio-vision.css
+          node --check www/studio-vision.js
           node --check www/studio.js
           test -f www/native-bridge.js
           test -s www/vendor/fontawesome/css/all.min.css
@@ -68,6 +71,7 @@ jobs:
           node .github/test-playlist-navigation.mjs
           node .github/test-rainbow-offline.mjs
           node .github/test-fast-search-wave.mjs
+          node .github/test-vision-ui.mjs
           node .github/test-update-notifications.mjs
           node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
