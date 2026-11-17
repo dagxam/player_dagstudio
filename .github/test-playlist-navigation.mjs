@@ -74,8 +74,8 @@ assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 420\)
 assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
 assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
 assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*mainAudio\.pause\(\);\s*mainAudio\.removeAttribute\('src'\)/);
-assert.match(html,/script\.js\?v=2334/);
-assert.match(sw,/script\.js\?v=2334/);
+assert.match(html,/script\.js\?v=2335/);
+assert.match(sw,/script\.js\?v=2335/);
 const sidebarEntries=[...shell.matchAll(/^add\('([^']+)','([^']+)'/gm)]
   .map(([,key,label])=>[key,label]);
 assert.deepEqual(sidebarEntries,[
