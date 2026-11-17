@@ -74,6 +74,6 @@ assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 420\)
 assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
 assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
 assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*mainAudio\.pause\(\);\s*mainAudio\.removeAttribute\('src'\)/);
-assert.match(html,/script\.js\?v=2333/);
-assert.match(sw,/script\.js\?v=2333/);
+assert.match(html,/script\.js\?v=2334/);
+assert.match(sw,/script\.js\?v=2334/);
 console.log('PLAYLIST_PICKER_NO_AUTOPLAY_STABLE_ID_LIKES_AND_FAST_MEDIA3_START_OK');

@@ -37,6 +37,7 @@ jobs:
           node .github/test-favorite-api.mjs
           node .github/test-smart-radio.mjs
           node .github/test-personal-radio.mjs
+          node .github/test-wave-themes.mjs
           node .github/test-continuous-radio.mjs
           node .github/test-listen-cache.mjs
           node .github/test-offline-batch.mjs
