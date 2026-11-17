@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2333';
+const WEB_BUILD_LABEL = '2334';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -587,7 +587,7 @@ function openAndroidApkDownload() {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2342', { scope: '/', updateViaCache: 'none' })
+        .register('/sw.js?v=2343', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -599,8 +599,8 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2342') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2342', '1');
+        if (sessionStorage.getItem('dag_sw_reloaded_2343') === '1') return;
+        sessionStorage.setItem('dag_sw_reloaded_2343', '1');
         window.location.reload();
     });
 }
@@ -4501,12 +4501,27 @@ function radioRecentTracks(kind){
         return Array.isArray(stored)?stored.filter(x=>typeof x==='string').slice(0,180):[];
     }catch(e){return [];}
 }
+const WAVE_RECENT_ARTISTS_PREFIX='dag_wave_recent_artists_v1:';
+function waveRecentArtists(){
+    try {
+        const artists=JSON.parse(localStorage.getItem(WAVE_RECENT_ARTISTS_PREFIX+tasteOwnerKey())||'[]');
+        return Array.isArray(artists)?artists.filter(a=>typeof a==='string').slice(0,24):[];
+    } catch(error){return [];}
+}
 function radioRememberPlayed(kind,track){
     const key=radioTrackIdentity(track);
     if(!key)return;
     try{localStorage.setItem(radioHistoryKey(kind),JSON.stringify(
         [key,...radioRecentTracks(kind).filter(item=>item!==key)].slice(0,180)));
     }catch(e){}
+    if(kind==='wave'){
+        const artist=normalizeTrackIdentity(track?.artist);
+        if(artist){
+            try{localStorage.setItem(WAVE_RECENT_ARTISTS_PREFIX+tasteOwnerKey(),
+                JSON.stringify([artist,...waveRecentArtists().filter(item=>item!==artist)].slice(0,24)));
+            }catch(e){}
+        }
+    }
 }
 const WAVE_CURSOR_PREFIX='dag_wave_cursor_v2:';
 let waveSearchCursor=0,waveSearchOwner='';
@@ -4536,6 +4551,97 @@ async function radioSearchPage(query,page,net){
         response=await api('search_global',{...options,page:1});
     return response;
 }
+// Wave thematic directions come from included playlist names, declared genres,
+// and a few explicitly recognized styles. They are search hints, not invented
+// song metadata. Dates are taken only from a provider's release_date field.
+const WAVE_THEME_RULES=[
+    {id:'avar',match:/аварск|аварцы|аварские|avarian|avar songs|avar music/i,
+        queries:['аварские песни','аварская музыка','аварские новинки']},
+    {id:'russian-pop',match:/русск|российск|russian pop|русская поп|поп музыка|поп-хиты/i,
+        queries:['русская поп музыка','русские хиты','русские песни новинки']},
+    {id:'dagestan',match:/дагестан|dagestan/i,
+        queries:['дагестанские песни','дагестанская музыка','дагестанские новинки']},
+    {id:'caucasus',match:/кавказ|caucasus/i,
+        queries:['кавказские песни','кавказская музыка','кавказские новинки']},
+    {id:'lezgin',match:/лезгин|lezgin/i,
+        queries:['лезгинские песни','лезгинская музыка','лезгинские новинки']},
+    {id:'dargin',match:/даргин|dargin/i,
+        queries:['даргинские песни','даргинская музыка','даргинские новинки']},
+    {id:'kumyk',match:/кумык|kumyk/i,
+        queries:['кумыкские песни','кумыкская музыка','кумыкские новинки']},
+    {id:'chechen',match:/чечен|chechen/i,
+        queries:['чеченские песни','чеченская музыка','чеченские новинки']},
+    {id:'rap',match:/рэп|хип ?хоп|hip.?hop|rap music/i,
+        queries:['русский рэп','рэп новинки','хип хоп музыка']},
+    {id:'rock',match:/рок муз|русский рок|rock music/i,
+        queries:['русский рок','рок музыка новинки','рок песни']},
+    {id:'dance',match:/танцевал|dance music|дискотек|dance pop/i,
+        queries:['танцевальная музыка','танцевальные хиты','танцевальные новинки']},
+    {id:'chanson',match:/шансон|chanson/i,
+        queries:['русский шансон','шансон новинки','песни шансон']}
+];
+function waveThemeDirections(library=waveLibrarySeeds()){
+    const enabled=(playlists||[]).filter(pl=>!playlistExcludedFromLikes(pl.id));
+    const chosen=new Map();
+    const include=(hint)=>{
+        if(!hint)return;
+        for(const rule of WAVE_THEME_RULES){
+            if(rule.match.test(String(hint)))chosen.set(rule.id,rule);
+        }
+    };
+    for(const pl of enabled){
+        // The playlist label is a strong indication of what the listener meant.
+        include(pl.name);
+        for(const track of pl.tracks||[])include(track?.genre);
+    }
+    for(const track of library){
+        include(track?.genre);
+        // A known artist can suggest a broader style, but a result must not
+        // be restricted to this one artist during discovery.
+        if(/руки\s+вверх|ruki\s+vver(?:h|kh)/i.test(String(track.artist||'')))
+            chosen.set('russian-pop',WAVE_THEME_RULES.find(rule=>rule.id==='russian-pop'));
+    }
+    return [...chosen.values()].filter(Boolean);
+}
+function waveSearchDirections(library=waveLibrarySeeds()){
+    const themes=waveThemeDirections(library), year=new Date().getUTCFullYear();
+    const artistNames=[...new Set(library.map(t=>String(t.artist||'').trim()).filter(Boolean))].slice(0,35);
+    const unnamedGenres=[...new Set(library.map(t=>String(t.genre||'').trim()).filter(Boolean))]
+        .filter(g=>!themes.some(theme=>theme.match.test(g))).slice(0,12);
+    const directions=[];
+    if(themes.length){
+        // Interleave playlist themes so mixed Russian/Avar libraries stay mixed
+        // instead of spending dozens of searches on just the first playlist.
+        for(let round=0;round<4;round++){
+            for(const theme of themes){
+                const query=round===0?theme.queries[0]+' '+year:
+                    round===1?theme.queries[0]:
+                    round===2?theme.queries[1]:theme.queries[2];
+                directions.push({query,kind:'theme',theme:theme.id});
+            }
+        }
+        // Only a minority of exact-artist queries: preserve discovery even
+        // if a provider has no searchable genre/region catalogue.
+        for(const artist of artistNames.slice(0,Math.max(1,Math.ceil(themes.length/2))))
+            directions.push({query:artist,kind:'artist',theme:''});
+    }else{
+        for(const genre of unnamedGenres){
+            directions.push({query:genre+' '+year,kind:'theme',theme:''});
+            directions.push({query:genre,kind:'theme',theme:''});
+        }
+        for(const artist of artistNames)directions.push({query:artist,kind:'artist',theme:''});
+    }
+    return [...new Map(directions.filter(d=>d.query.trim())
+        .map(d=>[normalizeTrackIdentity(d.query),d])).values()];
+}
+function waveReleasePriority(track,now=Date.now()){
+    const released=quickMixReleaseTimestamp(track);
+    if(!released)return {bucket:1,bonus:0,verified:false};
+    const age=Math.max(0,(now-released)/86400000);
+    return age<=540
+        ?{bucket:2,bonus:Math.round(34*(1-age/900)),verified:true}
+        :{bucket:0,bonus:-Math.min(30,Math.round((age-540)/50)),verified:true};
+}
 async function findWaveNextTrack(){
     if(navigator.onLine===false)return null;
     const library=waveLibrarySeeds();
@@ -4544,64 +4650,94 @@ async function findWaveNextTrack(){
         .flatMap(pl=>pl.tracks||[]).map(t=>tasteTrackId(t)));
     const known=[...(playlists||[]).flatMap(pl=>pl.tracks||[]),
         ...playbackPlaylist,...playbackQueue];
-    const titles=new Set(known.map(t=>normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
+    const titles=new Set(known.map(t=>tasteTrackId(t)));
     const urls=new Set(known.map(t=>String(t.url||'')));
     const history=new Set(radioRecentTracks('wave'));
+    const recentArtists=new Set(waveRecentArtists().slice(0,10));
     const prior=normalizeTrackIdentity(playbackPlaylist[currentIndex]?.artist);
     const seedArtists=[...new Set(library.map(t=>normalizeTrackIdentity(t.artist)).filter(Boolean))];
     const seedGenres=[...new Set(library.map(t=>normalizeTrackIdentity(t.genre)).filter(Boolean))];
+    const topics=waveThemeDirections(library);
     const seen=t=>!t?.url||!t?.title||!t?.artist||excluded.has(tasteTrackId(t))||
-        urls.has(String(t.url))||titles.has(normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title));
-    // Explicitly saved music is the primary taste signal. A genre match and
-    // previously liked performer improve relevance; a dislike disqualifies.
-    function rankedCandidates(pool){
-        const unique=quickMixUnique(pool).filter(t=>!seen(t));
-        return unique.map(track=>{
-            const artist=normalizeTrackIdentity(track.artist);
-            const genre=normalizeTrackIdentity(track.genre);
-            const taste=tasteCandidateScore(track,seedArtists);
-            if(taste<=-1000)return null;
-            const artistMatch=seedArtists.includes(artist)?16:0;
-            const genreMatch=genre&&seedGenres.includes(genre)?9:0;
-            const fresh=quickMixReleaseTimestamp(track);
-            const recency=fresh&&Date.now()-fresh<365*86400000?2:0;
-            const repeated=history.has(radioTrackIdentity(track))?35:0;
-            const sameArtist=artist===prior?7:0;
-            return {track,score:artistMatch+genreMatch+taste+recency+
-                (typeof sourceHealthScore==='function'?sourceHealthScore(track.source):0)-repeated-sameArtist};
-        }).filter(Boolean).sort((x,y)=>y.score-x.score);
-    }
-    // Rotate artist/genre directions. On good networks try two different
-    // directions concurrently, instead of waiting for three sequential APIs.
-    const names=[...new Set([...library.map(t=>String(t.artist||'').trim()),
-        ...library.map(t=>String(t.genre||'').trim())])].filter(Boolean).slice(0,90);
-    if(!names.length)return null;
-    const net=getNetworkProfile();
-    const count=Math.min(net.weak?1:2,names.length);
-    const queries=[];
-    for(let i=0;i<count;i++){
-        const cursor=nextWaveSearchCursor();
-        queries.push({query:names[cursor%names.length],
-            page:1+Math.floor(cursor/names.length)%12});
-    }
-    const results=await Promise.all(queries.map(async ({query,page})=>{
+        urls.has(String(t.url))||titles.has(tasteTrackId(t));
+    const net=getNetworkProfile(),directions=waveSearchDirections(library);
+    if(!directions.length)return null;
+    const cursor=nextWaveSearchCursor(),count=Math.min(net.weak?1:2,directions.length);
+    const queries=Array.from({length:count},(_,i)=>({
+        ...directions[(cursor+i)%directions.length],
+        page:1+Math.floor((cursor+i)/directions.length)%6
+    }));
+    // Each query remains an ordinary search_global request, using the same
+    // providers as web/Android and no guessed audio URLs or release dates.
+    async function queryTracks(direction){
         try{
-            const response=await radioSearchPage(query,page,net);
-            return response?.success&&Array.isArray(response.data)?response.data:[];
+            const response=await radioSearchPage(direction.query,direction.page,net);
+            const items=response?.success&&Array.isArray(response.data)?response.data:[];
+            return items.map(t=>({...t,_waveQueryKind:direction.kind,_waveQueryTheme:direction.theme}));
         }catch(error){
             recordPlayerEvent('wave-discovery-error');
             return [];
         }
-    }));
-    const ranked=rankedCandidates(results.flat());
+    }
+    let results=(await Promise.all(queries.map(queryTracks))).flat();
+    function rankedCandidates(pool){
+        const unique=quickMixUnique(pool).filter(t=>!seen(t));
+        return unique.map(track=>{
+            const artist=normalizeTrackIdentity(track.artist),genre=normalizeTrackIdentity(track.genre);
+            const taste=tasteCandidateScore(track,seedArtists);
+            if(taste<=-1000)return null;
+            const genreMatch=genre&&seedGenres.includes(genre)?14:0;
+            const topicMatch=track._waveQueryKind==='theme'?16:0;
+            const explicitTheme=topics.some(theme=>theme.match.test(String(track.genre||'')))?18:0;
+            const release=waveReleasePriority(track);
+            const recentRepeat=history.has(radioTrackIdentity(track))?50:0;
+            const artistRepeat=recentArtists.has(artist)?32:0;
+            const sameArtist=artist===prior?55:0;
+            // Previously liked artists should not overwhelm genre discovery.
+            const artistBias=seedArtists.includes(artist)?-18:8;
+            const score=topicMatch+explicitTheme+genreMatch+artistBias+
+                Math.min(22,Math.max(-22,taste))+release.bonus+
+                (typeof sourceHealthScore==='function'?sourceHealthScore(track.source):0)-
+                recentRepeat-artistRepeat-sameArtist;
+            return {track,artist,score,release};
+        }).filter(Boolean).sort((a,b)=>b.score-a.score);
+    }
+    let ranked=rankedCandidates(results);
+    // A theme search with only an already-heard singer is not sufficient:
+    // attempt one different topic rather than looping through their catalogue.
+    if(topics.length&&(!ranked.length || ranked.every(item=>seedArtists.includes(item.artist)||item.artist===prior))){
+        const alternates=directions.filter(d=>d.kind==='theme'&&
+            !queries.some(q=>q.query===d.query));
+        if(alternates.length){
+            const other=alternates[(cursor+count)%alternates.length];
+            const extra=await queryTracks({...other,page:1});
+            if(extra.length)ranked=rankedCandidates([...results,...extra]);
+        }
+    }
     if(!ranked.length)return null;
-    // Never loop on already saved tracks, and prefer unplayed discoveries.
-    const fresh=ranked.filter(item=>!history.has(radioTrackIdentity(item.track)));
-    const eligible=fresh.length?fresh:ranked;
+    // Strong diversity first, then genuinely dated recent releases, then
+    // undated discoveries, then known older tracks as a last resort.
+    const unplayed=ranked.filter(item=>!history.has(radioTrackIdentity(item.track)));
+    let eligible=unplayed.length?unplayed:ranked;
+    const otherArtists=eligible.filter(item=>item.artist!==prior);
+    if(otherArtists.length)eligible=otherArtists;
+    const newArtists=eligible.filter(item=>!recentArtists.has(item.artist));
+    if(newArtists.length)eligible=newArtists;
+    const topical=eligible.filter(item=>item.track._waveQueryKind==='theme');
+    if(topical.length&&topics.length)eligible=topical;
+    const latest=eligible.filter(item=>item.release.bucket===2);
+    if(latest.length)eligible=latest;
+    else {
+        const undated=eligible.filter(item=>item.release.bucket===1);
+        if(undated.length)eligible=undated;
+    }
+    eligible.sort((a,b)=>b.score-a.score);
     const best=eligible[0].score;
-    const shortlist=eligible.filter(item=>item.score>=best-5).slice(0,6);
+    const shortlist=eligible.filter(item=>item.score>=best-10).slice(0,7);
     const picked=shortlist[Math.floor(Math.random()*shortlist.length)]?.track;
-    return picked?{...picked,_smartRadio:true,_waveRadio:true}:null;
+    if(!picked)return null;
+    const {_waveQueryKind,_waveQueryTheme,...song}=picked;
+    return {...song,_smartRadio:true,_waveRadio:true};
 }
 
 // Prepare the first recommendation while the player is idle. This is only a
@@ -4619,7 +4755,7 @@ function warmWaveFirstTrack(){
         return Promise.resolve(null);
     const owner=tasteOwnerKey();
     if(waveWarmState?.owner===owner){
-        if(waveWarmState.candidate&&Date.now()-waveWarmState.at<15*60*1000&&
+        if(waveWarmState.candidate&&Date.now()-waveWarmState.at<4*60*1000&&
             waveWarmCandidateAllowed(waveWarmState.candidate))
             return Promise.resolve(waveWarmState.candidate);
         if(waveWarmState.promise)return waveWarmState.promise;
