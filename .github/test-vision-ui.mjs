@@ -22,7 +22,7 @@ assert.match(native,/await cp\(join\(root, 'images'\)/);
 assert.match(vision,/root\.classList\.add\('vision-ui'\)/);
 assert.match(vision,/const originalSearch = document\.getElementById\('search-container-box'\)/);
 assert.match(vision,/originalSearch\.classList\.add\('vision-unified-search'\)/);
-assert.match(vision,/document\.getElementById\('studio-' \+ key\)/);
+assert.match(vision,/document\.getElementById\('showcase-' \+ key\)/);
 assert.match(vision,/window\.studioCenterOpenPlaylist\?\.\(entry\.id\)/);
 assert.match(vision,/window\.studioCenterRender\?\.\('playlists'\)/);
 assert.match(vision,/vision-mini-player/);
