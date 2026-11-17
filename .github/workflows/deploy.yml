@@ -36,6 +36,7 @@ jobs:
           node --check studio.js
           node --check studio-next.js
           node --check studio-center.js
+          node --check studio-vision.js
           node --check sw.js
           node .github/test-cc3-offline-failover.mjs
           node .github/test-ota-update.mjs
@@ -51,6 +52,7 @@ jobs:
           node .github/test-playlist-navigation.mjs
           node .github/test-rainbow-offline.mjs
           node .github/test-fast-search-wave.mjs
+          node .github/test-vision-ui.mjs
           node .github/test-update-notifications.mjs
           node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
@@ -73,6 +75,8 @@ jobs:
           test -s studio-next.css
           test -s studio-touch.css
           test -s studio-center.js
+          test -s studio-vision.css
+          test -s studio-vision.js
           python -m json.tool manifest.json > /dev/null
 
       - name: Verify shared web and Android UI before FTP publication
