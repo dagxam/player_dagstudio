@@ -806,3 +806,71 @@
   transition:none!important;animation:none!important;
  }
 }
+
+
+/* Integration safeguards: one real search field, and no desktop-only floating
+   mobile controls. A reparented input keeps its original event listeners. */
+.vision-ui .vision-mini-player,
+.vision-ui .vision-bottom-nav,
+.vision-ui .vision-player-back{display:none!important}
+.vision-ui:not(.vision-home-active)>.right-col>.vision-home-hero,
+.vision-ui:not(.vision-home-active)>.right-col>.vision-quick,
+.vision-ui:not(.vision-home-active)>.right-col>.vision-library,
+.vision-ui>.right-col.showcase-list>.vision-home-hero,
+.vision-ui>.right-col.showcase-list>.vision-quick,
+.vision-ui>.right-col.showcase-list>.vision-library{display:none!important}
+.vision-ui>.right-col .vision-topbar #search-container-box{
+ display:flex!important;flex:1 1 0!important;align-items:center!important;
+ position:relative!important;min-width:0!important;max-width:690px!important;
+ width:100%!important;height:45px!important;min-height:45px!important;
+ margin:0!important;padding:0!important;border-radius:24px!important;
+ background:linear-gradient(105deg,#2b293b,#252234)!important;
+ border:1px solid #ffffff20!important;box-shadow:inset 0 1px 2px #ffffff0a!important;
+ overflow:visible!important;
+}
+.vision-ui>.right-col .vision-topbar #search-container-box .dag-search-heading{display:none!important}
+.vision-ui>.right-col .vision-topbar #search-container-box .dag-search-field{
+ position:relative!important;display:flex!important;align-items:center!important;
+ flex:1 1 auto!important;min-width:0!important;width:100%!important;
+ height:43px!important;min-height:43px!important;max-height:43px!important;
+ padding:0 15px!important;border:0!important;background:transparent!important;
+ box-shadow:none!important;margin:0!important;gap:11px!important;
+}
+.vision-ui>.right-col .vision-topbar #search-container-box .search-input{
+ flex:1 1 0!important;min-width:0!important;width:100%!important;
+ height:41px!important;min-height:41px!important;
+ padding:0!important;margin:0!important;
+ background:transparent!important;border:0!important;border-radius:0!important;
+ outline:0!important;box-shadow:none!important;color:#fff!important;font-size:.8rem!important;
+}
+.vision-ui>.right-col .vision-topbar #search-container-box .search-input::placeholder{color:#b6afc4!important;opacity:1}
+.vision-ui>.right-col .vision-topbar #search-container-box .dag-search-glass{color:#d7cce3!important;font-size:1rem!important}
+.vision-ui>.right-col .vision-topbar #search-container-box .dag-search-clear{
+ display:grid;place-items:center;flex:0 0 31px;width:31px;height:31px;
+ border:0!important;border-radius:50%!important;background:#ffffff11!important;color:#ece0f2!important;
+}
+.vision-ui>.right-col .vision-topbar #search-container-box .dag-search-clear[hidden]{display:none!important}
+.vision-ui>.right-col .vision-topbar #search-container-box .search-suggestions{
+ position:absolute!important;top:calc(100% + 7px)!important;left:0!important;
+ right:0!important;z-index:75!important;border-radius:13px!important;
+ background:#201b30f5!important;border:1px solid #ffffff22!important;
+ box-shadow:0 15px 38px #000c!important;
+}
+.vision-ui>.right-col .vision-topbar #search-container-box .dag-search-status{
+ position:absolute!important;top:calc(100% + 7px)!important;left:0!important;
+ width:min(470px,100%)!important;z-index:73!important;
+ max-height:125px;overflow:auto;background:#221c32f5!important;
+ color:#e2d3e7!important;border:1px solid #ffffff25!important;border-radius:12px!important;
+ box-shadow:0 11px 25px #0008!important;padding:9px 12px!important;font-size:.75rem!important;
+}
+@media(max-width:768px){
+ .vision-ui .vision-mini-player{display:flex!important}
+ .vision-ui .vision-bottom-nav{display:grid!important}
+ .vision-ui>.right-col .vision-topbar #search-container-box{height:43px!important;min-height:43px!important}
+ .vision-ui>.right-col .vision-topbar #search-container-box .dag-search-field{padding:0 10px!important}
+ .vision-ui>.right-col .vision-topbar #search-container-box .search-input{font-size:.72rem!important}
+ .vision-ui.showcase-wave-only .vision-mini-player,
+ .vision-ui.vision-player-expanded .vision-mini-player,
+ .vision-ui.showcase-wave-only .vision-bottom-nav,
+ .vision-ui.vision-player-expanded .vision-bottom-nav{display:none!important}
+}
