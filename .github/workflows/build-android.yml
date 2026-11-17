@@ -34,6 +34,7 @@ on:
       - ".github/test-native-media.mjs"
       - ".github/test-smart-radio.mjs"
       - ".github/test-personal-radio.mjs"
+      - ".github/test-wave-themes.mjs"
       - ".github/test-favorite-hearts.mjs"
       - ".github/test-playlist-navigation.mjs"
       - ".github/test-favorite-api.mjs"
@@ -135,6 +136,9 @@ jobs:
 
       - name: Test private personalized radio
         run: node .github/test-personal-radio.mjs
+
+      - name: Verify Wave themes, new releases and artist diversity
+        run: node .github/test-wave-themes.mjs
 
       - name: Test continuous Wave and Charts discovery
         run: node .github/test-continuous-radio.mjs
