@@ -49,6 +49,7 @@ jobs:
           node .github/test-weak-network.mjs
           node .github/test-favorite-hearts.mjs
           node .github/test-playlist-navigation.mjs
+          node .github/test-update-notifications.mjs
           node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
           node .github/test-local-icons.mjs
