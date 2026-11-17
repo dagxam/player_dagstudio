@@ -26,6 +26,7 @@ on:
       - "native/**"
       - "scripts/configure-android-media.mjs"
       - ".github/test-in-app-apk-update.mjs"
+      - ".github/test-local-icons.mjs"
       - ".github/test-weak-network.mjs"
       - ".github/test-profile-theme.mjs"
       - ".github/test-trusted-ip-dns.mjs"
