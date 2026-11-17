@@ -5728,34 +5728,124 @@ searchClearButton?.addEventListener('click', () => {
 mainSearchInput?.addEventListener('input', syncSearchClearButton);
 syncSearchClearButton();
 
-function saveSearchQuery(query) { 
-    if(!query || query.length < 2) return; 
-    let history = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); 
-    history = history.filter(item => item !== query); 
-    history.unshift(query); 
-    if(history.length > 8) history.pop(); 
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history)); 
+const searchHistoryButton = document.getElementById('search-history-btn');
+const SEARCH_HISTORY_MAX = 8;
+function readSearchHistory() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]');
+        if (!Array.isArray(stored)) return [];
+        const seen = new Set();
+        return stored.map(value => String(value || '').trim().replace(/\s+/g, ' '))
+            .filter(value => {
+                const key = value.toLocaleLowerCase();
+                if (value.length < 2 || value.length > 120 || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            }).slice(0, SEARCH_HISTORY_MAX);
+    } catch (_) { return []; }
 }
-
-function showSearchHistory() {
-    if(!mainSearchInput || !searchHistoryBox) return;
-    let history = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); 
-    if(history.length === 0) { searchHistoryBox.style.display = 'none'; return; }
-    searchHistoryBox.innerHTML = '';
-    history.forEach(q => { 
-        const div = document.createElement('div'); div.className = 'search-suggestion-item'; 
-        const icon = document.createElement('i'); icon.className = 'fas fa-history';
-        const span = document.createElement('span'); span.textContent = q;
-        div.appendChild(icon); div.appendChild(span);
-        div.onclick = () => { mainSearchInput.value = q; performSearch(q); searchHistoryBox.style.display = 'none'; }; 
-        searchHistoryBox.appendChild(div); 
-    }); 
-    searchHistoryBox.style.display = 'block'; 
+function closeSearchHistory() {
+    if (searchHistoryBox) {
+        searchHistoryBox.hidden = true;
+        searchHistoryBox.style.display = 'none';
+    }
+    searchHistoryButton?.setAttribute('aria-expanded', 'false');
 }
-
-if(mainSearchInput) mainSearchInput.addEventListener('focus', showSearchHistory); 
-document.addEventListener('click', (e) => { 
-    if (mainSearchInput && searchHistoryBox && !mainSearchInput.contains(e.target) && !searchHistoryBox.contains(e.target)) { searchHistoryBox.style.display = 'none'; } 
+function writeSearchHistory(history) {
+    try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history.slice(0, SEARCH_HISTORY_MAX))); }
+    catch (_) { /* Private browsing and storage quota must never block search. */ }
+}
+function saveSearchQuery(query) {
+    const text = String(query || '').trim().replace(/\s+/g, ' ');
+    if (text.length < 2 || text.length > 120) return;
+    const key = text.toLocaleLowerCase();
+    const history = readSearchHistory().filter(value => value.toLocaleLowerCase() !== key);
+    writeSearchHistory([text, ...history]);
+}
+function showSearchHistory(force = false) {
+    if (!mainSearchInput || !searchHistoryBox) return;
+    if (!force && mainSearchInput.value.trim()) { closeSearchHistory(); return; }
+    const history = readSearchHistory();
+    searchHistoryBox.replaceChildren();
+    if (!history.length) { closeSearchHistory(); return; }
+    const header = document.createElement('div');
+    header.className = 'dag-search-history-head';
+    const label = document.createElement('strong');
+    label.textContent = 'Последние запросы';
+    const count = document.createElement('span');
+    count.textContent = history.length + ' из ' + SEARCH_HISTORY_MAX;
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'dag-search-history-clear';
+    clear.textContent = 'Очистить всё';
+    clear.setAttribute('aria-label', 'Очистить всю историю поиска');
+    clear.addEventListener('click', event => {
+        event.stopPropagation();
+        try { localStorage.removeItem(SEARCH_HISTORY_KEY); }
+        catch (_) { writeSearchHistory([]); }
+        closeSearchHistory();
+        mainSearchInput.focus();
+    });
+    header.append(label, count, clear);
+    searchHistoryBox.appendChild(header);
+    const items = document.createElement('div');
+    items.className = 'dag-search-history-items';
+    history.forEach(query => {
+        const row = document.createElement('div');
+        row.className = 'dag-search-history-row';
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'search-suggestion-item';
+        pick.setAttribute('aria-label', 'Найти: ' + query);
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-clock-rotate-left';
+        icon.setAttribute('aria-hidden', 'true');
+        const caption = document.createElement('span');
+        caption.textContent = query;
+        pick.append(icon, caption);
+        pick.addEventListener('click', () => {
+            mainSearchInput.value = query;
+            syncSearchClearButton();
+            closeSearchHistory();
+            performSearch(query, true);
+        });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'dag-search-history-remove';
+        remove.setAttribute('aria-label', 'Удалить из истории: ' + query);
+        remove.title = 'Удалить запрос';
+        const cross = document.createElement('i');
+        cross.className = 'fas fa-xmark';
+        cross.setAttribute('aria-hidden', 'true');
+        remove.appendChild(cross);
+        remove.addEventListener('click', event => {
+            event.stopPropagation();
+            writeSearchHistory(readSearchHistory().filter(value => value !== query));
+            showSearchHistory(true);
+        });
+        row.append(pick, remove);
+        items.appendChild(row);
+    });
+    searchHistoryBox.appendChild(items);
+    searchHistoryBox.hidden = false;
+    searchHistoryBox.style.display = 'block';
+    searchHistoryButton?.setAttribute('aria-expanded', 'true');
+}
+mainSearchInput?.addEventListener('focus', () => showSearchHistory());
+mainSearchInput?.addEventListener('input', closeSearchHistory);
+searchHistoryButton?.addEventListener('click', () => {
+    if (searchHistoryBox && !searchHistoryBox.hidden && searchHistoryBox.style.display === 'block') {
+        closeSearchHistory();
+        return;
+    }
+    mainSearchInput?.focus();
+    showSearchHistory(true);
+});
+document.addEventListener('click', event => {
+    if (!document.getElementById('search-container-box')?.contains(event.target)) closeSearchHistory();
+});
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeSearchHistory();
 });
 
 let searchRequestSerial = 0;
@@ -5931,10 +6021,10 @@ async function performSearch(rawQuery, save = false) {
     if (!query) { clearSearchResults(); return; }
     clearTimeout(searchEnrichmentTimer);
     const requestId = ++searchRequestSerial;
-    if (save && searchHistoryBox) {
-        saveSearchQuery(query);
-        searchHistoryBox.style.display = 'none';
-    }
+    // Only queries that actually start a search enter the recent-eight list.
+    // Auto-search and Enter follow the same deduplicated history policy.
+    saveSearchQuery(query);
+    closeSearchHistory();
     try { localStorage.setItem('dag_last_search', query); } catch(error) {}
     currentSearchQuery = query;
     currentSearchPage = 1;
