@@ -21,7 +21,9 @@ for(const name of ['fa-solid-900','fa-regular-400','fa-brands-400']){
   assert.ok(css.includes('../webfonts/'+name+'.ttf'),name+' TTF not referenced by CSS');
   assert.ok(sw.includes('/vendor/fontawesome/webfonts/'+name+'.woff2'),name+' not precached');
 }
-assert.match(sw,/dagstudio-player-shell-v2343/);
+assert.match(sw,/dagstudio-player-shell-v\d+/);
+const navAsset=html.match(/studio-next\.js\?v=\d+/)?.[0];
+assert.ok(navAsset && sw.includes('/'+navAsset), 'PWA precaches the current sidebar script');
 assert.doesNotMatch(sw,/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/);
 assert.match(native,/await cp\(faRoot, join\(out, 'vendor', 'fontawesome'\)/);
 assert.match(native,/Native HTML must use the local Font Awesome stylesheet/);
