@@ -155,6 +155,18 @@ jobs:
         run: |
           printf '%s' "$GITHUB_SHA" > deploy-version.txt
           printf '%s' "$GITHUB_SHA" > "deploy-$GITHUB_SHA.txt"
+          # The HTML records which exact commit was loaded, while the public
+          # marker changes on every successful deployment. This makes update
+          # prompts accurate even for non-JavaScript changes.
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          file = Path('index.php')
+          html = file.read_text(encoding='utf-8')
+          token = 'content="__DAG_BUILD_COMMIT__"'
+          assert html.count(token) == 1, 'Missing deployment build identity'
+          file.write_text(html.replace(token, 'content="' + os.environ['GITHUB_SHA'] + '"'), encoding='utf-8')
+          PY
 
       - name: Deploy site over FTP
         id: ftp_primary
