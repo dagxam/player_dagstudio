@@ -269,16 +269,27 @@ jobs:
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
           EXPECTED_SCRIPT="$(sed -n 's/.*src="\(script\.js?v=[0-9]*\)".*/\1/p' index.php | head -n 1)"
+          echo "Website HTML received: ${#INDEX_HTML} bytes; expected JS: ${EXPECTED_SCRIPT:-missing}"
           test -n "$EXPECTED_SCRIPT"
-          grep -Fq "$EXPECTED_SCRIPT" <<< "$INDEX_HTML"
+          if ! grep -Fq "$EXPECTED_SCRIPT" <<< "$INDEX_HTML"; then
+            echo "Deployed HTML does not reference expected script: $EXPECTED_SCRIPT"
+            echo "Live script references:"
+            grep -oE 'script\.js\?v=[a-zA-Z0-9._-]+' <<< "$INDEX_HTML" | head -n 5 || true
+            exit 1
+          fi
           EXPECTED_STYLE="$(sed -n 's/.*href="\(style\.css?v=[0-9]*\)".*/\1/p' index.php | head -n 1)"
+          echo "Expected CSS: ${EXPECTED_STYLE:-missing}"
           test -n "$EXPECTED_STYLE"
-          grep -Fq "$EXPECTED_STYLE" <<< "$INDEX_HTML"
+          if ! grep -Fq "$EXPECTED_STYLE" <<< "$INDEX_HTML"; then
+            echo "Deployed HTML does not reference expected stylesheet"
+            grep -oE 'style\.css\?v=[a-zA-Z0-9._-]+' <<< "$INDEX_HTML" | head -n 5 || true
+            exit 1
+          fi
           grep -q 'modern.css?v=16' <<< "$INDEX_HTML"
           grep -q 'id="android-apk-download-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-update-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-version-footer"' <<< "$INDEX_HTML"
-          if grep -q 'id="pwa-install-btn"'; then <<< "$INDEX_HTML"
+          if grep -q 'id="pwa-install-btn"' <<< "$INDEX_HTML"; then
             echo "Deprecated PWA install button is still present"
             exit 1
           fi
