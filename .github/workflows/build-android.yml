@@ -115,6 +115,7 @@ jobs:
         run: |
           node .github/test-playlist-navigation.mjs
           node .github/test-rainbow-offline.mjs
+          node .github/test-fast-search-wave.mjs
           node .github/test-update-notifications.mjs
 
       - name: Test quick mixes and favorite
