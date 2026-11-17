@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2334';
+const WEB_BUILD_LABEL = '2335';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -584,10 +584,192 @@ function openAndroidApkDownload() {
     }
 }
 
+
+// --- Unified update notifications: web/PWA, Android APK and signed OTA. ---
+// Detection is read-only. It must never pause audio, download an APK or apply
+// an OTA bundle until the listener explicitly presses "Обновить".
+const DAG_UPDATE_POLL_MS = 4 * 60 * 1000;
+const DAG_UPDATE_DISMISS_KEY = 'dag_update_dismissed_session_v1';
+let offeredUpdate = null;
+let updateProbePromise = null;
+let updateProbeAt = 0;
+let updateActionInProgress = false;
+
+function webCommitChanged(installed, latest) {
+    return /^[a-f0-9]{40}$/i.test(String(installed || '')) &&
+        /^[a-f0-9]{40}$/i.test(String(latest || '')) &&
+        installed.toLowerCase() !== latest.toLowerCase();
+}
+
+function nativeOtaChanged(installedBundle, builtInCommit, meta) {
+    if (!validOtaManifest(meta)) return false;
+    if (installedBundle) {
+        const order = compareOtaVersions(installedBundle, meta.version);
+        return order !== null && order < 0;
+    }
+    const current = String(builtInCommit || '');
+    const remote = String(meta.commit || '');
+    // Never overwrite an APK whose source files already match the OTA release.
+    return /^[a-f0-9]{40}$/i.test(current) && /^[a-f0-9]{40}$/i.test(remote)
+        && current.toLowerCase() !== remote.toLowerCase();
+}
+
+async function findAvailableAppUpdate() {
+    if (!IS_NATIVE_APP) {
+        const loaded = document.querySelector('meta[name="dag-build-commit"]')?.getAttribute('content') || '';
+        if (!/^[a-f0-9]{40}$/i.test(loaded)) return null;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 7000);
+        try {
+            const result = await fetch('/deploy-version.txt?t=' + Date.now(), {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache' },
+                signal: controller.signal
+            });
+            if (!result.ok) return null;
+            const latest = (await result.text()).trim();
+            if (!webCommitChanged(loaded, latest)) return null;
+            return {
+                kind: 'web',
+                key: 'web:' + latest,
+                version: 'Сборка ' + latest.slice(0, 7),
+                message: 'На сайте появилась новая версия. Обновите страницу, чтобы получить изменения.'
+            };
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+    if (NATIVE_PLATFORM !== 'android') return null;
+
+    // Native Java compares versionCode, checks the trusted HTTPS origin, and
+    // does not download APK bytes during this availability probe.
+    const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
+    if (installer && typeof installer.check === 'function') {
+        try {
+            const apk = await installer.check();
+            if (apk?.available) return {
+                kind: 'apk',
+                key: 'apk:' + String(apk.version || ''),
+                version: String(apk.version || 'Android'),
+                message: 'Доступна новая версия Android-приложения. После загрузки Android попросит подтвердить установку.'
+            };
+        } catch (error) {
+            console.warn('Android update availability unavailable:', error);
+        }
+    }
+
+    const updater = nativeUpdaterBridge();
+    if (!updater || typeof updater.current !== 'function') return null;
+    const meta = await fetchOtaManifest();
+    const installed = await getInstalledBundleVersion();
+    if (!nativeOtaChanged(installed, window.DAG_NATIVE_BUILD_COMMIT, meta)) return null;
+    return {
+        kind: 'ota',
+        key: 'ota:' + meta.version,
+        version: 'OTA ' + meta.version,
+        message: 'Обновление интерфейса DAGSTUDIO PLAYER готово. Музыка и сохранённые плейлисты останутся в приложении.'
+    };
+}
+
+function presentAvailableAppUpdate(update) {
+    if (!update?.key) return;
+    const modal = document.getElementById('app-update-modal');
+    if (!modal || updateActionInProgress) return;
+    try {
+        if (sessionStorage.getItem(DAG_UPDATE_DISMISS_KEY) === update.key) return;
+    } catch (error) {}
+    if (modal.classList.contains('show') && offeredUpdate?.key === update.key) return;
+    offeredUpdate = update;
+    const version = document.getElementById('app-update-available-version');
+    const message = document.getElementById('app-update-available-message');
+    if (version) version.textContent = update.version;
+    if (message) message.textContent = update.message;
+    const button = document.getElementById('app-update-apply-btn');
+    if (button) { button.disabled = false; button.textContent = 'Обновить'; }
+    modal.classList.add('show');
+    button?.focus();
+    setManualUpdateButtonState('is-ready', 'Доступно обновление');
+}
+
+window.dismissAvailableAppUpdate = function() {
+    const modal = document.getElementById('app-update-modal');
+    if (offeredUpdate?.key) {
+        try { sessionStorage.setItem(DAG_UPDATE_DISMISS_KEY, offeredUpdate.key); } catch (error) {}
+    }
+    modal?.classList.remove('show');
+};
+
+window.applyAvailableAppUpdate = async function() {
+    if (!offeredUpdate || updateActionInProgress) return;
+    if (mainAudio && !mainAudio.paused && !mainAudio.ended) {
+        showNotification('Для обновления сначала поставьте музыку на паузу. Воспроизведение не прервётся автоматически.');
+        return;
+    }
+    updateActionInProgress = true;
+    const button = document.getElementById('app-update-apply-btn');
+    if (button) { button.disabled = true; button.textContent = 'Обновляем…'; }
+    try {
+        if (offeredUpdate.kind === 'web') {
+            document.getElementById('app-update-modal')?.classList.remove('show');
+            await window.manualUpdateApplication();
+            return;
+        }
+        if (offeredUpdate.kind === 'apk') {
+            const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
+            if (!installer || typeof installer.install !== 'function') throw new Error('Модуль установки APK недоступен');
+            const outcome = await installer.install();
+            if (outcome?.status === 'current') {
+                document.getElementById('app-update-modal')?.classList.remove('show');
+                showNotification('Последняя версия Android уже установлена.');
+            } else if (outcome?.status === 'installer-opened') {
+                document.getElementById('app-update-modal')?.classList.remove('show');
+                showNotification('Подтвердите установку в системном окне Android.');
+            } else {
+                throw new Error('Не удалось запустить установку APK');
+            }
+            return;
+        }
+        if (offeredUpdate.kind === 'ota') {
+            const result = await checkNativeLiveUpdate(true, true);
+            if (result.status === 'updated') return; // updater.set() reloads WebView
+            if (result.status === 'current') {
+                document.getElementById('app-update-modal')?.classList.remove('show');
+                showNotification('Обновление уже установлено.');
+                return;
+            }
+            throw new Error(result.error || 'Не удалось применить OTA');
+        }
+    } catch (error) {
+        recordConnectivityFailure(error);
+        showNotification('Обновление не выполнено. ' + explainConnectionFailure(error));
+    } finally {
+        updateActionInProgress = false;
+        if (button) { button.disabled = false; button.textContent = 'Обновить'; }
+    }
+};
+
+async function offerNativeUpdateOnLaunch(force = false) {
+    if (document.hidden || navigator.onLine === false || updateActionInProgress) return;
+    if (updateProbePromise) return updateProbePromise;
+    if (!force && Date.now() - updateProbeAt < DAG_UPDATE_POLL_MS) return;
+    updateProbeAt = Date.now();
+    updateProbePromise = (async () => {
+        try {
+            const update = await findAvailableAppUpdate();
+            if (update) presentAvailableAppUpdate(update);
+        } catch (error) {
+            // Weak networks must not lock the interface or interrupt playback.
+            console.warn('Automatic update check unavailable:', error);
+        }
+    })();
+    try { await updateProbePromise; }
+    finally { updateProbePromise = null; }
+}
+
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-        .register('/sw.js?v=2343', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2345', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -598,10 +780,9 @@ if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
         });
 
     navigator.serviceWorker.addEventListener('controllerchange', function() {
-        if (window.matchMedia('(display-mode: standalone)').matches) return;
-        if (sessionStorage.getItem('dag_sw_reloaded_2343') === '1') return;
-        sessionStorage.setItem('dag_sw_reloaded_2343', '1');
-        window.location.reload();
+        // Never reload playing music without user consent. The deployment
+        // version probe will offer the new shell in the update dialog.
+        offerNativeUpdateOnLaunch(true).catch(() => {});
     });
 }
 
@@ -6971,19 +7152,21 @@ if (IS_NATIVE_APP) {
     },90000);
 }
 
+// Site, installed PWA and Android share the same visible update dialog.
+// A foreground refresh is only a version check; no music is interrupted.
+setTimeout(() => offerNativeUpdateOnLaunch(true).catch(() => {}), 6500);
+setInterval(() => {
+    if (!document.hidden) offerNativeUpdateOnLaunch().catch(() => {});
+}, DAG_UPDATE_POLL_MS);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) offerNativeUpdateOnLaunch(true).catch(() => {});
+});
+window.addEventListener('online', () => offerNativeUpdateOnLaunch(true).catch(() => {}));
+window.addEventListener('focus', () => offerNativeUpdateOnLaunch().catch(() => {}));
 if (IS_NATIVE_APP) {
-    // Check for a newer signed APK or OTA manifest after the interface opens.
-    // Only the alert is automatic: downloads and installation require consent.
-    setTimeout(function() {
-        offerNativeUpdateOnLaunch().catch(error =>
-            console.warn('Update notification unavailable:', error));
-    }, 5000);
-    window.addEventListener('dag-native-state', function(event) {
-        if (event.detail?.isActive) {
-            setTimeout(function() {
-                offerNativeUpdateOnLaunch().catch(() => {});
-            }, 4000);
-        }
+    window.addEventListener('dag-native-state', event => {
+        if (event.detail?.isActive)
+            offerNativeUpdateOnLaunch(true).catch(() => {});
     });
 }
 if (IS_NATIVE_APP) {
