@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2344';
+const CACHE_NAME = 'dagstudio-player-shell-v2345';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -7,10 +7,10 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2229',
     '/modern.css?v=16',
-    '/script.js?v=2334',
+    '/script.js?v=2335',
     '/studio.css?v=6',
     '/studio.js?v=5',
-    '/studio-next.css?v=20',
+    '/studio-next.css?v=21',
     '/studio-next.js?v=16',
     '/studio-center.js?v=6',
     '/studio-touch.css?v=12',
@@ -75,6 +75,9 @@ self.addEventListener('fetch', function(event) {
     if (request.headers.has('range') || request.destination === 'audio' ||
         request.destination === 'video' ||
         /\.(mp3|m4a|aac|ogg|opus|wav|flac|mp4|webm)$/i.test(url.pathname)) return;
+
+    // The deployment marker must always come from the network, never SW cache.
+    if (url.origin === self.location.origin && url.pathname === '/deploy-version.txt') return;
 
     // API и аудиопотоки не перехватываем: браузер должен управлять Range сам.
     if (url.origin === self.location.origin &&
