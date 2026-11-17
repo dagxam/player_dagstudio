@@ -115,10 +115,11 @@
             <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>По всем доступным источникам</small></div>
             <div class="dag-search-field">
                 <i class="fas fa-magnifying-glass dag-search-glass" aria-hidden="true"></i>
-                <input type="search" id="search-input" class="search-input" placeholder="Исполнитель или песня" autocomplete="off" enterkeyhint="search" aria-label="Исполнитель или название песни">
+                <input type="search" id="search-input" class="search-input" placeholder="" value="" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Поиск трека или исполнителя" aria-controls="search-history">
                 <button type="button" id="search-clear-btn" class="dag-search-clear" aria-label="Очистить поиск" hidden><i class="fas fa-xmark" aria-hidden="true"></i></button>
+                <button type="button" id="search-history-btn" class="dag-search-history-toggle" title="Последние запросы" aria-label="Показать последние 8 запросов" aria-controls="search-history" aria-expanded="false"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></button>
             </div>
-            <div id="search-history" class="search-suggestions"></div>
+            <div id="search-history" class="search-suggestions dag-search-history" role="region" aria-label="История поиска" hidden></div>
         </div>
         
         <div class="active-pl-label" id="active-tab-name"></div>
