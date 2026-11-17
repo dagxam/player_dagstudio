@@ -68,6 +68,10 @@ function closeMobile(){
  nav.classList.remove('open');
  document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');
 }
+add('search','Поиск','magnifying-glass',()=>{
+ showList('search');if(typeof switchTab==='function')switchTab('search');
+ document.getElementById('search-input')?.focus();
+});
 add('wave','Моя волна','wave-square',()=>{
  showList('wave');window.openStudioWave?.();activate('wave');
 });
