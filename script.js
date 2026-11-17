@@ -1796,7 +1796,7 @@ async function processNativeCacheQueue() {
             }
             try {
                 if (!await storeNativeTrackNow(job.track, job.reason)) throw new Error('Файл не сохранён');
-                if(job.reason==='manual'||job.reason==='completed')rememberOfflineStoredTrack(job.track);
+                if(['manual','completed','playlist'].includes(job.reason))rememberOfflineStoredTrack(job.track);
                 nativeCacheQueuedUrls.delete(job.resolved);
                 offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
@@ -1945,7 +1945,7 @@ async function processWebCacheQueue() {
                     }));
                 }
 
-                if(job.reason==='manual'||job.reason==='completed')rememberOfflineStoredTrack(job.track);
+                if(['manual','completed','playlist'].includes(job.reason))rememberOfflineStoredTrack(job.track);
                 webCacheQueuedUrls.delete(job.resolved);
                 offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
