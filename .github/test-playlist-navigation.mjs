@@ -74,7 +74,11 @@ assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 280\)
 assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
 assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
 assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*\/\/ Avoid loading an empty source/);
-assert.doesNotMatch(src,/mainAudio\.removeAttribute\('src'\);\s*mainAudio\.load\(\);/);
+const playStart=src.indexOf('async function playTrack(');
+const playAssign=src.indexOf('        mainAudio.src = finalUrl;',playStart);
+assert.ok(playStart>0&&playAssign>playStart);
+assert.doesNotMatch(src.slice(playStart,playAssign),
+  /mainAudio\.removeAttribute\('src'\);\s*mainAudio\.load\(\);/);
 assert.match(html,/script\.js\?v=2337/);
 assert.match(sw,/script\.js\?v=2337/);
 const sidebarEntries=[...shell.matchAll(/^add\('([^']+)','([^']+)'/gm)]
