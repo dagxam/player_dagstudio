@@ -7,11 +7,11 @@ const native=read('scripts/build-native-web.mjs');
 const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
-assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=1"/);
-assert.match(html,/studio-center\.js\?v=6" defer><\/script>\s*<script src="studio-vision\.js\?v=1"/);
-assert.match(sw,/dagstudio-player-shell-v2348/);
+assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=2"/);
+assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=1"/);
+assert.match(sw,/dagstudio-player-shell-v2349/);
 for(const asset of [
- 'studio-vision.js?v=1','studio-vision.css?v=1','images/vision-hero.svg'
+ 'studio-vision.js?v=1','studio-vision.css?v=2','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
