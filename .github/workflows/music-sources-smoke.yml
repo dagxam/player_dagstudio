@@ -108,6 +108,14 @@ jobs:
                     'http='+str(v.get('http',0)),
                     'matching_tracks='+str(counts.get(names.get(k,''),0)),
                     'audio_verified=false')
+          matching={key:int(counts.get(source,0) or 0) for key,source in names.items()}
+          active={key:value for key,value in matching.items() if value>0}
+          print('LIVE_MATCHING_PROVIDERS',len(active),'OF',len(matching))
+          print('LIVE_MATCHING_SOURCE_NAMES',','.join(sorted(active)) or 'none')
+          if len(active)==1:
+              print('WARNING_ONLY_ONE_PROVIDER_RETURNED_MATCHING_TRACKS; other endpoints may be blocked, timed out, or have no matching results')
+          elif not active:
+              print('WARNING_NO_PROVIDER_MATCHES')
           assert data.get('success') is True and len(items)>0, 'Live API search unavailable'
           PY
           curl --fail --silent --show-error --retry 2 --max-time 35 \
