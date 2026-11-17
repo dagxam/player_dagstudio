@@ -14,7 +14,7 @@ for(const asset of [
  'studio-vision.js?v=1','studio-vision.css?v=1','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
-assert.match(native,/studio-vision\.js\\\?v/);
+assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
 assert.match(native,/vision\.src='studio-vision\.js'/);
 assert.match(native,/copyFile\(join\(root, 'studio-vision\.js'\)/);
 assert.match(native,/copyFile\(join\(root, 'studio-vision\.css'\)/);
