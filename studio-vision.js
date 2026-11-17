@@ -62,8 +62,7 @@
     topbar.appendChild(originalSearch);
   } else topbar.appendChild(searchTrigger);
   const topActions = el('div', 'vision-top-actions');
-  topActions.appendChild(button('vision-top-icon', 'Очередь воспроизведения', 'list-ol',
-    () => { if (typeof window.openPlaybackQueue === 'function') window.openPlaybackQueue(); }));
+  // Queue management remains internal; keep the topbar focused on essential navigation.
   topActions.appendChild(button('vision-top-icon', 'Настройки', 'gear', openSettings));
   const menu = button('vision-top-icon vision-menu-icon', 'Открыть разделы', 'bars',
     () => document.getElementById('showcase-menu-toggle')?.click());
