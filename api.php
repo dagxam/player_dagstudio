@@ -528,7 +528,7 @@ elseif ($action === 'search_global') {
     $weak_client = (($data['network'] ?? '') === 'weak') || !empty($data['save_data']);
     // Fast first paint: still fan out to every configured provider, but cap
     // the initial waiting budget. A second full pass fills in slow sources.
-    $fast_search = ($data['mode'] ?? '') === 'fast' && $page === 1;
+    $fast_search = ($data['mode'] ?? '') === 'fast';
     // Slow user connectivity does not imply a fast connection from PHP to providers.
     // Give the upstream services time to answer instead of discarding viable results.
     $provider_connect_timeout = $fast_search ? 2 : ($weak_client ? 3 : 4);
