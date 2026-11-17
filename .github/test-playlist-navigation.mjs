@@ -69,13 +69,14 @@ assert.equal(tabElements['active-tab-name'].innerText,'ДОРОГА');
 nav.switchTab('52');
 assert.equal(nav.playlist.length,0,'Empty playlist must also be selectable');
 
-assert.match(engine,/setBufferDurationsMsForStreaming\(35000, 180000, 1500, 4500\)/);
-assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 420\)/);
+assert.match(engine,/setBufferDurationsMsForStreaming\(35000, 180000, 1000, 4500\)/);
+assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 280\)/);
 assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
 assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
-assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*mainAudio\.pause\(\);\s*mainAudio\.removeAttribute\('src'\)/);
-assert.match(html,/script\.js\?v=2336/);
-assert.match(sw,/script\.js\?v=2336/);
+assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*\/\/ Avoid loading an empty source/);
+assert.doesNotMatch(src,/mainAudio\.removeAttribute\('src'\);\s*mainAudio\.load\(\);/);
+assert.match(html,/script\.js\?v=2337/);
+assert.match(sw,/script\.js\?v=2337/);
 const sidebarEntries=[...shell.matchAll(/^add\('([^']+)','([^']+)'/gm)]
   .map(([,key,label])=>[key,label]);
 assert.deepEqual(sidebarEntries,[
