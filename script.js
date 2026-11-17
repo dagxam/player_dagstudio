@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2335';
+const WEB_BUILD_LABEL = '2336';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -769,7 +769,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2345', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2346', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -903,6 +903,7 @@ window.skipCounter = 0; // Для предотвращения бесконеч�
 const SEARCH_HISTORY_KEY = 'dag_search_history';
 
 const colorThemes = {
+    rainbow:{main:'#c06cdb',dark:'#733d8d',rgb:'192, 108, 219',img:'images/cover.png'},
     brown: { main: '#C06C42', dark: '#8a4b2c', rgb: '192, 108, 66', img: 'images/cover.png' }, 
     red:   { main: '#D32F2F', dark: '#B71C1C', rgb: '211, 47, 47', img: 'images/r.png' },
     green: { main: '#2E7D32', dark: '#1B5E20', rgb: '46, 125, 50', img: 'images/z.png' },
@@ -1636,7 +1637,7 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
             thumb: track.thumb || old.thumb || '',
             source: track.source || old.source || '',
             owners,
-            reason: reason === 'playlist' ? 'playlist' : (old.reason || reason),
+            reason: offlineCacheReason(old.reason, reason),
             lastPlayedAt: reason === 'played' ? Date.now() : Number(old.lastPlayedAt || 0),
             lastAccessAt: Date.now()
         };
@@ -1675,7 +1676,7 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
         thumb: track.thumb || old.thumb || '',
         source: track.source || old.source || '',
         owners,
-        reason: reason === 'playlist' ? 'playlist' : (old.reason || reason),
+        reason: offlineCacheReason(old.reason, reason),
         cachedAt: Date.now(),
         lastPlayedAt: reason === 'played' ? Date.now() : Number(old.lastPlayedAt || 0),
         lastAccessAt: Date.now()
@@ -1759,7 +1760,7 @@ async function processNativeCacheQueue() {
     if (navigator.onLine === false) return;
 
     if (!playbackWanted && Date.now() - lastManualPauseAt < 90000 &&
-        nativeCacheQueue[0]?.reason !== 'paused-current') {
+        !['paused-current','manual','playlist','completed'].includes(nativeCacheQueue[0]?.reason)) {
         scheduleNativeCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
@@ -1779,8 +1780,7 @@ async function processNativeCacheQueue() {
 
             const job = nativeCacheQueue.shift();
             if (!job) break;
-            if (mainAudio && !mainAudio.paused && job.reason !== 'next' &&
-                job.reason !== 'completed') {
+            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
                 nativeCacheQueue.unshift(job);
                 scheduleNativeCacheWorker(15000);
                 break;
@@ -1796,6 +1796,7 @@ async function processNativeCacheQueue() {
             }
             try {
                 if (!await storeNativeTrackNow(job.track, job.reason)) throw new Error('Файл не сохранён');
+                if(job.reason==='manual'||job.reason==='completed')rememberOfflineStoredTrack(job.track);
                 nativeCacheQueuedUrls.delete(job.resolved);
                 offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
@@ -1887,7 +1888,7 @@ async function processWebCacheQueue() {
 
     // Кэширование плейлистов никогда не должно мешать текущему воспроизведению.
     if (!playbackWanted && Date.now() - lastManualPauseAt < 90000 &&
-        webCacheQueue[0]?.reason !== 'paused-current') {
+        !['paused-current','manual','playlist','completed'].includes(webCacheQueue[0]?.reason)) {
         scheduleWebCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
@@ -1906,7 +1907,7 @@ async function processWebCacheQueue() {
 
             const job = webCacheQueue.shift();
             if (!job) break;
-            if (mainAudio && !mainAudio.paused && job.reason !== 'next') {
+            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
                 webCacheQueue.unshift(job);
                 scheduleWebCacheWorker(12000);
                 break;
@@ -1944,6 +1945,7 @@ async function processWebCacheQueue() {
                     }));
                 }
 
+                if(job.reason==='manual'||job.reason==='completed')rememberOfflineStoredTrack(job.track);
                 webCacheQueuedUrls.delete(job.resolved);
                 offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
@@ -1974,7 +1976,7 @@ async function cacheTrackSilently(trackOrUrl, options = {}) {
     // No silent download on playlist creation, pause, recommendations or an
     // incomplete listen. An explicit user download uses dedicated queues.
     if (options.reason !== 'completed') return;
-    if (!isUrlStillInAnyPlaylist(trackOrUrl)) return;
+    // A fully heard search or Wave song should also be stored offline.
     const track = normalizeCacheTrack(trackOrUrl);
     const resolvedUrl = canonicalTrackUrl(track);
     if (!resolvedUrl || !/^https?:\/\//i.test(resolvedUrl) || navigator.onLine === false) return;
@@ -2098,12 +2100,13 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
     const resolved = canonicalTrackUrl(track);
     if (!resolved) return false;
 
-    if (!force && isUrlStillInAnyPlaylist(track)) return false;
+    if (!force && (isUrlStillInAnyPlaylist(track) || offlineKeptUrls().includes(resolved))) return false;
 
     if (IS_NATIVE_APP) {
         const bridge = nativeAudioCacheBridge();
         const index = readNativeAudioIndex();
         const entry = index[resolved];
+        if(!force && (entry?.reason==='manual'||entry?.reason==='completed'))return false;
 
         if (entry) {
             const owner = currentCacheOwner();
@@ -2137,6 +2140,31 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
         } catch (error) {}
     }
     return true;
+}
+
+
+const OFFLINE_KEEP_PREFIX='dag_offline_keep_v1:';
+function offlineKeepKey(){return OFFLINE_KEEP_PREFIX+currentCacheOwner().toLowerCase();}
+function offlineKeptUrls(){
+    try{
+        const urls=JSON.parse(localStorage.getItem(offlineKeepKey())||'[]');
+        return Array.isArray(urls)?urls.filter(s=>typeof s==='string'):[];
+    }catch(e){return [];}
+}
+function offlineCacheReason(oldReason, newReason){
+    if(newReason==='manual'||oldReason==='manual')return 'manual';
+    if(newReason==='completed'||oldReason==='completed')return 'completed';
+    return oldReason||newReason;
+}
+function rememberOfflineStoredTrack(track){
+    if(!track?.url)return;
+    const url=canonicalTrackUrl(track);
+    if(!url)return;
+    const previous=offlineKeptUrls().filter(item=>item!==url);
+    previous.unshift(url);
+    try{localStorage.setItem(offlineKeepKey(),JSON.stringify(previous.slice(0,700)));}
+    catch(e){}
+    offlineCatalogRemember(track);
 }
 
 function syncPlaylistOfflineCache() {
@@ -2204,7 +2232,7 @@ function isJamendoStreamUrl(url) {
              parsed.hostname.endsWith('.storage.jamendo.com'));
     } catch(e) { return false; }
 }
-window.downloadTrack = function(index) {
+window.downloadTrackFile = function(index) {
     const track = playlist[index];
     if (!track || !track.url) return;
     if(track.source==='[JAMENDO]'||isJamendoStreamUrl(track.url)){
@@ -2221,6 +2249,26 @@ window.downloadTrack = function(index) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+};
+
+// The visible download action stores a verified local file for Offline.
+// External MP3 export remains available as downloadTrackFile.
+window.downloadTrack = function(index) {
+    const track=playlist[index];
+    if(!track?.url)return;
+    if(track.source==='[JAMENDO]'||isJamendoStreamUrl(track.url)){
+        showNotification('Этот источник не разрешает загрузку для офлайна.');return;
+    }
+    if(navigator.onLine===false){showNotification('Для сохранения песни нужна сеть.');return;}
+    if(IS_NATIVE_APP){
+        if(!nativeAudioCacheBridge()){showNotification('Локальное хранилище Android недоступно.');return;}
+        enqueueNativeTrackCache(track,'manual',true);
+    }else{
+        if(!('caches' in window)){showNotification('Браузер не поддерживает локальное аудиохранилище.');return;}
+        enqueueWebTrackCache(track,'manual',true);
+    }
+    offlineCatalogRemember(track);
+    showNotification('Песня добавлена в очередь. После полной загрузки появится в разделе «Офлайн».');
 };
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
@@ -3129,6 +3177,7 @@ function clearOfflineAudioCache() {
                 if (bridge) await bridge.delete({path}).catch(()=>{});
             }
             writeNativeAudioIndex({});
+            try{localStorage.removeItem(offlineKeepKey());}catch(e){}
             const active = playbackPlaylist[currentIndex];
             if (active) active._playingFromCache = false;
             if (mainAudio?.getAttribute('src')) {
@@ -3142,6 +3191,7 @@ function clearOfflineAudioCache() {
         } else if ('caches' in window) {
             webCacheQueue.length=0; webCacheQueuedUrls.clear();
             await caches.delete('dag-audio-cache');
+            try{localStorage.removeItem(offlineKeepKey());}catch(e){}
         }
         offlineBatch=null;
         await openCacheDashboard();
@@ -6617,7 +6667,7 @@ function renderPlaylist() {
         const downloadBtn = (t.url && isRemoteMediaUrl(t.url) &&
             t.source !== '[JAMENDO]' &&
             !/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(t.url)))
-            ? `<button class="btn-list-action" style="margin-right: 5px;" title="Скачать" aria-label="Скачать трек" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>`
+            ? `<button class="btn-list-action" style="margin-right: 5px;" title="Сохранить офлайн" aria-label="Сохранить трек на этом устройстве" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>`
             : '';
 
         // Heart is a reversible "Мне нравится" toggle, not a save modal.
@@ -7049,6 +7099,66 @@ function applyThemePalette(themeName) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', shades['--theme-page']);
 }
+
+// On TEYES use a single lightweight timer; pause palette writes in background.
+// One full hue circle takes the chosen number of seconds.
+const RAINBOW_SPEED_KEY='dag_rainbow_cycle_seconds_v1';
+let rainbowTimer=null;
+function rainbowSpeedSeconds(){
+    const value=Number(localStorage.getItem(RAINBOW_SPEED_KEY)||16);
+    return Number.isFinite(value)?Math.max(4,Math.min(60,value)):16;
+}
+function rainbowRgb(hue){
+    const h=((Number(hue)||0)%360+360)%360, s=.75, l=.53;
+    const c=(1-Math.abs(2*l-1))*s;
+    const x=c*(1-Math.abs((h/60)%2-1));
+    const m=l-c/2;
+    const sector=Math.floor(h/60);
+    const parts=[[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][sector];
+    return parts.map(value=>Math.round((value+m)*255));
+}
+function applyRainbowFrame(now=Date.now()){
+    if(localStorage.getItem('dag_theme')!=='rainbow'||document.hidden)return;
+    const seconds=rainbowSpeedSeconds();
+    const hue=((now%(seconds*1000))/(seconds*1000))*360;
+    const rgb=rainbowRgb(hue);
+    const main=rgbHex(rgb);
+    colorThemes.rainbow.main=main;
+    colorThemes.rainbow.rgb=rgb.join(', ');
+    colorThemes.rainbow.dark=blendThemeColors(main,'#111319',.45);
+    applyThemePalette('rainbow');
+}
+function stopRainbowCycle(){
+    if(rainbowTimer!==null){clearInterval(rainbowTimer);rainbowTimer=null;}
+}
+function syncRainbowSpeedControl(){
+    const visible=localStorage.getItem('dag_theme')==='rainbow';
+    const panel=document.getElementById('rainbow-speed-control');
+    if(panel)panel.hidden=!visible;
+    const value=rainbowSpeedSeconds();
+    const slider=document.getElementById('rainbow-speed-input');
+    const label=document.getElementById('rainbow-speed-value');
+    if(slider)slider.value=String(value);
+    if(label)label.textContent=value+' с / круг';
+}
+function startRainbowCycle(){
+    stopRainbowCycle();
+    syncRainbowSpeedControl();
+    if(localStorage.getItem('dag_theme')!=='rainbow')return;
+    applyRainbowFrame();
+    rainbowTimer=setInterval(()=>applyRainbowFrame(),180);
+}
+function setRainbowSpeed(value){
+    const seconds=Number(value);
+    if(!Number.isFinite(seconds)||seconds<4||seconds>60)return;
+    localStorage.setItem(RAINBOW_SPEED_KEY,String(seconds));
+    syncRainbowSpeedControl();
+    if(localStorage.getItem('dag_theme')==='rainbow')applyRainbowFrame();
+}
+document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&localStorage.getItem('dag_theme')==='rainbow')applyRainbowFrame();
+});
+
 let themeLocalChangeEpoch=0;
 let lastRemoteThemeCheckAt=0;
 let remoteThemeCheckInFlight=null;
@@ -7089,6 +7199,7 @@ function setTheme(themeName, save = true) {
     document.querySelectorAll('.theme-aware-thumb').forEach(img => { img.src = t.img; });
 
     localStorage.setItem('dag_theme', themeName);
+    startRainbowCycle();
     if(save && currentUser) {
         // A slow response from an older sync must not replace a recent local choice.
         themeLocalChangeEpoch++;
