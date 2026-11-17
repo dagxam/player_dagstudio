@@ -1497,3 +1497,6 @@
 @media(max-width:768px){
  .vision-ui .vision-top-actions>.vision-top-icon:first-child{display:grid!important}
 }
+
+/* Manual queue-add icons are also hidden, so songs are never queued without a visible manager. */
+.vision-ui .track-row .track-actions .btn-list-action[aria-label="Добавить в очередь"]{display:none!important}
