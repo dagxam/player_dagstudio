@@ -10,7 +10,8 @@ const digest = p => createHash('sha256').update(readFileSync(resolve(root,p))).d
 
 assert.ok(existsSync(resolve(root, 'www/index.html')), 'Build www/ with npm run native:web first');
 for (const resource of ['script.js','studio.js','studio-next.js','studio-center.js',
-  'style.css','modern.css','studio.css','studio-next.css','studio-touch.css']) {
+  'style.css','modern.css','studio.css','studio-next.css','studio-touch.css',
+  'studio-vision.js','studio-vision.css']) {
   assert.equal(digest(resource), digest('www/'+resource), 'APK/OTA differs from website: '+resource);
 }
 assert.equal(digest('native/native-audio-adapter.js'),digest('www/native-audio-adapter.js'));

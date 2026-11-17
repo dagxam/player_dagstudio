@@ -172,7 +172,7 @@ jobs:
           html = html.replace(token, 'content="' + commit + '"')
           # Give each successful website commit unique local CSS/JS URLs so
           # an old service worker cannot load old UI files after "Обновить".
-          pattern = r'((?:src|href)="(?:script\.js|studio(?:-next|-center)?\.js|(?:style|modern|studio|studio-next|studio-touch)\.css)\?v=\d+)(?=")'
+          pattern = r'((?:src|href)="(?:script\.js|studio(?:-next|-center|-vision)?\.js|(?:style|modern|studio|studio-next|studio-touch|studio-vision)\.css)\?v=\d+)(?=")'
           html, count = re.subn(pattern, lambda m: m.group(1) + '-' + commit[:12], html)
           assert count >= 9, 'Revisioned CSS/JS assets are missing'
           file.write_text(html, encoding='utf-8')

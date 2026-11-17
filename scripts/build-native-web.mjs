@@ -54,6 +54,7 @@ Promise.race([
 html = html.replace(/\s*<script src="studio\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(/\s*<script src="studio-next\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(/\s*<script src="studio-center\.js\?v=[^"]+" defer><\/script>/i, '');
+html = html.replace(/\s*<script src="studio-vision\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(
   'document.body.appendChild(script);',
   `script.addEventListener('load', () => {
@@ -65,6 +66,11 @@ html = html.replace(
     showcase.addEventListener('load',()=>{
       const center=document.createElement('script');
       center.src='studio-center.js';
+      center.addEventListener('load',()=>{
+        const vision=document.createElement('script');
+        vision.src='studio-vision.js';
+        document.body.appendChild(vision);
+      });
       document.body.appendChild(center);
     });
     document.body.appendChild(showcase);
@@ -92,6 +98,8 @@ await copyFile(join(root, 'studio-next.css'), join(out, 'studio-next.css'));
 await copyFile(join(root, 'studio-touch.css'), join(out, 'studio-touch.css'));
 await copyFile(join(root, 'studio-next.js'), join(out, 'studio-next.js'));
 await copyFile(join(root, 'studio-center.js'), join(out, 'studio-center.js'));
+await copyFile(join(root, 'studio-vision.js'), join(out, 'studio-vision.js'));
+await copyFile(join(root, 'studio-vision.css'), join(out, 'studio-vision.css'));
 
 await esbuild({
   entryPoints: [join(root, 'native', 'native-bridge.js')],
