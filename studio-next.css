@@ -1444,7 +1444,7 @@
 }
 #menu-modal.showcase-settings-page .theme-options,
 #menu-modal .theme-selector-wrapper .theme-options{
- display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px!important;
+ display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px!important;
  width:100%;
 }
 #menu-modal .theme-options .theme-choice{
@@ -1606,3 +1606,25 @@
 .dag-update-actions button:disabled{opacity:.65;cursor:wait}
 @media(max-width:480px){#app-update-modal .dag-update-box{padding:22px 17px 18px!important}
   .dag-update-actions button{min-height:50px}}
+
+/* Six colour themes, with a low-overhead rainbow speed control. */
+#menu-modal .theme-choice-rainbow{
+ --choice:#d8a3ff;--choice-rgb:181,118,246;
+ background:linear-gradient(120deg,#e55866,#f5c05c,#52c897,#5ca6ec,#b78bfa)!important;
+}
+#menu-modal .theme-choice-rainbow i,#menu-modal .theme-choice-rainbow span{
+ color:#17141b!important;text-shadow:0 1px 2px #ffffff77!important;
+}
+#menu-modal .rainbow-speed-control{padding:11px 12px;margin-top:10px;
+ border-radius:12px;background:rgba(var(--theme-rgb,192,108,66),.09);
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.23);}
+#menu-modal .rainbow-speed-control[hidden]{display:none!important}
+.rainbow-speed-control label{display:flex;align-items:center;flex-wrap:wrap;gap:7px;
+ font-size:.78rem;color:var(--theme-bright-text,#fff);font-weight:650}
+.rainbow-speed-control label strong{margin-left:auto;color:var(--theme-bright,#deb18e);font-size:.72rem}
+.rainbow-speed-control input{width:100%;accent-color:var(--theme-bright,#d39b70);
+ height:24px;margin:8px 0 1px;cursor:pointer;touch-action:pan-y}
+.rainbow-speed-hints{display:flex;justify-content:space-between;
+ font-size:.67rem;color:var(--theme-muted,#9da2aa)}
+@media(max-width:440px){#menu-modal .theme-options .theme-choice{
+ min-height:58px!important;height:58px!important}}
