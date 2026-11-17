@@ -52,5 +52,5 @@ assert.match(js,/getDeviceCachedAudio\(track\)/);
 assert.match(js,/const blob = await response\.blob\(\)/);
 assert.match(js,/await cache\.put\(cacheUrl, new Response\(blob/);
 assert.match(js,/if\(!force && \(entry\?\.reason==='manual'\|\|entry\?\.reason==='completed'\)\)return false/);
-assert.match(sw,/dagstudio-player-shell-v2348/);
+assert.match(sw,/dagstudio-player-shell-v2349/);
 console.log('RAINBOW_SPEED_SEARCH_AND_OFFLINE_COMPLETE_MANUAL_RETENTION_OK');
