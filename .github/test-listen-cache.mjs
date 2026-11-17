@@ -15,7 +15,7 @@ for(let t=1;t<=15;t++){context.mainAudio.currentTime=t;context.listen(skipped,t)
 context.mainAudio.currentTime=119;context.listen(skipped,119);
 assert.equal(context.complete(skipped),false);
 assert.match(js,/if \(options\.reason !== 'completed'\) return/);
-assert.match(js,/if \(!isUrlStillInAnyPlaylist\(trackOrUrl\)\) return/);
+assert.doesNotMatch(js,/if \(!isUrlStillInAnyPlaylist\(trackOrUrl\)\) return/);
 assert.match(js,/cacheTrackSilently\(finishedTrack, \{ reason: 'completed'/);
 assert.doesNotMatch(js,/cacheTrackSilently\(trackData, \{ reason: 'playlist'/);
 assert.doesNotMatch(js,/cacheTrackSilently\(pausedTrack,/);
