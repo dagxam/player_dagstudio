@@ -49,6 +49,6 @@ assert.match(plugin,/sessionToken\.matches/);
 assert.match(plugin,/X-DAG-Session/);
 assert.match(bridge,/trusted-ip-tls/);
 assert.match(bridge,/dag-apk-update-progress/);
-assert.match(build, /      - "style\.css"/);
+assert.match(build, /on:\n  push:\n    branches:\n      - main\n  workflow_dispatch:/);
 assert.match(script,/if \(!manual\) return \{ status: 'manual-only' \}/);
 console.log('IN_APP_APK_UPDATE_CERT_SHA256_VERSION_PACKAGE_DNS_MIRROR_OK');
