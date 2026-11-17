@@ -69,7 +69,7 @@ for(const selector of [
 ])assert.ok(css.includes(selector),'Missing responsive playlist style '+selector);
 for(const breakpoint of ['@media(max-width:768px)','@media(max-width:370px)',
  '@media(min-width:769px) and (max-width:1199px)'])assert.ok(css.includes(breakpoint));
-assert.match(html,/studio-vision\.css\?v=2/);
+assert.match(html,/studio-vision\.css\?v=3/);
 assert.match(html,/studio-center\.js\?v=7/);
 assert.match(sw,/dagstudio-player-shell-v2350/);
 assert.ok(sw.includes("'/studio-vision.css?v=3'"));
