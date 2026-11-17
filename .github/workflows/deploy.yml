@@ -293,7 +293,7 @@ jobs:
           grep -q 'id="android-apk-download-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-update-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-version-footer"' <<< "$INDEX_HTML"
-          grep -q 'studio-vision.css?v=3' <<< "$INDEX_HTML"
+          grep -q 'studio-vision.css?v=4' <<< "$INDEX_HTML"
           grep -q 'studio-vision.js?v=2' <<< "$INDEX_HTML"
           for asset in studio-vision.css studio-vision.js images/vision-hero.svg; do
             curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 25 \
