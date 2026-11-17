@@ -8,6 +8,7 @@
     <meta name="application-name" content="DAGSTUDIO PLAYER">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="referrer" content="no-referrer">
+    <meta name="dag-build-commit" content="__DAG_BUILD_COMMIT__">
     <link rel="manifest" href="/manifest.json?v=2217">
     <link rel="icon" type="image/png" sizes="512x512" href="/images/faviconch.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/images/icon-192.png">
@@ -28,7 +29,7 @@
     <link rel="stylesheet" href="style.css?v=2229">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=20">
+    <link rel="stylesheet" href="studio-next.css?v=21">
     <link rel="stylesheet" href="studio-touch.css?v=12">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>(function(){var done=false;function reveal(){if(done)return;done=true;document.documentElement.classList.remove('studio-booting');}window.addEventListener('dag-ui-ready',reveal,{once:true});document.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#studio-navigation'))reveal();});setTimeout(reveal,3500);})();</script>
@@ -192,6 +193,21 @@
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-compact-disc"></i></span><span class="mix-copy"><strong>Ретро</strong><small>Знакомая классика</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
         </div>
         <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Поиск по всем подключённым музыкальным источникам. Если один сервер недоступен, используются результаты остальных. Подборки не подтверждают язык исполнения автоматически.</div>
+    </div>
+</div>
+
+<!-- Read-only version check; installation starts only after an explicit tap. -->
+<div id="app-update-modal" class="modal-overlay dag-update-overlay" role="dialog" aria-modal="true" aria-labelledby="app-update-title" aria-describedby="app-update-available-message">
+    <div class="modal-box dag-update-box">
+        <div class="dag-update-glyph"><i class="fas fa-rotate" aria-hidden="true"></i></div>
+        <span class="dag-update-kicker">DAGSTUDIO PLAYER</span>
+        <h3 id="app-update-title">Доступно обновление</h3>
+        <p id="app-update-available-message">Опубликована новая версия плеера.</p>
+        <div id="app-update-available-version" class="dag-update-version"></div>
+        <div class="dag-update-actions">
+            <button type="button" class="dag-update-later" onclick="dismissAvailableAppUpdate()">Позже</button>
+            <button type="button" id="app-update-apply-btn" class="dag-update-apply" onclick="applyAvailableAppUpdate()">Обновить</button>
+        </div>
     </div>
 </div>
 
@@ -406,7 +422,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2334" defer></script>
+<script src="script.js?v=2335" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=16" defer></script>
 <script src="studio-center.js?v=6" defer></script>
