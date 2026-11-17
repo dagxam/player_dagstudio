@@ -1573,3 +1573,36 @@
     rgba(var(--theme-rgb,192,108,66),.12),transparent 75%);
  }
 }
+
+/* Unified optional update dialog, equally usable in Web, PWA and TEYES CC3. */
+#app-update-modal{z-index:9999!important;padding:16px;align-items:center;justify-content:center}
+#app-update-modal.show{display:flex!important}
+#app-update-modal .dag-update-box{
+  width:min(100%,420px)!important;max-width:420px!important;
+  padding:27px 25px 23px!important;box-sizing:border-box;
+  border:1px solid rgba(var(--theme-rgb,192,108,66),.45)!important;
+  border-radius:20px!important;
+  background:linear-gradient(155deg,var(--theme-tile-top,#252a32),var(--theme-surface,#13171d))!important;
+  color:var(--theme-bright-text,#fff);text-align:center;
+  box-shadow:0 25px 90px #000a,0 0 32px rgba(var(--theme-rgb,192,108,66),.13);
+}
+.dag-update-glyph{margin:0 auto 13px;display:grid;place-items:center;width:53px;height:53px;
+  color:var(--theme-bright,var(--accent-color,#d39b70));font-size:1.3rem;
+  border:1px solid rgba(var(--theme-rgb,192,108,66),.35);border-radius:16px;
+  background:rgba(var(--theme-rgb,192,108,66),.12)}
+.dag-update-kicker{display:block;letter-spacing:.14em;font-size:.63rem;font-weight:800;
+  color:var(--theme-bright,var(--accent-color,#d39b70));margin-bottom:7px}
+#app-update-title{font:800 clamp(1.14rem,2.5vw,1.47rem) Inter,Arial,sans-serif;margin:0 0 10px}
+#app-update-available-message{font-size:.9rem;line-height:1.5;color:var(--theme-muted,#b6b7bd);margin:0 0 15px}
+.dag-update-version{display:inline-block;font-size:.76rem;padding:8px 12px;margin-bottom:19px;
+  border-radius:9px;background:rgba(var(--theme-rgb,192,108,66),.1);color:var(--theme-bright-text,#eee)}
+.dag-update-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:10px}
+.dag-update-actions button{border-radius:11px;border:1px solid rgba(var(--theme-rgb,192,108,66),.32);
+  font:750 .9rem Inter,Arial,sans-serif;min-height:47px;padding:10px;cursor:pointer}
+.dag-update-later{background:transparent;color:var(--theme-bright-text,#fff)}
+.dag-update-apply{background:var(--theme-bright,var(--accent-color,#d39b70));
+  color:var(--theme-on-accent,#18110b)!important}
+.dag-update-actions button:focus-visible{outline:2px solid var(--theme-bright,#d39b70);outline-offset:3px}
+.dag-update-actions button:disabled{opacity:.65;cursor:wait}
+@media(max-width:480px){#app-update-modal .dag-update-box{padding:22px 17px 18px!important}
+  .dag-update-actions button{min-height:50px}}
