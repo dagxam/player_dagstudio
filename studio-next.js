@@ -68,10 +68,6 @@ function closeMobile(){
  nav.classList.remove('open');
  document.getElementById('showcase-menu-toggle')?.setAttribute('aria-expanded','false');
 }
-add('search','Поиск','magnifying-glass',()=>{
- showList('search');if(typeof switchTab==='function')switchTab('search');
- document.getElementById('search-input')?.focus();
-});
 add('wave','Моя волна','wave-square',()=>{
  showList('wave');window.openStudioWave?.();activate('wave');
 });
@@ -84,9 +80,7 @@ add('likes','Мне нравится','heart',()=>{
 add('offline','Офлайн','circle-down',()=>{
  showList('offline');window.openOfflineListening?.();
 });
-add('charts','Чарты','chart-simple',()=>window.studioCenterMix?.('charts'));
 add('collections','Подборки','layer-group',()=>window.studioCenterRender?.('collections'));
-add('equalizer','Эквалайзер','sliders',()=>{if(typeof openEqualizer==='function')openEqualizer();});
 add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();window.studioSettingsPage?.();});
 nav.appendChild(menu);
 menu.addEventListener('click',event=>{
@@ -98,21 +92,6 @@ menu.addEventListener('click',event=>{
    root.classList.remove('showcase-settings-open');
  }
 });
-const sidebarBottom=node('div','showcase-sidebar-bottom');
-const roadHead=node('div','showcase-road-heading');
-const roadIcon=node('span','showcase-road-icon');
-roadIcon.appendChild(node('i','fas fa-route'));
-const roadWords=node('div','showcase-road-words');
-roadWords.appendChild(node('span','showcase-sidebar-kicker','МУЗЫКА В ДОРОГУ'));
-roadWords.appendChild(node('strong','', 'Всегда с тобой'));
-roadHead.append(roadIcon,roadWords);sidebarBottom.appendChild(roadHead);
-sidebarBottom.appendChild(node('p','', 'Подготовьте песни к поездке без интернета.'));
-const cacheBtn=node('button','showcase-cache-action');cacheBtn.type='button';
-cacheBtn.appendChild(node('i','fas fa-cloud-arrow-down'));
-cacheBtn.appendChild(node('span','', 'Подготовить музыку'));
-cacheBtn.appendChild(node('i','fas fa-arrow-right'));
-cacheBtn.addEventListener('click',()=>{closeMobile();if(typeof openCacheDashboard==='function')openCacheDashboard();});
-sidebarBottom.appendChild(cacheBtn);nav.appendChild(sidebarBottom);
 root.insertBefore(nav,root.firstChild);
 
 // The middle panel is the ORIGINAL playlist/search pane with a curated cover.
