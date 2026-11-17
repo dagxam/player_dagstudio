@@ -54,7 +54,13 @@
   const topbar = el('header', 'vision-topbar');
   const searchTrigger = button('vision-top-search', 'Открыть поиск музыки', 'magnifying-glass', openSearch);
   searchTrigger.appendChild(el('span', '', 'Трек, исполнитель или плейлист'));
-  topbar.appendChild(searchTrigger);
+  // Relocate the ORIGINAL input instead of creating a second search engine.
+  // Event handlers, history, paging and source fetches stay attached.
+  const originalSearch = document.getElementById('search-container-box');
+  if (originalSearch) {
+    originalSearch.classList.add('vision-unified-search');
+    topbar.appendChild(originalSearch);
+  } else topbar.appendChild(searchTrigger);
   const topActions = el('div', 'vision-top-actions');
   topActions.appendChild(button('vision-top-icon', 'Очередь воспроизведения', 'list-ol',
     () => { if (typeof window.openPlaybackQueue === 'function') window.openPlaybackQueue(); }));
@@ -229,6 +235,7 @@
       : root.classList.contains('vision-player-expanded') ? 'home'
       : (pane.classList.contains('showcase-curated') && active === 'wave') ? 'home'
       : active;
+    root.classList.toggle('vision-home-active', selected === 'home');
     for (const [key, item] of bottomMap) {
       const on = selected === key;
       item.classList.toggle('active', on);
