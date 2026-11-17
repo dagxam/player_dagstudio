@@ -40,6 +40,6 @@ for(const url of [
  'https://musicbrainz.org/'
 ]) assert.ok(center.includes(url),url);
 assert.match(html,/script\.js\?v=2337/);
-assert.match(html,/studio-center\.js\?v=6/);
+assert.match(html,/studio-center\.js\?v=7/);
 assert.match(sw,/script\.js\?v=2337/);
 console.log('OFFICIAL_MUSIC_FEED_JAMENDO_OPT_IN_CATALOGS_CC_ATTRIBUTION_OK');
