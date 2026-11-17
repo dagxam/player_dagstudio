@@ -1491,3 +1491,9 @@
  }
  .vision-ui .showcase-curations:not(.showcase-playlist-library) .showcase-card-play{display:none!important}
 }
+
+/* The first topbar action is now Settings; show it on phones after removing
+   the redundant Queue button from the topbar. */
+@media(max-width:768px){
+ .vision-ui .vision-top-actions>.vision-top-icon:first-child{display:grid!important}
+}
