@@ -21,10 +21,10 @@ assert.match(fix,/@media\(max-width:768px\)/);
 assert.match(fix,/display:inline!important;font-size:\.86rem!important/);
 assert.doesNotMatch(vision,/Очередь воспроизведения/,'Queue should not crowd header');
 assert.ok(fix.includes('.track-actions .btn-list-action[aria-label="Добавить в очередь"]'),'Song queue icons must be hidden');
-assert.match(html,/studio-vision\.css\?v=4/);
+assert.match(html,/studio-vision\.css\?v=5/);
 assert.match(html,/studio-vision\.js\?v=2/);
-assert.match(sw,/dagstudio-player-shell-v2351/);
-assert.ok(sw.includes("'/studio-vision.css?v=4'"));
+assert.match(sw,/dagstudio-player-shell-v2352/);
+assert.ok(sw.includes("'/studio-vision.css?v=5'"));
 assert.ok(sw.includes("'/studio-vision.js?v=2'"));
 for(const name of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'])
  assert.ok(api.includes("'"+name+"'"),'Search provider: '+name);
