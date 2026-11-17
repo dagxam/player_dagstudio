@@ -59,7 +59,7 @@ assert.ok(ctx.waveReleasePriority(newerRussian).bucket>
     ctx.waveReleasePriority(oldRussian).bucket);
 assert.equal(ctx.waveReleasePriority({...newerRussian,release_date:''}).verified,false,
     'Missing dates must not be invented');
-storage.set('dag_wave_cursor_v2:rus-listener','1');
+storage.setItem('dag_wave_cursor_v2:rus-listener','1');
 const calls=[];
 ctx.api=async(action,params)=>{
     assert.equal(action,'search_global');
@@ -83,7 +83,7 @@ assert.ok(themes.some(t=>t.id==='avar'));
 directions=ctx.waveSearchDirections(ctx.waveLibrarySeeds());
 assert.ok(directions.some(d=>/авар/i.test(d.query)));
 assert.ok(!directions.some(d=>/руки/i.test(d.query)));
-storage.set('dag_wave_cursor_v2:avar-listener','1');
+storage.setItem('dag_wave_cursor_v2:avar-listener','1');
 const avaRecent={title:'Новая аварская песня',artist:'Певица Б',
     url:'https://music.example/avar-new.mp3',genre:'Аварские песни',release_date:freshDate};
 const avaUndated={title:'Другая аварская песня',artist:'Певец В',
