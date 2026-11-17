@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="style.css?v=2229">
     <link rel="stylesheet" href="modern.css?v=16">
     <link rel="stylesheet" href="studio.css?v=6">
-    <link rel="stylesheet" href="studio-next.css?v=22">
+    <link rel="stylesheet" href="studio-next.css?v=23">
     <link rel="stylesheet" href="studio-touch.css?v=12">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>(function(){var done=false;function reveal(){if(done)return;done=true;document.documentElement.classList.remove('studio-booting');}window.addEventListener('dag-ui-ready',reveal,{once:true});document.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#studio-navigation'))reveal();});setTimeout(reveal,3500);})();</script>
@@ -75,6 +75,9 @@
             <div class="np-artist" id="track-artist">DAGSTUDIO PLAYER</div>
             <button type="button" id="now-playing-heart" class="now-playing-heart" onclick="savePlayingTrack()" disabled
                 title="Добавить в «Мне нравится»" aria-label="Добавить текущую песню в «Мне нравится»"><i class="far fa-heart"></i></button>
+            <button type="button" id="wave-add-playlist-btn" class="wave-add-playlist-btn"
+                onclick="saveWavePlayingTrack()" aria-label="Добавить текущую песню Моей волны в плейлист"
+                title="Добавить в плейлист" hidden disabled><i class="fas fa-plus" aria-hidden="true"></i></button>
         </div>
         
         <div class="progress-area" id="prog-area">
@@ -428,7 +431,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2336" defer></script>
+<script src="script.js?v=2337" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=17" defer></script>
 <script src="studio-center.js?v=6" defer></script>
