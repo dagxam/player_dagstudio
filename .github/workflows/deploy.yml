@@ -194,6 +194,7 @@ jobs:
           server-dir: ${{ env.FTP_SERVER_DIR }}
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
           port: ${{ secrets.FTP_PORT || 21 }}
+          timeout: 120000
           exclude: |
             **/.git*
             **/.git*/**
@@ -225,6 +226,7 @@ jobs:
           server-dir: ${{ env.FTP_SERVER_DIR }}
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
           port: ${{ secrets.FTP_PORT || 21 }}
+          timeout: 120000
           exclude: |
             **/.git*
             **/.git*/**
@@ -289,6 +291,16 @@ jobs:
           grep -q 'id="android-apk-download-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-update-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-version-footer"' <<< "$INDEX_HTML"
+          grep -q 'studio-vision.css?v=1' <<< "$INDEX_HTML"
+          grep -q 'studio-vision.js?v=1' <<< "$INDEX_HTML"
+          for asset in studio-vision.css studio-vision.js images/vision-hero.svg; do
+            curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 25 \
+              "https://pl.dagstudio.ru/$asset?v=$EXPECTED" \
+              -o "/tmp/dag-$(basename "$asset")"
+            test -s "/tmp/dag-$(basename "$asset")"
+          done
+          grep -q 'DAGSTUDIO VISION' /tmp/dag-studio-vision.css
+          grep -q 'vision-home-hero' /tmp/dag-studio-vision.js
           if grep -q 'id="pwa-install-btn"' <<< "$INDEX_HTML"; then
             echo "Deprecated PWA install button is still present"
             exit 1
