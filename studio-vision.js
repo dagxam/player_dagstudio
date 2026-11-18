@@ -47,6 +47,69 @@
     invokeNav('wave');
     updateNav();
   };
+  // Pure presentation: the current playlist, active tab, queue and audio stay intact.
+  const brand = document.querySelector('.showcase-sidebar .showcase-brand');
+  const headerBrand = document.querySelector('.header-overlay .header-left');
+  const playingPanel = document.querySelector('.main-container.studio-showcase > .left-col');
+  let swipeStart = null;
+  let switching = false;
+  const expandPlayer = () => {
+    root.classList.add('vision-player-expanded');
+    updateNav();
+  };
+  const collapsePlayer = () => {
+    root.classList.remove('vision-player-expanded');
+    updateNav();
+  };
+  const activateBrand = element => {
+    if (!element) return;
+    // Keep the menu-collapse button independent from the clickable logo.
+    element.addEventListener('click', event => {
+      if (event.target.closest('button, a')) return;
+      expandPlayer();
+    });
+    element.setAttribute('role', 'button');
+    element.setAttribute('tabindex', '0');
+    element.setAttribute('aria-label', 'Открыть текущий проигрыватель');
+    element.addEventListener('keydown', event => {
+      if (event.target !== element || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      expandPlayer();
+    });
+  };
+  activateBrand(brand);
+  activateBrand(headerBrand);
+  // Horizontal gestures are limited to the artwork/text, so progress seeking,
+  // buttons and vertical scrolling continue to work normally.
+  playingPanel?.addEventListener('touchstart', event => {
+    swipeStart = null;
+    if (!root.classList.contains('vision-player-expanded') || event.touches.length !== 1 ||
+        event.target.closest('button, input, a, .progress-area, .main-btns')) return;
+    swipeStart = {x:event.touches[0].clientX, y:event.touches[0].clientY};
+  }, {passive:true});
+  playingPanel?.addEventListener('touchend', event => {
+    if (!swipeStart || switching || !root.classList.contains('vision-player-expanded')) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - swipeStart.x;
+    const dy = touch.clientY - swipeStart.y;
+    swipeStart = null;
+    if (Math.abs(dx) < 65 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    if (typeof playbackPlaylist !== 'undefined' && !playbackPlaylist.length) return;
+    switching = true;
+    playingPanel.classList.remove('vision-swipe-next', 'vision-swipe-prev');
+    void playingPanel.offsetWidth;
+    playingPanel.classList.add(dx < 0 ? 'vision-swipe-next' : 'vision-swipe-prev');
+    try {
+      if (dx < 0) window.playNext?.();
+      else window.playPrev?.();
+    } finally {
+      window.setTimeout(() => {
+        playingPanel.classList.remove('vision-swipe-next', 'vision-swipe-prev');
+        switching = false;
+      }, 350);
+    }
+  }, {passive:true});
+  playingPanel?.addEventListener('touchcancel', () => { swipeStart = null; }, {passive:true});
   const openSettings = () => invokeNav('settings');
 
   // Site-wide search affordance: the existing #search-input remains the ONLY
@@ -179,10 +242,7 @@
   const mini = el('div', 'vision-mini-player');
   mini.id = 'vision-mini-player';
   mini.setAttribute('aria-label', 'Сейчас играет');
-  const expand = button('vision-mini-expand', 'Открыть проигрыватель', null, () => {
-    root.classList.add('vision-player-expanded');
-    updateNav();
-  });
+  const expand = button('vision-mini-expand', 'Открыть проигрыватель', null, expandPlayer);
   const miniArt = el('img', 'vision-mini-art');
   miniArt.src = 'images/studio-sunset.svg';
   miniArt.alt = '';
@@ -222,7 +282,7 @@
   root.appendChild(mobileNav);
 
   const back = button('vision-player-back', 'Вернуться к библиотеке', 'chevron-down', () => {
-    root.classList.remove('vision-player-expanded');
+    collapsePlayer();
     if (root.classList.contains('showcase-wave-only')) openHome();
     updateNav();
   });
