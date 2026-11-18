@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2343';
+const WEB_BUILD_LABEL = '2344';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -769,7 +769,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2355', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2358', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -7504,7 +7504,7 @@ if (IS_NATIVE_APP) {
 
 // Site, installed PWA and Android share the same visible update dialog.
 // A foreground refresh is only a version check; no music is interrupted.
-setTimeout(() => offerNativeUpdateOnLaunch(true).catch(() => {}), 6500);
+setTimeout(() => offerNativeUpdateOnLaunch(true).catch(() => {}), 3000);
 setInterval(() => {
     if (!document.hidden) offerNativeUpdateOnLaunch().catch(() => {});
 }, DAG_UPDATE_POLL_MS);
