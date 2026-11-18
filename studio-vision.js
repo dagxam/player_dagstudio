@@ -96,7 +96,12 @@
   const swipeHint = el('div', 'vision-swipe-hint');
   swipeHint.append(icon('arrow-left'), el('span', '', 'Листайте треки свайпом'), icon('arrow-right'));
   playingPanel?.appendChild(swipeHint);
-  document.getElementById('cover-img')?.setAttribute('draggable', 'false');
+  // Decorative cover layers must not start browser image-drag instead of swiping.
+  playingPanel?.querySelectorAll('.visual-container img').forEach(img => { img.draggable = false; });
+  playingPanel?.addEventListener('dragstart', event => {
+    if (root.classList.contains('vision-player-expanded') &&
+        event.target.closest?.('.visual-container, .track-info-display')) event.preventDefault();
+  });
 
   // Horizontal gestures work on touch devices and mouse/trackpad pointer drags.
   // Vertical scrolling and taps on controls are never interpreted as a swipe.
