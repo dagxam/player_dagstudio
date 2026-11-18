@@ -56,11 +56,11 @@ assert.equal(h.readSearchHistory()[0],'пЕсня 7');
 h.saveSearchQuery('dagxam');
 assert.equal(h.readSearchHistory().some(q=>q.toLowerCase()==='dagxam'),false,
  'Account name must not be inserted into search history');
+const previousSearchHistory = stored.get('dag_search_history');
 stored.set('dag_search_history',JSON.stringify(['dagxam','Песня 10','Песня 9']));
 assert.deepEqual(Array.from(h.readSearchHistory()),['Песня 10','Песня 9'],
  'Legacy account-name seed must be hidden without deleting real queries');
-stored.clear();
-for(let n=1;n<=10;n++)h.saveSearchQuery('Песня '+n);
+stored.set('dag_search_history',previousSearchHistory);
 h.saveSearchQuery('x');
 assert.equal(h.readSearchHistory().length,8,'Skip one-character searches');
 field.value='';
