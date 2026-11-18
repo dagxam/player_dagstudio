@@ -78,6 +78,7 @@ jobs:
           node .github/test-update-notifications.mjs
           node .github/test-local-icons.mjs
           node .github/test-source-health.mjs
+          node .github/test-fresh-mixes.mjs
           node .github/test-caucasus-catalogs.mjs
           node .github/test-official-music.mjs
 
