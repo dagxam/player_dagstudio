@@ -37,6 +37,14 @@ for(const id of ['app-update-modal','app-update-title','app-update-apply-btn',
 assert.match(html, /name="dag-build-commit" content="__DAG_BUILD_COMMIT__"/);
 assert.match(css, /#app-update-modal\.show/);
 assert.match(js, /async function offerNativeUpdateOnLaunch\(/);
+assert.match(js, /\.register\('\/sw\.js\?v=2358'/,
+ 'Service Worker must request current update shell');
+assert.match(js, /setTimeout\(\(\) => offerNativeUpdateOnLaunch\(true\)/,
+ 'Check for updates soon after startup');
+assert.match(js, /sessionStorage\.setItem\(DAG_UPDATE_DISMISS_KEY, offeredUpdate\.key\)/,
+ 'Dismiss only for the current session, reoffer on a later launch');
+assert.match(js, /if \(update\) presentAvailableAppUpdate\(update\)/,
+ 'Never prompt without a real new version');
 assert.match(js, /function findAvailableAppUpdate\(/);
 assert.match(js, /installer\.check\(\)/);
 assert.match(js, /await installer\.install\(\)/);
