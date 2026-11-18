@@ -7,8 +7,8 @@ const native=read('scripts/build-native-web.mjs');
 const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
-assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=5"/);
-assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=2"/);
+assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=6"/);
+assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=3"/);
 assert.match(sw,/dagstudio-player-shell-v2357/);
 for(const asset of [
  'studio-vision.js?v=3','studio-vision.css?v=6','images/vision-hero.svg'
