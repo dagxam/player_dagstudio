@@ -89,12 +89,11 @@
 
   // Lightweight context label above the same artwork/controls as My Wave.
   const playerHead = el('div', 'vision-now-head');
-  playerHead.append(el('span', 'vision-now-kicker', 'DAGSTUDIO PLAYER'),
-    el('strong', 'vision-now-title', 'Сейчас играет'),
-    el('small', 'vision-now-subtitle', 'Текущий трек и ваша очередь сохранены'));
+  // One subtle caption; the real track and artist provide the information.
+  playerHead.append(el('span', 'vision-now-kicker', 'СЕЙЧАС ИГРАЕТ'));
   playingPanel?.insertBefore(playerHead, playingPanel.firstChild);
   const swipeHint = el('div', 'vision-swipe-hint');
-  swipeHint.append(icon('arrow-left'), el('span', '', 'Листайте треки свайпом'), icon('arrow-right'));
+  swipeHint.append(icon('arrow-left'), el('span', '', 'Влево — следующий · вправо — предыдущий'), icon('arrow-right'));
   playingPanel?.appendChild(swipeHint);
   // Decorative cover layers must not start browser image-drag instead of swiping.
   playingPanel?.querySelectorAll('.visual-container img').forEach(img => { img.draggable = false; });
@@ -312,7 +311,9 @@
   const mini = el('div', 'vision-mini-player');
   mini.id = 'vision-mini-player';
   mini.setAttribute('aria-label', 'Сейчас играет');
-  const expand = button('vision-mini-expand', 'Открыть проигрыватель', null, expandPlayer);
+  // The compact bar shows the current song; only the header brand opens fullscreen.
+  const expand = el('div', 'vision-mini-expand');
+  expand.setAttribute('aria-label', 'Текущий трек');
   const miniArt = el('img', 'vision-mini-art');
   miniArt.src = 'images/studio-sunset.svg';
   miniArt.alt = '';
@@ -337,8 +338,8 @@
   const bottomItems = [
     ['home', 'Главная', 'house', openHome],
     ['wave', 'Моя волна', 'wave-square', openWave],
-    ['playlists', 'Плейлисты', 'music', () => invokeNav('playlists')],
-    ['likes', 'Нравится', 'heart', () => invokeNav('likes')],
+    ['playlists', 'Плейлисты', 'music', () => { collapsePlayer(); invokeNav('playlists'); }],
+    ['likes', 'Нравится', 'heart', () => { collapsePlayer(); invokeNav('likes'); }],
     ['menu', 'Ещё', 'bars', () => document.getElementById('showcase-menu-toggle')?.click()]
   ];
   const bottomMap = new Map();
@@ -359,8 +360,8 @@
 
   function updateNav() {
     const active = document.querySelector('#studio-navigation .showcase-nav-btn.active')?.dataset.showcase;
-    const selected = root.classList.contains('showcase-wave-only') ? 'wave'
-      : root.classList.contains('vision-player-expanded') ? 'home'
+    const selected = root.classList.contains('vision-player-expanded') ? 'current'
+      : root.classList.contains('showcase-wave-only') ? 'wave'
       : (pane.classList.contains('showcase-curated') && active === 'wave') ? 'home'
       : active;
     root.classList.toggle('vision-home-active', selected === 'home');

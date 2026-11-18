@@ -45,6 +45,8 @@ const add=(key,label,icon,fn)=>{
 };
 let showingCollection=true;
 function showCurated(){
+  // Changing sections is navigation, never an implicit fullscreen player.
+  root.classList.remove('vision-player-expanded');
   // Leaving Likes must remove its overlay before showing playlist cards.
   if(document.getElementById('studio-header-likes')?.classList.contains('active'))
     window.openStudioLikes?.();
@@ -55,6 +57,7 @@ function showCurated(){
  activate('wave');
 }
 function showList(key){
+ root.classList.remove('vision-player-expanded');
  showingCollection=false;
  if (key !== 'wave') root.classList.remove('showcase-wave-only');
  root.classList.add('showcase-mobile-list');
@@ -87,6 +90,12 @@ add('offline','Офлайн','circle-down',()=>{
 add('collections','Подборки','layer-group',()=>window.studioCenterRender?.('collections'));
 add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();window.studioSettingsPage?.();});
 nav.appendChild(menu);
+// Capture sidebar navigation before it renders playlists, likes, search or settings.
+// This only changes a CSS view; it never touches the playback engine or queue.
+nav.addEventListener('click',event=>{
+ if(event.target.closest?.('.showcase-nav-btn'))
+  root.classList.remove('vision-player-expanded');
+},true);
 menu.addEventListener('click',event=>{
  const chosen=event.target.closest('.showcase-nav-btn');
  if(!chosen || chosen.id==='showcase-settings')return;

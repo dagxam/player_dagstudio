@@ -7,11 +7,11 @@ const native=read('scripts/build-native-web.mjs');
 const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
-assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=7"/);
-assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=4"/);
-assert.match(sw,/dagstudio-player-shell-v2360/);
+assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=8"/);
+assert.match(html,/studio-center\.js\?v=8" defer><\/script>\s*<script src="studio-vision\.js\?v=5"/);
+assert.match(sw,/dagstudio-player-shell-v2361/);
 for(const asset of [
- 'studio-vision.js?v=4','studio-vision.css?v=7','images/vision-hero.svg'
+ 'studio-vision.js?v=5','studio-vision.css?v=8','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
@@ -107,5 +107,47 @@ assert.match(css,/\.vision-ui\.vision-player-expanded>\.showcase-sidebar/);
 assert.match(css,/\.vision-ui\.vision-player-expanded>\.left-col \.vision-now-head/);
 assert.match(css,/\.vision-ui \.vision-top-brand/);
 assert.match(css,/vision-swipe-dragging/);
+
+// Switching sections must close the logo-only presentation without changing audio.
+const shell = read('studio-next.js');
+assert.match(shell,/function showCurated\(\)\{\s*[\s\S]*?root\.classList\.remove\('vision-player-expanded'\)/);
+assert.match(shell,/function showList\(key\)\{\s*root\.classList\.remove\('vision-player-expanded'\)/);
+assert.match(shell,/nav\.addEventListener\('click',event=>\{/);
+assert.match(vision,/collapsePlayer\(\); invokeNav\('playlists'\)/);
+assert.match(vision,/collapsePlayer\(\); invokeNav\('likes'\)/);
+assert.match(vision,/const expand = el\('div', 'vision-mini-expand'\)/);
+assert.doesNotMatch(vision,/const expand = button\('vision-mini-expand'/);
+assert.match(css,/\.vision-ui\.vision-player-expanded>\.left-col \.showcase-sunset-art/);
+assert.match(css,/\.vision-ui\.vision-player-expanded>\.left-col \.vinyl-img img/);
+const shellStart = shell.indexOf('let showingCollection=true;');
+const shellEnd = shell.indexOf('function closeMobile(){',shellStart);
+assert.ok(shellStart > 0 && shellEnd > shellStart,'Section view-switch handlers exist');
+const shellRootClasses = new Set(['vision-player-expanded','showcase-wave-only']);
+const shellRoot = {classList:{
+ add:x=>shellRootClasses.add(x),remove:x=>shellRootClasses.delete(x),
+ contains:x=>shellRootClasses.has(x)
+}};
+const paneClasses = new Set(['showcase-curated']);
+const rightMock = {classList:{
+ add:x=>paneClasses.add(x),remove:x=>paneClasses.delete(x),
+ contains:x=>paneClasses.has(x)
+}};
+const selectedPages=[];
+const navContext={
+ root:shellRoot,right:rightMock,document:{getElementById:()=>null},
+ window:{openStudioLikes:()=>{throw Error('Navigation must not start audio')}} ,
+ activate:key=>selectedPages.push(key)
+};
+runInNewContext(shell.slice(shellStart,shellEnd)+
+ '\nglobalThis.sectionList=showList;globalThis.sectionHome=showCurated;',navContext);
+navContext.sectionList('likes');
+assert.ok(!shellRootClasses.has('vision-player-expanded'),'Likes closes full player');
+assert.ok(!shellRootClasses.has('showcase-wave-only'),'Likes reveals its real list');
+assert.ok(paneClasses.has('showcase-list'),'Likes shows song list');
+shellRootClasses.add('vision-player-expanded');
+navContext.sectionHome();
+assert.ok(!shellRootClasses.has('vision-player-expanded'),'Playlist library closes full player');
+assert.ok(paneClasses.has('showcase-curated'),'Library restores card pane');
+assert.deepEqual(selectedPages,['likes','wave']);
 
 console.log('VISION_DESKTOP_MOBILE_TABLET_TEYES_WEB_PWA_APK_PRESERVES_CONTROLLERS_OK');

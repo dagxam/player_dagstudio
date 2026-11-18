@@ -105,7 +105,7 @@ for(const name of ['dag-search-history-head','dag-search-history-row','dag-searc
 assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/studio-vision\.css\?v=\d+/);
 assert.match(html,/script\.js\?v=2346/);
-assert.match(sw,/dagstudio-player-shell-v2360/);
+assert.match(sw,/dagstudio-player-shell-v2361/);
 const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
 assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
 assert.ok(sw.includes("'/script.js?v=2346'"));
