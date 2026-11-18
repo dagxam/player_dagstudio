@@ -4,7 +4,10 @@ import {runInNewContext} from 'node:vm';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const js=read('script.js'),html=read('index.php'),css=read('studio-vision.css'),sw=read('sw.js');
 
-assert.match(html,/id="search-input"[^>]*placeholder=""[^>]*value=""/);
+assert.match(html,/id="search-input"[^>]*name="dag_music_query"[^>]*placeholder="Песня, исполнитель или плейлист"[^>]*value=""[^>]*autocomplete="off"/);
+assert.match(html,/id="search-input"[^>]*data-lpignore="true"/);
+assert.match(html,/id="auth-name"[^>]*autocomplete="username"/);
+assert.match(html,/id="auth-pass"[^>]*autocomplete="current-password"/);
 assert.doesNotMatch(html,/id="search-input"[^>]*placeholder="Исполнитель или песня"/);
 assert.match(html,/id="search-history-btn"[^>]*aria-controls="search-history"/);
 assert.match(html,/id="search-history"[^>]*aria-label="История поиска" hidden/);
@@ -27,6 +30,7 @@ function make(tag='div'){
  };
 }
 const field=make('input'),dropdown=make('div'),historyBtn=make('button');
+const delayedAutofillChecks=[];
 const ctx={
  mainSearchInput:field,searchHistoryBox:dropdown,
  SEARCH_HISTORY_KEY:'dag_search_history',
@@ -41,11 +45,22 @@ const ctx={
   removeItem:key=>stored.delete(key)
  },
  syncSearchClearButton(){},
+ window:{addEventListener(){},setTimeout:fn=>delayedAutofillChecks.push(fn)},
  performSearch:(query,save)=>performed.push([query,save])
 };
 runInNewContext(js.slice(start,end)+
- "\nglobalThis.searchTest={saveSearchQuery,readSearchHistory,showSearchHistory,closeSearchHistory};",ctx);
+ "\nglobalThis.searchTest={saveSearchQuery,readSearchHistory,showSearchHistory,closeSearchHistory,clearLegacySearchSeed};",ctx);
 const h=ctx.searchTest;
+field.value='dagxam';
+assert.equal(h.clearLegacySearchSeed(),true,'Clear auto-filled account name');
+assert.equal(field.value,'');
+field.value='dagxam';
+delayedAutofillChecks.forEach(fn=>fn());
+assert.equal(field.value,'','Late browser autofill must be removed');
+field.value='Песня';
+assert.equal(h.clearLegacySearchSeed(),false,'Do not delete real music queries');
+assert.equal(field.value,'Песня');
+field.value='';
 for(let n=1;n<=10;n++)h.saveSearchQuery('Песня '+n);
 assert.equal(h.readSearchHistory().length,8,'Last eight queries only');
 assert.equal(h.readSearchHistory()[0],'Песня 10');
@@ -99,16 +114,19 @@ const searchCode=js.slice(performStart,performEnd);
 assert.match(searchCode,/saveSearchQuery\(query\);/);
 assert.doesNotMatch(searchCode,/if \(save && searchHistoryBox\)/,'Auto-search saves too');
 assert.match(js,/setTimeout\(\(\) => \{ performSearch\(query, false\); \}, delay\)/);
+assert.match(js,/if \(clearLegacySearchSeed\(\)\) \{ clearSearchResults\(\); return; \}/);
+assert.match(js,/window\.addEventListener\('pageshow', clearLegacySearchSeed\)/);
+assert.match(js,/window\.setTimeout\(clearLegacySearchSeed, 900\)/);
 for(const name of ['dag-search-history-head','dag-search-history-row','dag-search-history-remove',
  'dag-search-history-toggle','dag-search-history[hidden]'])
  assert.ok(css.includes(name),'Missing search style '+name);
 assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/studio-vision\.css\?v=\d+/);
 assert.match(html,/script\.js\?v=2347/);
-assert.match(sw,/dagstudio-player-shell-v2362/);
+assert.match(sw,/dagstudio-player-shell-v2363/);
 const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
 assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
-assert.ok(sw.includes("'/script.js?v=2347'"));
+assert.ok(sw.includes("'/script.js?v=2348'"));
 const clean=css.replace(/\/\*[\s\S]*?\*\//g,'');
 assert.equal((clean.match(/\{/g)||[]).length,(clean.match(/\}/g)||[]).length);
 console.log('SEARCH_PREMIUM_EMPTY_INPUT_LAST_EIGHT_AUTO_HISTORY_CLEAR_ACCESSIBILITY_OK');

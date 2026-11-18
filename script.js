@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2347';
+const WEB_BUILD_LABEL = '2348';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -769,7 +769,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2362', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2363', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -5833,15 +5833,25 @@ function showSearchHistory(force = false) {
 }
 // Remove the old account-name seed, without changing legitimate user searches.
 function clearLegacySearchSeed() {
-    if (!mainSearchInput || mainSearchInput.value.trim().toLocaleLowerCase() !== 'dagxam') return;
+    if (!mainSearchInput || String(mainSearchInput.value || '').trim().toLocaleLowerCase() !== 'dagxam') return false;
+    // Browser/password-manager autofill can arrive after DOMContentLoaded.
+    // Never treat the account login as a music search.
     mainSearchInput.value = '';
+    mainSearchInput.defaultValue = '';
     syncSearchClearButton();
+    closeSearchHistory();
+    return true;
 }
 clearLegacySearchSeed();
 mainSearchInput?.addEventListener('focus', () => {
     clearLegacySearchSeed();
     showSearchHistory();
 });
+mainSearchInput?.addEventListener('change', clearLegacySearchSeed);
+window.addEventListener('pageshow', clearLegacySearchSeed);
+// Autofill often runs asynchronously after the search UI has been rendered.
+window.setTimeout(clearLegacySearchSeed, 50);
+window.setTimeout(clearLegacySearchSeed, 900);
 mainSearchInput?.addEventListener('input', closeSearchHistory);
 searchHistoryButton?.addEventListener('click', () => {
     if (searchHistoryBox && !searchHistoryBox.hidden && searchHistoryBox.style.display === 'block') {
@@ -6028,6 +6038,11 @@ function scheduleSearchEnrichment(query, requestId) {
 async function performSearch(rawQuery, save = false) {
     const query = String(rawQuery || '').trim().replace(/\s+/g, ' ');
     clearTimeout(searchTimeout);
+    if (query.toLocaleLowerCase() === 'dagxam') {
+        clearLegacySearchSeed();
+        clearSearchResults();
+        return;
+    }
     if (!query) { clearSearchResults(); return; }
     clearTimeout(searchEnrichmentTimer);
     const requestId = ++searchRequestSerial;
@@ -6152,13 +6167,18 @@ if(mainSearchInput) {
         clearTimeout(searchEnrichmentTimer);
         // An in-flight answer must not overwrite what the user is typing.
         searchRequestSerial++;
+        if (clearLegacySearchSeed()) { clearSearchResults(); return; }
         const query = e.target.value;
         if (!query.trim()) { clearSearchResults(); return; }
         const delay = getNetworkProfile().weak ? 460 : 240;
         searchTimeout = setTimeout(() => { performSearch(query, false); }, delay);
     });
     mainSearchInput.addEventListener('keydown', (e) => { 
-        if(e.key === 'Enter') { clearTimeout(searchTimeout); performSearch(e.target.value, true); } 
+        if(e.key === 'Enter') {
+            clearTimeout(searchTimeout);
+            if (clearLegacySearchSeed()) { e.preventDefault(); return; }
+            performSearch(e.target.value, true);
+        } 
     });
 }
 

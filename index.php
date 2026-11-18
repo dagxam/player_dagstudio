@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=23">
     <link rel="stylesheet" href="studio-touch.css?v=12">
-    <link rel="stylesheet" href="studio-vision.css?v=9">
+    <link rel="stylesheet" href="studio-vision.css?v=10">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>(function(){var done=false;function reveal(){if(done)return;done=true;document.documentElement.classList.remove('studio-booting');}window.addEventListener('dag-ui-ready',reveal,{once:true});document.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#studio-navigation'))reveal();});setTimeout(reveal,3500);})();</script>
 </head>
@@ -115,7 +115,7 @@
             <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>По всем доступным источникам</small></div>
             <div class="dag-search-field">
                 <i class="fas fa-magnifying-glass dag-search-glass" aria-hidden="true"></i>
-                <input type="search" id="search-input" class="search-input" placeholder="" value="" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Поиск трека или исполнителя" aria-controls="search-history">
+                <input type="search" id="search-input" class="search-input" name="dag_music_query" placeholder="Песня, исполнитель или плейлист" value="" autocomplete="off" data-lpignore="true" data-1p-ignore="true" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Поиск трека или исполнителя" aria-controls="search-history">
                 <button type="button" id="search-clear-btn" class="dag-search-clear" aria-label="Очистить поиск" hidden><i class="fas fa-xmark" aria-hidden="true"></i></button>
                 <button type="button" id="search-history-btn" class="dag-search-history-toggle" title="Последние запросы" aria-label="Показать последние 8 запросов" aria-controls="search-history" aria-expanded="false"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></button>
             </div>
@@ -231,8 +231,8 @@
                 <div id="auth-section">
             <h3 class="modal-title" id="auth-title">ВХОД</h3>
             <div class="auth-form">
-                <div class="auth-group"><input type="text" id="auth-name" class="auth-input" placeholder="Ваш логин"><i class="fas fa-user auth-icon"></i></div>
-                <div class="auth-group"><input type="password" id="auth-pass" class="auth-input" placeholder="Ваш пароль"><i class="fas fa-lock auth-icon"></i></div>
+                <div class="auth-group"><input type="text" id="auth-name" name="username" autocomplete="username" class="auth-input" placeholder="Ваш логин"><i class="fas fa-user auth-icon"></i></div>
+                <div class="auth-group"><input type="password" id="auth-pass" name="password" autocomplete="current-password" class="auth-input" placeholder="Ваш пароль"><i class="fas fa-lock auth-icon"></i></div>
                 <button id="auth-submit-btn" class="modal-btn btn-primary" onclick="handleAuth()">ВОЙТИ</button>
                 <div class="auth-toggle" onclick="toggleAuthMode()">Нет аккаунта? Зарегистрироваться</div>
             </div>
@@ -476,7 +476,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2347" defer></script>
+<script src="script.js?v=2348" defer></script>
 <script src="studio.js?v=5" defer></script>
 <script src="studio-next.js?v=18" defer></script>
 <script src="studio-center.js?v=7" defer></script>
