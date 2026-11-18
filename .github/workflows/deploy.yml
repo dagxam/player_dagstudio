@@ -368,6 +368,7 @@ jobs:
         run: |
           echo "FTP deployment is prepared but disabled until repository secrets are added."
           echo "Required: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD and FTP_SERVER_DIR."
+          exit 1 # A green CI run must never imply deployment without FTP credentials.
 
       - name: Verify APK download link serves a real attachment
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
