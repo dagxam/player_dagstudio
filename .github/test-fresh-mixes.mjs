@@ -28,6 +28,15 @@ assert.notEqual(sorted[0].artist,sorted[1].artist,
  'Within the newest year, different performers should alternate');
 assert.equal(JSON.stringify(Array.from(sorted.slice(3),t=>t.artist)),JSON.stringify(['В','Г','Д']),
  'Strict descending year order; unverified songs last');
+const strictDay = ctx.quickMixRankTracks([
+ song('А','Вчера','2026-11-17',101),
+ song('Б','Январь','2026-01-12',102),
+ song('А','Позавчера','2026-11-16',103),
+ song('В','Без даты',null,104)
+],{mode:'popular'});
+assert.deepEqual(Array.from(strictDay,t=>t.title),
+ ['Вчера','Позавчера','Январь','Без даты'],
+ 'Verified release day must outrank older songs of the same year; undated last');
 assert.ok(sorted.slice(0,5).every(t=>t._releaseVerified===true));
 assert.equal(sorted[5]._releaseVerified,false,
  'A year written in the track title must not become release metadata');

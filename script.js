@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2348';
+const WEB_BUILD_LABEL = '2349';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -769,7 +769,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2363', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2364', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -6308,15 +6308,16 @@ function quickMixRankTracks(tracks,config) {
     if(config?.mode==='classic')return quickMixDiversify(ranked.sort(scoreOrder).map(e=>e.track));
     const dated=ranked.filter(e=>e.year>0);
     const undated=ranked.filter(e=>!e.released).sort(scoreOrder);
-    // Strict chronology by REAL calendar year: 2026 before 2025, then 2024...
-    // Only within the same year do we alternate artists to avoid repeated
-    // blocks from one singer. Unknown release dates always follow dated music.
-    const years=[...new Set(dated.map(e=>e.year))].sort((a,b)=>b-a);
-    const verifiedByYear=years.flatMap(year=>quickMixDiversify(
-        dated.filter(e=>e.year===year).sort(dateOrder)
+    // Strict real RELEASE DATE chronology (day, month and year).
+    // Diversify performers only among tracks with the same published date.
+    // Never float an older release above a newer one just to alternate artists.
+    // Unverified tracks follow all dated releases: search words are not dates.
+    const dates=[...new Set(dated.map(e=>e.released))].sort((a,b)=>b-a);
+    const verifiedByDate=dates.flatMap(date=>quickMixDiversify(
+        dated.filter(e=>e.released===date).sort(scoreOrder)
             .map(e=>({...e.track,_releaseVerified:true}))
     ));
-    return [...verifiedByYear,
+    return [...verifiedByDate,
         ...quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})))];
 }
 function quickMixDiversify(ordered){

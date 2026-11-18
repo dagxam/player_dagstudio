@@ -51,7 +51,7 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path('/tmp/source-health.json').read_text())
-          expected = ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca','jamendo']
+          expected = ['audius','vk_mail','hitmoz','hitmos','muzo','zvooq','muzvox','muzca','jamendo']
 
           assert data.get('success') is True, data
           sources = data.get('sources') or {}
@@ -68,10 +68,11 @@ jobs:
                   name,
                   "ok="+str(bool(info.get("ok"))).lower(),
                   "http="+str(info.get("http", 0)),
+                  "configured="+str(info.get("configured","not_specified")),
                   "count="+str(counts.get({
                       'audius':'[AUDIUS]',
                       'vk_mail':'[VK]',
-                      'hitmoz':'[HITMOZ]',
+                      'hitmoz':'[HITMOZ]', 'hitmos':'[HITMOS]',
                       'muzo':'[MUZOFOND]',
                       'zvooq':'[ZVOOQ]',
                       'muzvox':'[MUZVOX]',
@@ -99,13 +100,14 @@ jobs:
           items=data.get('data') or []
           print('LIVE_SEARCH_COUNT',len(items))
           counts=data.get('source_counts') or {}
-          names={'audius':'[AUDIUS]','vk_mail':'[VK]','hitmoz':'[HITMOZ]',
+          names={'audius':'[AUDIUS]','vk_mail':'[VK]','hitmoz':'[HITMOZ]', 'hitmos':'[HITMOS]',
                  'muzo':'[MUZOFOND]','zvooq':'[ZVOOQ]',
                  'muzvox':'[MUZVOX]','muzca':'[MUZCA]',
                  'jamendo':'[JAMENDO]'}
           for k,v in (data.get('sources') or {}).items():
               print('LIVE_SOURCE',k,'ok='+str(bool(v.get('ok'))).lower(),
                     'http='+str(v.get('http',0)),
+                    'configured='+str(v.get('configured','not_specified')),
                     'matching_tracks='+str(counts.get(names.get(k,''),0)),
                     'audio_verified=false')
           matching={key:int(counts.get(source,0) or 0) for key,source in names.items()}
@@ -127,6 +129,60 @@ jobs:
           print('LIVE_OTA_VERSION',data['version'])
           PY
 
+
+      - name: Probe Hitmos website and targeted Russian / Caucasian discovery
+        run: |
+          python - <<'PY'
+          import json,urllib.request,urllib.error
+          urls=['https://hitmos.fm/','https://rus.hitmos.fm/']
+          for url in urls:
+              req=urllib.request.Request(url,headers={
+                  'User-Agent':'DAGSTUDIO-PLAYER-source-health/1.0',
+                  'Accept':'text/html'})
+              try:
+                  with urllib.request.urlopen(req,timeout=12) as response:
+                      print('HITMOS_WEB_HTTP',response.status,
+                            'final_url='+response.url,
+                            'NOTE=Website_access_does_not_prove_API_or_stream_access')
+              except urllib.error.HTTPError as error:
+                  print('HITMOS_WEB_HTTP',error.code,'url='+url,
+                        'NOTE=No_authorized_API_confirmed')
+              except Exception as error:
+                  print('HITMOS_WEB_ERROR',url,type(error).__name__,str(error)[:100])
+          probes=['русские песни новинки','кавказские песни новинки',
+                  'Мика Рамазанова','Ислам Айдаров']
+          for query in probes:
+              payload=json.dumps({
+                  'action':'search_global','query':query,'page':1,
+                  'mode':'fast','network':'weak'
+              },ensure_ascii=False).encode('utf-8')
+              req=urllib.request.Request('https://pl.dagstudio.ru/api.php',
+                  data=payload,headers={'Content-Type':'application/json',
+                      'Accept':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=28) as response:
+                      data=json.load(response)
+                  if data.get('success') is not True:
+                      print('FOCUSED_DISCOVERY_ERROR',query,'invalid_response')
+                      continue
+                  counts=data.get('source_counts') or {}
+                  matches={key:value for key,value in counts.items()
+                           if int(value or 0)>0}
+                  print('FOCUSED_DISCOVERY',json.dumps({
+                      'query':query,'tracks':len(data.get('data') or []),
+                      'matching_sources':matches,
+                      'sources':{key:{
+                          'http':item.get('http',0),
+                          'configured':item.get('configured','not_specified'),
+                          'ok':bool(item.get('ok'))}
+                          for key,item in (data.get('sources') or {}).items()}
+                  },ensure_ascii=False))
+                  if not matches:
+                      print('WARNING_NO_VERIFIED_TRACK_MATCH',query)
+              except Exception as error:
+                  print('FOCUSED_DISCOVERY_ERROR',query,type(error).__name__,
+                        str(error)[:120])
+          PY
 
       - name: Verify official Audius latest and trending JSON on production
         run: |
@@ -166,7 +222,7 @@ jobs:
               tag=str(item.get('source','')).upper()
               if item.get('url') and tag and tag not in groups:
                   groups[tag]=item
-          labels=['[AUDIUS]','[VK]','[HITMOZ]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]']
+          labels=['[AUDIUS]','[VK]','[HITMOZ]','[HITMOS]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]']
           def probe(label):
               t=groups.get(label)
               if not t:return (label,'NO_MATCHING_SEARCH_RESULT')
