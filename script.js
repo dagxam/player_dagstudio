@@ -6347,12 +6347,24 @@ function startCaucasusRadio(regionId) {
     if(regionId==='all')return startQuickMix('caucasus');
     const region=config.regions.find(item=>item.id===regionId);
     if(!region)return;
-    QUICK_MIXES.caucasus_selected={title:region.label,mode:'popular',regions:[region]};
+    QUICK_MIXES.caucasus_selected={title:region.label,mode:'popular',
+        // Search several singers from this republic in parallel, not one.
+        splitRegionQueries:true,regions:[region]};
     startQuickMix('caucasus_selected');
 }
 function quickMixSearchPlan(config) {
     if (Array.isArray(config?.regions)) {
-        // Every republic is searched; within each, genres before names.
+        if(config.splitRegionQueries){
+            // A listener who selected one republic should still hear
+            // multiple performers. Parallelize its category and artist seeds.
+            return config.regions.flatMap(region=>[...new Set(region.queries)]
+                .map((query,i)=>({
+                    region:region.label,queries:[query],
+                    id:region.id+':'+i,kind:i<2?'theme':'artist'
+                })));
+        }
+        // The all-Caucasus mix searches each republic instead of repeating
+        // the first region for an entire initial batch.
         return config.regions.map(region=>({
             region:region.label,queries:[...new Set(region.queries)],id:region.id
         }));
