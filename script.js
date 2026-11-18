@@ -6155,9 +6155,9 @@ if(mainSearchInput) {
 
 const QUICK_MIXES={
     charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
-        queries:['новинки музыки',`новинки 2026`,'new releases','new music'],
+        queries:['новинки музыки','новинки '+new Date().getFullYear(),'new releases','new music'],
         artists:['Zivert','Баста','Miyagi','The Weeknd','Dua Lipa',
-          `новинки 2026`,'new music releases',
+          'новинки '+new Date().getFullYear(),'new music releases',
           'новые песни','latest songs','новинки России','new pop music',
           'Кавказские новинки','новая музыка','new hip hop','new rock music',
           'Султан Лагучев','Мурат Тхагалегов','Эльмира Магомедова',
@@ -6166,7 +6166,7 @@ const QUICK_MIXES={
         // Genre-based searches make the catalogue less dependent on a fixed
         // set of performers. A year in a search is not a verified release date.
         queries:['русские песни новинки','новые русские песни','русская музыка',
-          'русский поп','русские хиты',`русские песни 2026`],
+          'русский поп','русские хиты','русские песни '+new Date().getFullYear()],
         artists:['Zivert','Баста','Мот','Мияги','Егор Крид','Полина Гагарина',
           'Дима Билан','Ани Лорак','JONY','Хабиб','Макс Корж','Клава Кока',
           'Нюша','Мари Краймбрери','Сергей Лазарев','Ева Польна']},
@@ -6259,31 +6259,28 @@ function quickMixRank(track,config,sourcePosition=0,now=Date.now()) {
     return popularity+recent+relevance;
 }
 function quickMixRankTracks(tracks,config) {
-    const now=Date.now();
-    const ranked=(tracks||[]).map((track,index)=>({
-        track,index,score:quickMixRank(track,config,index,now),
-        fresh:!!quickMixReleaseTimestamp(track)&&now-quickMixReleaseTimestamp(track)<=365*86400000
-    })).sort((a,b)=>b.score-a.score||a.index-b.index);
-    if(config?.mode==='recent'){
-        // Prefer genuinely dated recent releases; do not invent dates for
-        // other providers, and don't silently discard older dated results.
-        const verified=ranked.filter(e=>e.fresh)
-            .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track) ||
-                  b.score-a.score).map(e=>({...e.track,_releaseVerified:true}));
-        const older=ranked.filter(e=>!e.fresh&&quickMixReleaseTimestamp(e.track))
-            .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track))
-            .map(e=>({...e.track,_releaseVerified:true}));
-        const unknown=ranked.filter(e=>!quickMixReleaseTimestamp(e.track))
-            .map(e=>({...e.track,_releaseVerified:false}));
-        return [...quickMixDiversify(verified),...quickMixDiversify(older),...quickMixDiversify(unknown)];
-    }
-    if(config?.mode==='classic')return quickMixDiversify(ranked.map(e=>e.track));
-    // New releases first; other songs follow only when dated releases end.
-    const fresh=ranked.filter(e=>e.fresh)
-        .sort((a,b)=>quickMixReleaseTimestamp(b.track)-quickMixReleaseTimestamp(a.track)||
-            b.score-a.score).map(e=>e.track);
-    const other=ranked.filter(e=>!e.fresh).map(e=>e.track);
-    return [...quickMixDiversify(fresh),...quickMixDiversify(other)];
+    const now=Date.now(),currentYear=new Date(now).getUTCFullYear();
+    const ranked=(tracks||[]).map((track,index)=>{
+        const released=quickMixReleaseTimestamp(track);
+        return {track,index,released,year:released?new Date(released).getUTCFullYear():0,
+            score:quickMixRank(track,config,index,now)};
+    });
+    const scoreOrder=(a,b)=>b.score-a.score||a.index-b.index;
+    const dateOrder=(a,b)=>b.released-a.released||scoreOrder(a,b);
+    // Keep classics as classics. For all other categories: verified releases
+    // from this and the previous calendar year first (newest dated tracks first),
+    // then older dated music, and undated results as a transparent fallback.
+    // Search terms containing a year never prove a release date.
+    if(config?.mode==='classic')return quickMixDiversify(ranked.sort(scoreOrder).map(e=>e.track));
+    const recent=ranked.filter(e=>e.year>=currentYear-1).sort(dateOrder);
+    const older=ranked.filter(e=>e.year>0&&e.year<currentYear-1).sort(dateOrder);
+    const undated=ranked.filter(e=>!e.released).sort(scoreOrder);
+    const verified=entries=>entries.map(e=>({...e.track,_releaseVerified:true}));
+    return [
+        ...quickMixDiversify(verified(recent)),
+        ...quickMixDiversify(verified(older)),
+        ...quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})))
+    ];
 }
 function quickMixDiversify(ordered){
     const buckets=new Map(),result=[];
@@ -6352,12 +6349,25 @@ function startCaucasusRadio(regionId) {
 }
 function quickMixSearchPlan(config) {
     if (Array.isArray(config?.regions)) {
+        // Every republic is searched; within each, genres before names.
         return config.regions.map(region=>({
-            region:region.label,queries:[...region.queries],
-            id:region.id
+            region:region.label,queries:[...new Set(region.queries)],id:region.id
         }));
     }
-    return (config?.artists||[]).map(artist=>({region:'',queries:[artist],id:artist}));
+    const themes=(config?.queries||[]).map((query,i)=>({
+        region:'',queries:[query],id:'topic:'+i,kind:'theme'
+    }));
+    const artists=(config?.artists||[]).map((artist,i)=>({
+        region:'',queries:[artist],id:'artist:'+i,kind:'artist'
+    }));
+    // Alternate theme discovery with distinct artist queries so a category
+    // isn't limited to the six first performers from the old list.
+    const plan=[];
+    for(let i=0;i<Math.max(themes.length,artists.length);i++){
+        if(themes[i])plan.push(themes[i]);
+        if(artists[i])plan.push(artists[i]);
+    }
+    return plan;
 }
 function quickMixSpreadSources(tracks,limit=8) {
     const buckets=new Map();
@@ -6366,6 +6376,9 @@ function quickMixSpreadSources(tracks,limit=8) {
         if(!buckets.has(source))buckets.set(source,[]);
         buckets.get(source).push(track);
     }
+    // Balance artists within a provider before truncation. This also works
+    // when Muzofond is the only source that answered.
+    for(const [source,tracks] of buckets) buckets.set(source,quickMixDiversify(tracks));
     const result=[];
     while(result.length<limit) {
         let added=false;
