@@ -5738,7 +5738,7 @@ function readSearchHistory() {
         return stored.map(value => String(value || '').trim().replace(/\s+/g, ' '))
             .filter(value => {
                 const key = value.toLocaleLowerCase();
-                if (value.length < 2 || value.length > 120 || seen.has(key)) return false;
+                if (key === 'dagxam' || value.length < 2 || value.length > 120 || seen.has(key)) return false;
                 seen.add(key);
                 return true;
             }).slice(0, SEARCH_HISTORY_MAX);
@@ -5757,7 +5757,7 @@ function writeSearchHistory(history) {
 }
 function saveSearchQuery(query) {
     const text = String(query || '').trim().replace(/\s+/g, ' ');
-    if (text.length < 2 || text.length > 120) return;
+    if (text.toLocaleLowerCase() === 'dagxam' || text.length < 2 || text.length > 120) return;
     const key = text.toLocaleLowerCase();
     const history = readSearchHistory().filter(value => value.toLocaleLowerCase() !== key);
     writeSearchHistory([text, ...history]);
@@ -5831,7 +5831,17 @@ function showSearchHistory(force = false) {
     searchHistoryBox.style.display = 'block';
     searchHistoryButton?.setAttribute('aria-expanded', 'true');
 }
-mainSearchInput?.addEventListener('focus', () => showSearchHistory());
+// Remove the old account-name seed, without changing legitimate user searches.
+function clearLegacySearchSeed() {
+    if (!mainSearchInput || mainSearchInput.value.trim().toLocaleLowerCase() !== 'dagxam') return;
+    mainSearchInput.value = '';
+    syncSearchClearButton();
+}
+clearLegacySearchSeed();
+mainSearchInput?.addEventListener('focus', () => {
+    clearLegacySearchSeed();
+    showSearchHistory();
+});
 mainSearchInput?.addEventListener('input', closeSearchHistory);
 searchHistoryButton?.addEventListener('click', () => {
     if (searchHistoryBox && !searchHistoryBox.hidden && searchHistoryBox.style.display === 'block') {
