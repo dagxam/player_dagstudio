@@ -6565,109 +6565,88 @@ async function startQuickMix(key) {
         setQuickMixStatus('Локальная «Моя волна» · '+waveTracks.length+' сохранённых песен');
         return;
     }
-    const batchSize=key==='charts'?5:(getNetworkProfile().weak?1:2);
-    const plan=quickMixSearchPlan(config);
-    // Publish chart songs as soon as ONE search returns. A slow provider/query
-    // must not hold the entire first page blank until Promise.all completes.
-    function publishChartResults(item,tracks){
-        if(key!=='charts'||requestId!==quickMixRequestId||!tracks?.length)return;
-        const newTracks=quickMixSpreadSources(
-            quickMixUnique(tracks,quickMixCurrent.tracks),3);
-        if(!newTracks.length)return;
-        quickMixCurrent.tracks.push(...newTracks);
+    // Three parallel directions on normal networks; two on weak mobile/CC3.
+    // A query's first fast result is painted immediately instead of waiting
+    // for every region/performer in the batch to complete.
+    const batchSize=key==='charts'?4:(getNetworkProfile().weak?2:3);
+    const allDirections=quickMixSearchPlan(config);
+    const initialLimit=config.regions?16:key==='charts'?12:10;
+    const plan=allDirections.slice(0,initialLimit);
+    function publishMixResults(item,tracks) {
+        if(requestId!==quickMixRequestId||!tracks?.length)return;
+        const fresh=quickMixUnique(tracks,quickMixCurrent.tracks);
+        const next=quickMixSpreadSources(fresh,config.regions?3:3);
+        if(!next.length)return;
+        quickMixCurrent.tracks.push(...next);
         quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
-        if(playbackTab==='mix:charts'&&playbackWanted){
-            const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
-            playbackPlaylist.push(...newTracks.filter(t=>!known.has(canonicalTrackUrl(t))));
-        }
+        if(item.region)quickMixCurrent.searchedRegions.add(item.region);
+        const first=!started;
         started=true;
-        if(currentTab==='mix:charts'){
-            playlist=quickMixCurrent.tracks;renderPlaylist();
+        if(playbackTab==='mix:'+key&&playbackWanted){
+            const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
+            playbackPlaylist.push(...next.filter(t=>!known.has(canonicalTrackUrl(t))));
         }
-        setQuickMixStatus('Найдено '+quickMixCurrent.tracks.length+
-            ' композиций · проверяем другие источники'+quickMixSourcesCaption(quickMixCurrent));
+        if(currentTab==='mix:'+key){
+            playlist=quickMixCurrent.tracks;
+            if(first){
+                renderQuickMixView();
+                if(config.autoPlayOnDiscover!==false)playTrack(0);
+                renderQuickMixButtons();
+            }else renderPlaylist();
+        }
+        const dates=quickMixCurrent.tracks.filter(track=>track._releaseVerified).length;
+        setQuickMixStatus('Найдено '+quickMixCurrent.tracks.length+' треков'+
+            (dates?' · с датой выпуска: '+dates:' · даты выпуска уточняются')+
+            (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
+            quickMixSourcesCaption(quickMixCurrent));
     }
     for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;
         const batch=plan.slice(offset,offset+batchSize);
         const results=await Promise.all(batch.map(async item=>{
-            // A fallback spelling/performer is tried only when the earlier
-            // query returned no tracks. Each attempt still fans out to every
-            // configured music provider in search_global.
-            for(const query of item.queries) {
+            // A fast first pass caps the server waiting time. If it has no
+            // matches, retry with the regular provider budget; a region may
+            // then fall back from its broad name to a specific singer.
+            for(let index=0;index<item.queries.length;index++){
+                const query=item.queries[index];
                 if(requestId!==quickMixRequestId)return [];
-                try {
-                    const net=getNetworkProfile();
-                    const response=await api('search_global',{
-                        query,page:1,network:net.weak?'weak':'normal',
-                        save_data:net.saveData?1:0
-                    });
-                    if(requestId!==quickMixRequestId)return [];
-                    if(response?.sources&&typeof response.sources==='object') {
-                        for(const [server,status] of Object.entries(response.sources)) {
-                            quickMixCurrent.checkedSources.add(server);
-                            if(status?.ok)quickMixCurrent.activeSources.add(server);
+                const modes=index===0?['fast',...(item.queries.length===1?['full']:[])]:['full'];
+                for(const mode of modes){
+                    try{
+                        const net=getNetworkProfile();
+                        const response=await api('search_global',{
+                            query,page:1,mode,network:net.weak?'weak':'normal',
+                            save_data:net.saveData?1:0
+                        });
+                        if(requestId!==quickMixRequestId)return [];
+                        if(response?.sources&&typeof response.sources==='object'){
+                            for(const [server,status] of Object.entries(response.sources)){
+                                quickMixCurrent.checkedSources.add(server);
+                                if(status?.ok)quickMixCurrent.activeSources.add(server);
+                            }
                         }
-                    }
-                    if(response?.success&&Array.isArray(response.data)&&response.data.length) {
-                        quickMixCurrent.pageNumbers.set(query,1);
-                        const usable=quickMixUnique(response.data);
-                        if(usable.length){
-                    const ranked=quickMixRankTracks(usable,config);
-                    if(ranked.length){
-                        const found=ranked.map(track=>({...track,_mixRegion:item.region,
-                            _mixSearchQuery:query}));
-                        publishChartResults(item,found);
-                        return found;
-                    }
+                        if(response?.success&&Array.isArray(response.data)&&response.data.length){
+                            const ranked=quickMixRankTracks(quickMixUnique(response.data),config);
+                            if(ranked.length){
+                                quickMixCurrent.pageNumbers.set(query,1);
+                                const found=ranked.map(track=>({...track,
+                                    _mixRegion:item.region,_mixSearchQuery:query}));
+                                publishMixResults(item,found);
+                                return found;
+                            }
+                        }
+                    }catch(error){recordPlayerEvent('quick-mix-search-error');}
                 }
-                    }
-                } catch(error) {recordPlayerEvent('quick-mix-search-error');}
             }
             return [];
         }));
         if(requestId!==quickMixRequestId)return;
-        if(key==='charts')continue; // Already rendered each completed chart search.
-        // Cap each direction so one language or one republic cannot
-        // monopolize the Caucasian playlist before others are searched.
-        const next=[];
-        for(let i=0;i<batch.length;i++){
-            const item=batch[i];
-            const fresh=quickMixUnique(results[i],[...quickMixCurrent.tracks,...next]);
-            const spread=quickMixSpreadSources(fresh,config.regions?4:3);
-            if(spread.length){
-                next.push(...spread);
-                if(item.region)quickMixCurrent.searchedRegions.add(item.region);
-            }
-        }
-        if(!next.length) {
-            if(config.regions)setQuickMixStatus('Ищем песни других республик…'+
-                quickMixSourcesCaption(quickMixCurrent));
-            continue;
-        }
-        quickMixCurrent.tracks.push(...next);
-        quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
-        if(!started) {
-            started=true;
-            currentTab='mix:'+key;
-            playlist=quickMixCurrent.tracks;
-            renderQuickMixView();
-            if(config.autoPlayOnDiscover!==false)playTrack(0);
-            renderQuickMixButtons();
-        } else {
-            if(key!=='wave' && playbackTab==='mix:'+key&&playbackWanted) {
-                const urls=new Set(playbackPlaylist.map(t=>t.url));
-                playbackPlaylist.push(...next.filter(t=>!urls.has(t.url)));
-            }
-            if(currentTab==='mix:'+key) {
-                playlist=quickMixCurrent.tracks;
-                renderPlaylist();
-            }
-        }
-        setQuickMixStatus('Найдено '+quickMixCurrent.tracks.length+' треков'+
-            (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
-            quickMixSourcesCaption(quickMixCurrent));
+        if(config.regions&&!results.some(tracks=>tracks.length)&&!started)
+            setQuickMixStatus('Ищем песни разных республик…'+quickMixSourcesCaption(quickMixCurrent));
     }
+    // The initial page is deliberately bounded. Remaining directions, newer
+    // search pages and different performers load when the listener scrolls.
+    quickMixCurrent.nextDirection=plan.length%Math.max(1,allDirections.length);
     if(requestId!==quickMixRequestId)return;
     quickMixCurrent.loading=false;
     renderQuickMixButtons();
