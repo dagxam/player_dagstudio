@@ -79,8 +79,8 @@ const playAssign=src.indexOf('        mainAudio.src = finalUrl;',playStart);
 assert.ok(playStart>0&&playAssign>playStart);
 assert.doesNotMatch(src.slice(playStart,playAssign),
   /mainAudio\.removeAttribute\('src'\);\s*mainAudio\.load\(\);/);
-assert.match(html,/script\.js\?v=2340/);
-assert.match(sw,/script\.js\?v=2340/);
+assert.match(html,/script\.js\?v=2341/);
+assert.match(sw,/script\.js\?v=2341/);
 const sidebarEntries=[...shell.matchAll(/^add\('([^']+)','([^']+)'/gm)]
   .map(([,key,label])=>[key,label]);
 assert.deepEqual(sidebarEntries,[
