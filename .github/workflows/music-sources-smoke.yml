@@ -104,6 +104,8 @@ jobs:
                       obj=json.load(res)
                       print('OPENVERSE_DIRECT',json.dumps({
                           'query':query,'http':res.status,
+                          'response_keys':sorted(obj.keys()),
+                          'detail':str(obj.get('detail',''))[:100],
                           'total':obj.get('result_count',0),
                           'returned':len(obj.get('results') or []),
                           'licensed_wikimedia_audio':sum(

@@ -37,7 +37,7 @@ for(const id of ['app-update-modal','app-update-title','app-update-apply-btn',
 assert.match(html, /name="dag-build-commit" content="__DAG_BUILD_COMMIT__"/);
 assert.match(css, /#app-update-modal\.show/);
 assert.match(js, /async function offerNativeUpdateOnLaunch\(/);
-assert.match(js, /\.register\('\/sw\.js\?v=2366'/,
+assert.match(js, /\.register\('\/sw\.js\?v=2367'/,
  'Service Worker must request current update shell');
 assert.match(js, /setTimeout\(\(\) => offerNativeUpdateOnLaunch\(true\)/,
  'Check for updates soon after startup');
