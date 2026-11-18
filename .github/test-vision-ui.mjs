@@ -7,11 +7,11 @@ const native=read('scripts/build-native-web.mjs');
 const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
-assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=8"/);
-assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=5"/);
-assert.match(sw,/dagstudio-player-shell-v2361/);
+assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=9"/);
+assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=6"/);
+assert.match(sw,/dagstudio-player-shell-v2362/);
 for(const asset of [
- 'studio-vision.js?v=5','studio-vision.css?v=8','images/vision-hero.svg'
+ 'studio-vision.js?v=6','studio-vision.css?v=9','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
@@ -149,5 +149,38 @@ navContext.sectionHome();
 assert.ok(!shellRootClasses.has('vision-player-expanded'),'Playlist library closes full player');
 assert.ok(paneClasses.has('showcase-curated'),'Library restores card pane');
 assert.deepEqual(selectedPages,['likes','wave']);
+
+// Visualizer preferences are sanitized and do not inject another audio pipeline.
+const currentHTML = html;
+for(const id of ['mode','intensity','color','quality']){
+ assert.match(currentHTML,new RegExp('id="vision-viz-'+id+'"'));
+ assert.match(vision,new RegExp('vision-viz-'+id));
+}
+assert.match(vision,/const VISUALIZER_KEY = 'dag_visualizer_settings_v1'/);
+assert.match(vision,/visualizerSettings=normalizeVisualizerSettings/);
+assert.match(vision,/localStorage\.setItem\(VISUALIZER_KEY,JSON\.stringify\(visualizerSettings\)\)/);
+assert.doesNotMatch(vision,/createMediaElementSource|new AudioContext|\.playTrack\(|new Audio\s*\(/);
+const vizModes=['bars','wave','circle','pulse','particles','off'];
+for(const mode of vizModes){
+ assert.ok(currentHTML.includes('value="'+mode+'"'),'Setting offers '+mode);
+ if(mode!=='off')assert.ok(vision.includes("mode==='"+mode+"'"),'Visualizer draws '+mode);
+}
+assert.match(css,/\.vision-ui\.vision-player-expanded\.vision-viz-visible>\.left-col \.vinyl-wrapper\{display:none!important\}/);
+assert.match(css,/#menu-modal \.vision-viz-settings-grid/);
+const normalizeStart=vision.indexOf('  const VISUALIZER_OPTIONS = {');
+const normalizeEnd=vision.indexOf('  let visualizerSettings = visualizerDefaults;',normalizeStart);
+assert.ok(normalizeStart>0 && normalizeEnd>normalizeStart);
+const optionsContext={};
+runInNewContext(vision.slice(normalizeStart,normalizeEnd)+
+ '\nglobalThis.cleanVisualSettings=normalizeVisualizerSettings;',optionsContext);
+const defaults=optionsContext.cleanVisualSettings(null);
+assert.equal(defaults.mode,'bars');
+assert.equal(defaults.quality,'auto');
+assert.equal(optionsContext.cleanVisualSettings({mode:'particles',color:'ocean'}).mode,'particles');
+assert.equal(optionsContext.cleanVisualSettings({mode:'__invalid__'}).mode,'bars');
+assert.equal(optionsContext.cleanVisualSettings({quality:'off'}).quality,'off');
+assert.match(vision,/document\.addEventListener\('visibilitychange',refreshVisualizer/);
+assert.match(vision,/visualizerAudio\.paused/);
+assert.match(vision,/visualizerFrameRate\(\)/);
 
 console.log('VISION_DESKTOP_MOBILE_TABLET_TEYES_WEB_PWA_APK_PRESERVES_CONTROLLERS_OK');
