@@ -58,7 +58,7 @@ const mixing={quickMixCurrent:state,quickMixRequestId:1,currentTab:'mix:charts',
 runInNewContext(extract('async function loadMoreQuickMix() {','// --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---'),mixing);
 await mixing.loadMoreQuickMix();
 assert.equal(calls.length,1,'expired chart paging must restart search');
-assert.equal(calls[0].page,2,'old page limits must be reset');
+assert.equal(calls[0].page,1,'refreshed charts must restart at the first page');
 assert.equal(state.tracks.length,2,'refreshed charts append discoveries');
 assert.ok(Date.now()-state.lastRefreshAt<5000,'refreshed charts can be retried after cooldown');
 state.exhausted=true;
