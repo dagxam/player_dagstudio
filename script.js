@@ -6686,11 +6686,12 @@ async function loadMoreQuickMix() {
     const config=QUICK_MIXES[state.key];
     const directions=quickMixSearchPlan(config);
     const offset=Number(state.nextDirection||0);
-    const picks=[];
+    const picks=[],requestedQueries=new Set();
     for(let attempt=0;attempt<directions.length&&picks.length<2;attempt++){
         const direction=directions[(offset+attempt)%directions.length];
-        const query=direction.queries.find(q=>!state.exhaustedQueries.has(q))||'';
-        if(query)picks.push({direction,query});
+        const query=direction.queries.find(q=>!state.exhaustedQueries.has(q) &&
+            !requestedQueries.has(q))||'';
+        if(query){picks.push({direction,query});requestedQueries.add(query);}
     }
     state.nextDirection=(offset+Math.max(1,picks.length))%Math.max(1,directions.length);
     if(!picks.length){state.exhausted=true;state.loadingMore=false;
@@ -6706,7 +6707,9 @@ async function loadMoreQuickMix() {
         // for a full upstream timeout before starting the second request.
         const pageResults=await Promise.all(picks.map(async ({direction,query})=>{
             if(requestId!==quickMixRequestId||state!==quickMixCurrent)return [];
-            const page=Math.min(16,(state.pageNumbers.get(query)||1)+1);
+            // Unsearched directions start at page 1; already visited ones
+            // continue on the next page instead of skipping their first songs.
+            const page=Math.min(16,(state.pageNumbers.get(query)||0)+1);
             state.pageNumbers.set(query,page);
             if(page>=16)state.exhaustedQueries.add(query);
             try{
