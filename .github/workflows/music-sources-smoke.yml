@@ -8,6 +8,7 @@ on:
       - "api.php"
       - "proxy.php"
       - "music-official.php"
+      - "openverse-provider.php"
       - ".github/workflows/music-sources-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -30,6 +31,8 @@ jobs:
           php -l api.php
           php -l proxy.php
           php -l music-official.php
+          php -l openverse-provider.php
+          node .github/test-openverse-provider.mjs
           node .github/test-official-music.mjs
 
       - name: Start local player API
@@ -51,7 +54,7 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path('/tmp/source-health.json').read_text())
-          expected = ['audius','vk_mail','hitmoz','hitmos','muzo','zvooq','muzvox','muzca','jamendo']
+          expected = ['audius','vk_mail','hitmoz','hitmos','muzo','zvooq','muzvox','muzca','jamendo','openverse']
 
           assert data.get('success') is True, data
           sources = data.get('sources') or {}
@@ -76,7 +79,7 @@ jobs:
                       'muzo':'[MUZOFOND]',
                       'zvooq':'[ZVOOQ]',
                       'muzvox':'[MUZVOX]',
-                      'muzca':'[MUZCA]', 'jamendo':'[JAMENDO]'
+                      'muzca':'[MUZCA]', 'jamendo':'[JAMENDO]', 'openverse':'[OPENVERSE]'
                   }[name], 0)),
                   "error="+str(info.get("error",""))[:100]
               )
@@ -103,7 +106,7 @@ jobs:
           names={'audius':'[AUDIUS]','vk_mail':'[VK]','hitmoz':'[HITMOZ]', 'hitmos':'[HITMOS]',
                  'muzo':'[MUZOFOND]','zvooq':'[ZVOOQ]',
                  'muzvox':'[MUZVOX]','muzca':'[MUZCA]',
-                 'jamendo':'[JAMENDO]'}
+                 'jamendo':'[JAMENDO]', 'openverse':'[OPENVERSE]'}
           for k,v in (data.get('sources') or {}).items():
               print('LIVE_SOURCE',k,'ok='+str(bool(v.get('ok'))).lower(),
                     'http='+str(v.get('http',0)),
@@ -149,7 +152,7 @@ jobs:
                         'NOTE=No_authorized_API_confirmed')
               except Exception as error:
                   print('HITMOS_WEB_ERROR',url,type(error).__name__,str(error)[:100])
-          probes=['русские песни новинки','кавказские песни новинки',
+          probes=['Russian folk','дагестанская музыка','русские песни новинки','кавказские песни новинки',
                   'Мика Рамазанова','Ислам Айдаров']
           for query in probes:
               payload=json.dumps({
@@ -222,7 +225,7 @@ jobs:
               tag=str(item.get('source','')).upper()
               if item.get('url') and tag and tag not in groups:
                   groups[tag]=item
-          labels=['[AUDIUS]','[VK]','[HITMOZ]','[HITMOS]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]']
+          labels=['[AUDIUS]','[VK]','[HITMOZ]','[HITMOS]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]','[OPENVERSE]']
           def probe(label):
               t=groups.get(label)
               if not t:return (label,'NO_MATCHING_SEARCH_RESULT')

@@ -124,7 +124,7 @@ assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/studio-vision\.css\?v=\d+/);
 assert.match(html,/script\.js\?v=\d+/);
 const scriptRevision = html.match(/script\.js\?v=(\d+)/)?.[1];
-assert.match(sw,/dagstudio-player-shell-v2365/);
+assert.match(sw,/dagstudio-player-shell-v2366/);
 const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
 assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
 assert.ok(scriptRevision && sw.includes("'/script.js?v="+scriptRevision+"'"));
