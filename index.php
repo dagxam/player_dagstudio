@@ -272,6 +272,49 @@
                         <div class="rainbow-speed-hints"><span>Быстрее</span><span>Медленнее</span></div>
                     </div>
                 </div>
+                <section class="vision-viz-settings" aria-labelledby="vision-viz-heading">
+                    <div class="vision-viz-heading">
+                        <span class="vision-viz-heading-icon"><i class="fas fa-wave-square" aria-hidden="true"></i></span>
+                        <div><strong id="vision-viz-heading">Визуализация музыки</strong>
+                            <small>Анимация в центре большого плеера</small></div>
+                    </div>
+                    <div class="vision-viz-settings-grid">
+                        <label class="vision-viz-setting" for="vision-viz-mode">Вид анимации
+                            <select id="vision-viz-mode">
+                                <option value="bars">Эквалайзер</option>
+                                <option value="wave">Волна</option>
+                                <option value="circle">Круговой эквалайзер</option>
+                                <option value="pulse">Пульс</option>
+                                <option value="particles">Частицы</option>
+                                <option value="off">Без анимации (обложка)</option>
+                            </select>
+                        </label>
+                        <label class="vision-viz-setting" for="vision-viz-intensity">Интенсивность
+                            <select id="vision-viz-intensity">
+                                <option value="soft">Спокойная</option>
+                                <option value="normal">Средняя</option>
+                                <option value="strong">Яркая</option>
+                            </select>
+                        </label>
+                        <label class="vision-viz-setting" for="vision-viz-color">Цвет анимации
+                            <select id="vision-viz-color">
+                                <option value="theme">По теме плеера</option>
+                                <option value="copper">Медный</option>
+                                <option value="violet">Фиолетовый</option>
+                                <option value="ocean">Голубой</option>
+                            </select>
+                        </label>
+                        <label class="vision-viz-setting" for="vision-viz-quality">Производительность
+                            <select id="vision-viz-quality">
+                                <option value="auto">Автоматически</option>
+                                <option value="smooth">Плавная</option>
+                                <option value="economy">Экономная</option>
+                                <option value="off">Выключить анимацию</option>
+                            </select>
+                        </label>
+                    </div>
+                    <small class="vision-viz-description">Декоративные движения во время воспроизведения. На слабых устройствах частота кадров автоматически снижается. Звуковой эквалайзер настраивается отдельно.</small>
+                </section>
                 <div class="menu-column-label">Приложение</div>
                 <button id="app-update-btn" class="menu-list-btn app-update-btn app-update-btn-top" onclick="manualUpdateApplication()" type="button">
             <i class="fas fa-rotate"></i>
