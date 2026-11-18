@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const base=fileURLToPath(new URL('../',import.meta.url));
 const root=await mkdtemp(join(tmpdir(),'dag-favorites-api-'));
 await copyFile(join(base,'api.php'),join(root,'api.php'));
+await copyFile(join(base,'hitmos-config.php'),join(root,'hitmos-config.php'));
 await copyFile(join(base,'db.php'),join(root,'db.php'));
 const socket=createServer();
 await new Promise(resolve=>socket.listen(0,'127.0.0.1',resolve));
