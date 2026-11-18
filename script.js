@@ -4841,27 +4841,51 @@ function waveSearchDirections(library=waveLibrarySeeds()){
     const unnamedGenres=[...new Set(library.map(t=>String(t.genre||'').trim()).filter(Boolean))]
         .filter(g=>!themes.some(theme=>theme.match.test(g))).slice(0,12);
     const directions=[];
+    // Rotate discovery across Russian, Caucasian and Dagestani traditions.
+    // A library dominated by one language must not monopolize the radio.
+    // These are search directions, not claims that a track belongs to a language.
+    const broad=[
+        {query:'русские песни новинки',kind:'theme',theme:'russian-pop'},
+        {query:'кавказские новинки',kind:'theme',theme:'caucasus'},
+        {query:'дагестанские новые песни',kind:'theme',theme:'dagestan'},
+        {query:'чеченские новинки',kind:'theme',theme:'chechen'},
+        {query:'лезгинские новинки',kind:'theme',theme:'lezgin'},
+        {query:'даргинские новинки',kind:'theme',theme:'dargin'},
+        {query:'кумыкские новинки',kind:'theme',theme:'kumyk'},
+        {query:'ингушские новинки',kind:'theme',theme:'ingush'},
+        {query:'осетинские новинки',kind:'theme',theme:'ossetian'},
+        {query:'лакские новинки',kind:'theme',theme:'lak'},
+        {query:'табасаранские новинки',kind:'theme',theme:'tabasaran'},
+        {query:'кабардинские новинки',kind:'theme',theme:'kabardian'},
+        {query:'балкарские новинки',kind:'theme',theme:'balkar'},
+        {query:'карачаевские новинки',kind:'theme',theme:'karachay'},
+        {query:'адыгейские новинки',kind:'theme',theme:'adyghe'},
+        {query:'аварские новинки',kind:'theme',theme:'avar'}
+    ];
+    const personalized=[];
     if(themes.length){
-        // Interleave playlist themes so mixed Russian/Avar libraries stay mixed
-        // instead of spending dozens of searches on just the first playlist.
         for(let round=0;round<4;round++){
             for(const theme of themes){
                 const query=round===0?theme.queries[0]+' '+year:
                     round===1?theme.queries[0]:
                     round===2?theme.queries[1]:theme.queries[2];
-                directions.push({query,kind:'theme',theme:theme.id});
+                personalized.push({query,kind:'theme',theme:theme.id});
             }
         }
-        // Only a minority of exact-artist queries: preserve discovery even
-        // if a provider has no searchable genre/region catalogue.
         for(const artist of artistNames.slice(0,Math.max(1,Math.ceil(themes.length/2))))
-            directions.push({query:artist,kind:'artist',theme:''});
+            personalized.push({query:artist,kind:'artist',theme:''});
     }else{
         for(const genre of unnamedGenres){
-            directions.push({query:genre+' '+year,kind:'theme',theme:''});
-            directions.push({query:genre,kind:'theme',theme:''});
+            personalized.push({query:genre+' '+year,kind:'theme',theme:''});
+            personalized.push({query:genre,kind:'theme',theme:''});
         }
-        for(const artist of artistNames)directions.push({query:artist,kind:'artist',theme:''});
+        for(const artist of artistNames)personalized.push({query:artist,kind:'artist',theme:''});
+    }
+    // A different regional direction appears every other search, while the
+    // other half follows the user's playlists and listening signals.
+    for(let i=0;i<Math.max(broad.length,personalized.length);i++){
+        if(broad[i])directions.push(broad[i]);
+        if(personalized[i])directions.push(personalized[i]);
     }
     return [...new Map(directions.filter(d=>d.query.trim())
         .map(d=>[normalizeTrackIdentity(d.query),d])).values()];
@@ -6622,12 +6646,12 @@ async function startQuickMix(key) {
     // for every region/performer in the batch to complete.
     const batchSize=key==='charts'?4:(getNetworkProfile().weak?2:3);
     const allDirections=quickMixSearchPlan(config);
-    const initialLimit=config.regions?16:key==='charts'?12:10;
+    const initialLimit=config.regions?allDirections.length:key==='charts'?16:Math.min(20,allDirections.length);
     const plan=allDirections.slice(0,initialLimit);
     function publishMixResults(item,tracks) {
         if(requestId!==quickMixRequestId||!tracks?.length)return;
         const fresh=quickMixUnique(tracks,quickMixCurrent.tracks);
-        const next=quickMixSpreadSources(fresh,config.regions?3:3);
+        const next=quickMixSpreadSources(fresh,config.regions?6:6);
         if(!next.length)return;
         quickMixCurrent.tracks.push(...next);
         quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
