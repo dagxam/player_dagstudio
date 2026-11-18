@@ -1935,3 +1935,99 @@
  .vision-ui.vision-player-expanded>.left-col .vinyl-img,
  .vision-ui.vision-player-expanded>.left-col .vinyl-img img{border-radius:20px!important}
 }
+
+/* Music visualization is decorative: one canvas, no extra audio pipelines. */
+.vision-ui .vision-viz-stage{display:none!important}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage{
+  position:relative;display:block!important;isolation:isolate;
+  width:min(94%,580px)!important;height:min(39dvh,340px)!important;
+  min-height:190px;flex:0 1 auto!important;overflow:hidden;
+  border:1px solid rgba(255,255,255,.14);border-radius:28px;
+  background:radial-gradient(ellipse at 50% 60%,rgba(var(--theme-rgb,192,108,66),.21),transparent 65%),
+    linear-gradient(155deg,#191525dc,#080b15e8);
+  box-shadow:0 22px 64px rgba(0,0,0,.34),0 0 0 7px rgba(255,255,255,.018),
+    inset 0 1px rgba(255,255,255,.07);
+  touch-action:pan-y;user-select:none;-webkit-user-select:none
+}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.25;z-index:2;
+  background:repeating-linear-gradient(90deg,transparent 0 39px,#ffffff05 40px 41px),
+    linear-gradient(180deg,#ffffff09,transparent 48%,#00000016);
+}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage::after{
+  content:"";position:absolute;pointer-events:none;inset:auto 22px 14px;
+  border-bottom:1px solid rgba(255,255,255,.10);z-index:3;
+}
+.vision-ui .vision-viz-canvas{display:block;width:100%;height:100%;background:transparent}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vinyl-wrapper{display:none!important}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container{
+  width:100%!important;max-width:780px!important;min-height:190px!important;
+  max-height:43dvh!important;flex:0 1 auto!important;
+  display:flex!important;align-items:center!important;justify-content:center!important
+}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container .showcase-hero-copy,
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container .showcase-sunset-art{display:none!important}
+@media(min-width:769px){
+ .vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container{
+   height:min(42dvh,360px)!important;max-height:42dvh!important
+ }
+ .vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage{
+   width:min(86%,590px)!important;height:min(36dvh,315px)!important
+ }
+}
+@media(max-width:768px){
+ .vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage{
+   width:min(96%,470px)!important;height:min(37dvh,290px)!important;
+   min-height:175px!important;border-radius:22px
+ }
+ .vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container{
+   min-height:175px!important;max-height:42dvh!important
+ }
+}
+@media(max-height:600px){
+ .vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage{
+   height:min(31dvh,190px)!important;min-height:92px!important
+ }
+ .vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container{
+   min-height:92px!important;max-height:33dvh!important
+ }
+}
+/* The visualizer controls live with the existing theme and app settings. */
+#menu-modal .vision-viz-settings{
+ display:flex;flex-direction:column;gap:14px;
+ margin:18px 0 19px;padding:17px;
+ background:linear-gradient(145deg,rgba(var(--theme-rgb,192,108,66),.12),rgba(24,23,38,.88));
+ border:1px solid rgba(var(--theme-rgb,192,108,66),.28);
+ border-radius:17px;box-shadow:inset 0 1px rgba(255,255,255,.05)
+}
+#menu-modal .vision-viz-heading{display:flex;align-items:center;gap:12px}
+#menu-modal .vision-viz-heading-icon{
+ display:grid;place-items:center;width:42px;height:42px;min-width:42px;
+ color:var(--theme-bright,#ffc07a);border:1px solid rgba(var(--theme-rgb,192,108,66),.32);
+ border-radius:13px;background:rgba(var(--theme-rgb,192,108,66),.15)
+}
+#menu-modal .vision-viz-heading strong{display:block;font-size:.95rem;color:#fff;line-height:1.3}
+#menu-modal .vision-viz-heading small{display:block;color:#b6aebd;font-size:.72rem;margin-top:3px}
+#menu-modal .vision-viz-settings-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px
+}
+#menu-modal .vision-viz-setting{
+ display:flex;flex-direction:column;gap:6px;font-size:.74rem;
+ font-weight:700;color:#dfcfdf;min-width:0;letter-spacing:.01em
+}
+#menu-modal .vision-viz-setting select{
+ appearance:auto;width:100%;max-width:100%;min-height:42px;min-width:0;
+ border-radius:11px;border:1px solid #ffffff28;
+ padding:9px 11px;background:#14121de8;color:#fff;
+ font:600 .78rem Inter,Arial,sans-serif;cursor:pointer
+}
+#menu-modal .vision-viz-setting select:focus-visible{
+ outline:2px solid var(--theme-bright,#ffc07a);outline-offset:2px
+}
+#menu-modal .vision-viz-description{
+ font-size:.7rem;line-height:1.5;color:#a9a5b2;display:block
+}
+@media(max-width:500px){
+ #menu-modal .vision-viz-settings{margin:14px 0;padding:14px}
+ #menu-modal .vision-viz-settings-grid{grid-template-columns:1fr;gap:11px}
+}
