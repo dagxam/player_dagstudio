@@ -23,7 +23,7 @@ assert.doesNotMatch(vision,/Очередь воспроизведения/,'Queu
 assert.ok(fix.includes('.track-actions .btn-list-action[aria-label="Добавить в очередь"]'),'Song queue icons must be hidden');
 assert.match(html,/studio-vision\.css\?v=5/);
 assert.match(html,/studio-vision\.js\?v=2/);
-assert.match(sw,/dagstudio-player-shell-v2352/);
+assert.match(sw,/dagstudio-player-shell-v2353/);
 assert.ok(sw.includes("'/studio-vision.css?v=5'"));
 assert.ok(sw.includes("'/studio-vision.js?v=2'"));
 for(const name of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'])
