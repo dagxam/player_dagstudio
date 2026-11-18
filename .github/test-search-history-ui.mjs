@@ -96,10 +96,10 @@ for(const name of ['dag-search-history-head','dag-search-history-row','dag-searc
  assert.ok(css.includes(name),'Missing search style '+name);
 assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/studio-vision\.css\?v=5/);
-assert.match(html,/script\.js\?v=2340/);
-assert.match(sw,/dagstudio-player-shell-v2354/);
+assert.match(html,/script\.js\?v=2341/);
+assert.match(sw,/dagstudio-player-shell-v2355/);
 assert.ok(sw.includes("'/studio-vision.css?v=5'"));
-assert.ok(sw.includes("'/script.js?v=2340'"));
+assert.ok(sw.includes("'/script.js?v=2341'"));
 const clean=css.replace(/\/\*[\s\S]*?\*\//g,'');
 assert.equal((clean.match(/\{/g)||[]).length,(clean.match(/\}/g)||[]).length);
 console.log('SEARCH_PREMIUM_EMPTY_INPUT_LAST_EIGHT_AUTO_HISTORY_CLEAR_ACCESSIBILITY_OK');
