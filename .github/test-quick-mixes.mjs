@@ -1,5 +1,7 @@
 
 import assert from 'node:assert/strict';
+// Android and desktop builds must validate the same newest-first mix rules.
+import './test-fresh-mixes.mjs';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 const source=readFileSync(new URL('../script.js',import.meta.url),'utf8');
