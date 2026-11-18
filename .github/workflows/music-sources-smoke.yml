@@ -88,6 +88,36 @@ jobs:
               raise SystemExit("No music provider returned a playable search result")
           PY
 
+      - name: Test keyless Openverse API directly for Russian and Caucasus music
+        run: |
+          python - <<'PY'
+          import json,urllib.parse,urllib.request,urllib.error
+          for query in ['Russian folk', 'Caucasus music', 'Dagestan']:
+              url='https://api.openverse.org/v1/audio/?'+urllib.parse.urlencode({
+                  'q':query,'category':'music','license':'cc0,pdm,by',
+                  'page_size':10,'page':1})
+              req=urllib.request.Request(url,headers={
+                  'Accept':'application/json',
+                  'User-Agent':'DAGSTUDIO-PLAYER/1.0 (music catalog diagnostics)'})
+              try:
+                  with urllib.request.urlopen(req,timeout=15) as res:
+                      obj=json.load(res)
+                      print('OPENVERSE_DIRECT',json.dumps({
+                          'query':query,'http':res.status,
+                          'total':obj.get('result_count',0),
+                          'returned':len(obj.get('results') or []),
+                          'licensed_wikimedia_audio':sum(
+                              str(item.get('url','')).startswith(
+                                  'https://upload.wikimedia.org/wikipedia/commons/')
+                              and item.get('license') in ('cc0','pdm','by')
+                              for item in (obj.get('results') or []))
+                      },ensure_ascii=False))
+              except urllib.error.HTTPError as ex:
+                  print('OPENVERSE_DIRECT_ERROR',query,'HTTP',ex.code)
+              except Exception as ex:
+                  print('OPENVERSE_DIRECT_ERROR',query,type(ex).__name__,str(ex)[:120])
+          PY
+
       - name: Check production player API and OTA endpoint
         run: |
           set -euo pipefail
