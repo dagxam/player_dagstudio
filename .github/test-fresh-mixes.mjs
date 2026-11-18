@@ -67,6 +67,12 @@ assert.ok(configs.rock.queries.length>=2);
 assert.equal(configs.retro.mode,'classic','Retro still serves classic music');
 const regions=ctx.quickMixSearchPlan(configs.caucasus);
 assert.equal(regions.length,configs.caucasus.regions.length);
+const oneRegion=ctx.quickMixSearchPlan({regions:[configs.caucasus.regions[0]],
+ splitRegionQueries:true});
+assert.ok(oneRegion.length>=4,'A single republic searches several performers');
+assert.ok(new Set(Array.from(oneRegion,d=>d.queries[0])).size>=4);
+assert.ok(oneRegion.some(d=>d.kind==='artist'));
+assert.match(code,/splitRegionQueries:true,regions:\[region\]/);
 assert.ok(regions.length>=15);
 for(const region of regions){
  assert.ok(region.queries.length>=2);
