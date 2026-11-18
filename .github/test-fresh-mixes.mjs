@@ -33,6 +33,10 @@ assert.equal(sorted[5]._releaseVerified,false,
  'A year written in the track title must not become release metadata');
 assert.equal(ctx.quickMixReleaseTimestamp({release_date:'2024'}),0);
 assert.equal(ctx.quickMixReleaseTimestamp({release_date:'unknown'}),0);
+assert.equal(ctx.quickMixReleaseTimestamp({release_date:'2026-02-30'}),0,
+ 'Impossible calendar dates must not be ranked as real releases');
+assert.equal(ctx.quickMixReleaseTimestamp({release_date:'2024-13-01'}),0);
+assert.equal(ctx.quickMixReleaseTimestamp({release_date:'2024-02-29'}),Date.parse('2024-02-29T00:00:00Z'));
 const recent=ctx.quickMixRankTracks([unknown,archival,nowB,previous],{mode:'recent'});
 assert.equal(recent[0].title,nowB.title);
 assert.equal(recent[1].title,previous.title);
