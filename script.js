@@ -6599,7 +6599,7 @@ async function startQuickMix(key) {
         }
         const dates=quickMixCurrent.tracks.filter(track=>track._releaseVerified).length;
         setQuickMixStatus('Найдено '+quickMixCurrent.tracks.length+' треков'+
-            (dates?' · с датой выпуска: '+dates:' · даты выпуска уточняются')+
+            (dates?' · с датой от источника: '+dates:' · даты выпуска не указаны')+
             (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
             quickMixSourcesCaption(quickMixCurrent));
     }
@@ -6714,19 +6714,22 @@ async function loadMoreQuickMix() {
             if(page>=16)state.exhaustedQueries.add(query);
             try{
                 const net=getNetworkProfile();
-                const response=await api('search_global',{query,page,mode:'fast',
+                let response=await api('search_global',{query,page,mode:'fast',
                     network:net.weak?'weak':'normal',save_data:net.saveData?1:0});
+                if(requestId!==quickMixRequestId||state!==quickMixCurrent)return [];
+                if(!response?.success||!response.data?.length){
+                    // The fast request can time out before a slower provider
+                    // replies. Retry once with the complete search budget.
+                    response=await api('search_global',{query,page,mode:'full',
+                        network:net.weak?'weak':'normal',save_data:net.saveData?1:0});
+                }
                 if(requestId!==quickMixRequestId||state!==quickMixCurrent)return [];
                 if(response?.sources)for(const [server,health] of Object.entries(response.sources)){
                     state.checkedSources.add(server);
                     if(health?.ok)state.activeSources.add(server);
                 }
                 if(!response?.success||!response.data?.length){
-                    // A fast-only timeout is not proof the provider has no
-                    // music on this page. Try again with the normal budget
-                    // when that direction is selected on the next scroll.
-                    if(page>=16)state.exhaustedQueries.add(query);
-                    else state.pageNumbers.set(query,page-1);
+                    state.exhaustedQueries.add(query);
                     return [];
                 }
                 const fresh=quickMixUnique(response.data,state.tracks)
