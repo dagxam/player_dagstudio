@@ -6272,15 +6272,18 @@ function quickMixRankTracks(tracks,config) {
     // then older dated music, and undated results as a transparent fallback.
     // Search terms containing a year never prove a release date.
     if(config?.mode==='classic')return quickMixDiversify(ranked.sort(scoreOrder).map(e=>e.track));
-    const recent=ranked.filter(e=>e.year>=currentYear-1).sort(dateOrder);
-    const older=ranked.filter(e=>e.year>0&&e.year<currentYear-1).sort(dateOrder);
+    const dated=ranked.filter(e=>e.year>0);
     const undated=ranked.filter(e=>!e.released).sort(scoreOrder);
-    const verified=entries=>entries.map(e=>({...e.track,_releaseVerified:true}));
-    return [
-        ...quickMixDiversify(verified(recent)),
-        ...quickMixDiversify(verified(older)),
-        ...quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})))
-    ];
+    // Strict chronology by REAL calendar year: 2026 before 2025, then 2024...
+    // Only within the same year do we alternate artists to avoid repeated
+    // blocks from one singer. Unknown release dates always follow dated music.
+    const years=[...new Set(dated.map(e=>e.year))].sort((a,b)=>b-a);
+    const verifiedByYear=years.flatMap(year=>quickMixDiversify(
+        dated.filter(e=>e.year===year).sort(dateOrder)
+            .map(e=>({...e.track,_releaseVerified:true}))
+    ));
+    return [...verifiedByYear,
+        ...quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})))];
 }
 function quickMixDiversify(ordered){
     const buckets=new Map(),result=[];
