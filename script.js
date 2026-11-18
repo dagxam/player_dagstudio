@@ -6242,8 +6242,12 @@ function quickMixUnique(tracks,known=[]) {
 function quickMixReleaseTimestamp(track) {
     const raw=String(track?.release_date||'');
     if(!/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(raw))return 0;
-    const parsed=Date.parse(raw.slice(0,10)+'T00:00:00Z');
-    return Number.isFinite(parsed)&&parsed>0&&parsed<Date.now()+86400000?parsed:0;
+    // Reject impossible calendar dates instead of letting Date.parse normalize them.
+    // Only a provider-supplied, valid release date can influence chronology.
+    const datePart=raw.slice(0,10);
+    const parsed=Date.parse(datePart+'T00:00:00Z');
+    return Number.isFinite(parsed)&&parsed>0&&parsed<Date.now()+86400000&&
+        new Date(parsed).toISOString().slice(0,10)===datePart?parsed:0;
 }
 function quickMixRank(track,config,sourcePosition=0,now=Date.now()) {
     const plays=Math.max(0,Number(track?.play_count)||0);
