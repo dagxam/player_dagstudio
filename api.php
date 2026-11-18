@@ -74,6 +74,7 @@ if (!file_exists('db.php')) {
 }
 require 'db.php';
 require_once __DIR__ . '/hitmos-config.php';
+require_once __DIR__ . '/openverse-provider.php';
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
 $input = file_get_contents('php://input');
@@ -557,7 +558,13 @@ elseif ($action === 'search_global') {
         'muzo'    => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page,
         'zvooq'   => "https://zvooq.net/search/" . $query_encode,
         'muzvox'  => "https://muzvox.org/search/" . $query_encode,
-        'muzca'   => "https://muzca.net/index.php?do=search&subaction=search&story=" . $query_encode
+        'muzca'   => "https://muzca.net/index.php?do=search&subaction=search&story=" . $query_encode,
+        // Official keyless CC-music index; run alongside all other providers.
+        'openverse' => 'https://api.openverse.org/v1/audio/?' . http_build_query([
+            'q' => trim(strip_tags((string)$query_raw)),
+            'page' => min(20,$page), 'page_size' => $weak_client ? 12 : 20,
+            'category' => 'music', 'license' => 'cc0,pdm,by'
+        ], '', '&', PHP_QUERY_RFC3986)
     ];
     // Jamendo API requires a project-specific client_id. Never use a public
     // test credential or invent an authorization: keep other 7 sources working.
@@ -728,6 +735,17 @@ elseif ($action === 'search_global') {
                         ? mb_substr($track['release_date'], 0, 30) : ''
                 ];
             }
+        }
+    }
+
+    // Openverse: licensed Wikimedia audio only. Never confuse indexed_on with release date.
+    if (!empty($responses['openverse'])) {
+        $openverseData=json_decode((string)$responses['openverse'],true);
+        if (is_array($openverseData) && is_array($openverseData['results'] ?? null)) {
+            foreach (dagOpenverseTracks($openverseData) as $item) $raw_results[]=$item;
+        } else {
+            $source_status['openverse']['ok']=false;
+            $source_status['openverse']['error']='Invalid Openverse JSON';
         }
     }
 
@@ -1073,7 +1091,8 @@ elseif ($action === 'search_global') {
         '[ZVOOQ]' => [],
         '[MUZVOX]' => [],
         '[MUZCA]' => [],
-        '[JAMENDO]' => []
+        '[JAMENDO]' => [],
+        '[OPENVERSE]' => []
     ];
 
     foreach ($raw_results as $r) {
@@ -1128,7 +1147,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[AUDIUS]', '[JAMENDO]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[AUDIUS]', '[JAMENDO]', '[OPENVERSE]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -1158,7 +1177,7 @@ elseif ($action === 'search_global') {
         'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
         'hitmoz' => '[HITMOZ]', 'hitmos' => '[HITMOS]', 'muzo' => '[MUZOFOND]',
         'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]',
-        'jamendo' => '[JAMENDO]'
+        'jamendo' => '[JAMENDO]', 'openverse' => '[OPENVERSE]'
     ];
     foreach ($provider_source_keys as $key => $label) {
         $count = (int)($source_counts[$label] ?? 0);

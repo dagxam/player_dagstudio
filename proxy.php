@@ -66,6 +66,12 @@ foreach ($allowed as $domain) {
         break;
     }
 }
+if (!$isAllowed && $source === 'openverse' && $scheme === 'https' &&
+    $host === 'upload.wikimedia.org' &&
+    str_starts_with((string)($parts['path'] ?? ''),'/wikipedia/commons/') &&
+    preg_match('/\.(mp3|ogg|oga|opus|m4a|aac)$/iD',(string)($parts['path'] ?? ''))) {
+    $isAllowed = true;
+}
 if (!$isAllowed && $source === 'hitmos' && $scheme === 'https' &&
     in_array($host, dagHitmosAudioHosts(), true)) $isAllowed = true;
 if (!$isAllowed) {
@@ -240,7 +246,7 @@ $runAttempt = function(bool $useRange) use (
         // Не скачиваем тело аудиофайла при диагностическом HEAD.
         CURLOPT_NOBODY => $isHead,
         // An authorized Hitmos API must return a final approved audio URL.
-        CURLOPT_FOLLOWLOCATION => $source !== 'hitmos',
+        CURLOPT_FOLLOWLOCATION => $source !== 'hitmos' && $source !== 'openverse',
         CURLOPT_MAXREDIRS => 5,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
