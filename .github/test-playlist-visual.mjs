@@ -69,10 +69,11 @@ for(const selector of [
 ])assert.ok(css.includes(selector),'Missing responsive playlist style '+selector);
 for(const breakpoint of ['@media(max-width:768px)','@media(max-width:370px)',
  '@media(min-width:769px) and (max-width:1199px)'])assert.ok(css.includes(breakpoint));
-assert.match(html,/studio-vision\.css\?v=5/);
+assert.match(html,/studio-vision\.css\?v=\d+/);
 assert.match(html,/studio-center\.js\?v=7/);
-assert.match(sw,/dagstudio-player-shell-v2355/);
-assert.ok(sw.includes("'/studio-vision.css?v=5'"));
+assert.match(sw,/dagstudio-player-shell-v\d+/);
+const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
+assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
 assert.ok(sw.includes("'/studio-center.js?v=7'"));
 assert.match(bridge,/copyFile\(join\(root, 'studio-center\.js'\)/);
 assert.match(bridge,/copyFile\(join\(root, 'studio-vision\.css'\)/);

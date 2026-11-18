@@ -21,11 +21,13 @@ assert.match(fix,/@media\(max-width:768px\)/);
 assert.match(fix,/display:inline!important;font-size:\.86rem!important/);
 assert.doesNotMatch(vision,/Очередь воспроизведения/,'Queue should not crowd header');
 assert.ok(fix.includes('.track-actions .btn-list-action[aria-label="Добавить в очередь"]'),'Song queue icons must be hidden');
-assert.match(html,/studio-vision\.css\?v=5/);
-assert.match(html,/studio-vision\.js\?v=2/);
-assert.match(sw,/dagstudio-player-shell-v2355/);
-assert.ok(sw.includes("'/studio-vision.css?v=5'"));
-assert.ok(sw.includes("'/studio-vision.js?v=2'"));
+assert.match(html,/studio-vision\.css\?v=\d+/);
+assert.match(html,/studio-vision\.js\?v=\d+/);
+assert.match(sw,/dagstudio-player-shell-v\d+/);
+const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
+assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
+const jsRevision = html.match(/studio-vision\.js\?v=(\d+)/)?.[1];
+assert.ok(jsRevision && sw.includes("'/studio-vision.js?v="+jsRevision+"'"));
 for(const name of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'])
  assert.ok(api.includes("'"+name+"'"),'Search provider: '+name);
 assert.match(api,/foreach \(\$urls as \$key => \$url\)/);

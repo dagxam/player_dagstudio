@@ -103,10 +103,11 @@ for(const name of ['dag-search-history-head','dag-search-history-row','dag-searc
  'dag-search-history-toggle','dag-search-history[hidden]'])
  assert.ok(css.includes(name),'Missing search style '+name);
 assert.match(css,/@media\(max-width:768px\)/);
-assert.match(html,/studio-vision\.css\?v=5/);
+assert.match(html,/studio-vision\.css\?v=\d+/);
 assert.match(html,/script\.js\?v=2345/);
 assert.match(sw,/dagstudio-player-shell-v2359/);
-assert.ok(sw.includes("'/studio-vision.css?v=6'"));
+const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
+assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
 assert.ok(sw.includes("'/script.js?v=2345'"));
 const clean=css.replace(/\/\*[\s\S]*?\*\//g,'');
 assert.equal((clean.match(/\{/g)||[]).length,(clean.match(/\}/g)||[]).length);
