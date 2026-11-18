@@ -22,7 +22,7 @@ assert.match(api,/in_array\(\$audio_host, \$hitmos_audio_hosts, true\)/);
 assert.match(proxy,/dagHitmosAudioHosts\(\)/);
 assert.match(proxy,/CURLOPT_FOLLOWLOCATION => \$source !== 'hitmos'/);
 assert.match(script,/key:'hitmos',label:'Hitmos\.fm',source:'\[HITMOS\]'/);
-assert.match(script,/Hitmos по API/);
+assert.match(script,/Hitmos\/Jamendo по API/);
 assert.doesNotMatch(html, /hitmos-external-link/);
 assert.doesNotMatch(script, /renderHitmosExternalResult|hitmos-search-result/);
 console.log('HITMOS_JSON_ONLY_OPTIONAL_PROVIDER_NO_FAKE_RESULTS_OK');
