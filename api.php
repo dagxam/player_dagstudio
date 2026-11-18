@@ -566,6 +566,11 @@ elseif ($action === 'search_global') {
             'category' => 'music', 'license' => 'cc0,pdm,by'
         ], '', '&', PHP_QUERY_RFC3986)
     ];
+    // Openverse is experimental: live probes returned no playable matches.
+    // Keep the existing search fast until the API is verified on this host.
+    $openverse_enabled = getenv('DAG_OPENVERSE_ENABLED') === '1';
+    if (!$openverse_enabled) unset($urls['openverse']);
+
     // Jamendo API requires a project-specific client_id. Never use a public
     // test credential or invent an authorization: keep other 7 sources working.
     $jamendo_client = trim((string)(getenv('JAMENDO_CLIENT_ID') ?: ''));
@@ -664,6 +669,15 @@ elseif ($action === 'search_global') {
     }
     curl_multi_close($multi);
 
+    if (!$openverse_enabled) {
+        $source_status['openverse'] = [
+            'ok' => false, 'http' => 0, 'error' => '',
+            'configured' => false, 'experimental' => true
+        ];
+    } else {
+        $source_status['openverse']['configured'] = true;
+        $source_status['openverse']['experimental'] = true;
+    }
     if (!$hitmos_enabled) {
         $source_status['hitmos'] = [
             'ok' => false, 'http' => 0, 'error' => '', 'configured' => false
