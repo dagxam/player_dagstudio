@@ -47,12 +47,11 @@
     invokeNav('wave');
     updateNav();
   };
-  // Pure presentation: the current playlist, active tab, queue and audio stay intact.
+  // The brand opens a presentation of the *existing* playback state.
+  // No changes to playbackPlaylist, playbackTab, currentIndex or Media3 are made.
   const brand = document.querySelector('.showcase-sidebar .showcase-brand');
   const headerBrand = document.querySelector('.header-overlay .header-left');
   const playingPanel = document.querySelector('.main-container.studio-showcase > .left-col');
-  let swipeStart = null;
-  let switching = false;
   const expandPlayer = () => {
     root.classList.add('vision-player-expanded');
     updateNav();
@@ -63,14 +62,14 @@
   };
   const activateBrand = element => {
     if (!element) return;
-    // Keep the menu-collapse button independent from the clickable logo.
-    element.addEventListener('click', event => {
-      if (event.target.closest('button, a')) return;
-      expandPlayer();
-    });
+    element.title = 'Показать текущий трек';
     element.setAttribute('role', 'button');
     element.setAttribute('tabindex', '0');
-    element.setAttribute('aria-label', 'Открыть текущий проигрыватель');
+    element.setAttribute('aria-label', 'Открыть текущий проигрыватель, не меняя музыку');
+    element.addEventListener('click', event => {
+      if (event.target.closest?.('button, a')) return; // Sidebar rail toggle.
+      expandPlayer();
+    });
     element.addEventListener('keydown', event => {
       if (event.target !== element || !['Enter', ' '].includes(event.key)) return;
       event.preventDefault();
@@ -79,42 +78,108 @@
   };
   activateBrand(brand);
   activateBrand(headerBrand);
-  // Horizontal gestures are limited to the artwork/text, so progress seeking,
-  // buttons and vertical scrolling continue to work normally.
-  playingPanel?.addEventListener('touchstart', event => {
+
+  // Mobile has no visible left sidebar: provide the same brand control at the
+  // top left while keeping the existing search field and menu button.
+  const mobileBrand = button('vision-top-brand', 'Открыть текущий проигрыватель', null, expandPlayer);
+  const mobileBrandImage = el('img', 'vision-top-brand-art');
+  mobileBrandImage.alt = '';
+  mobileBrandImage.src = brand?.querySelector('img')?.getAttribute('src') || 'images/cover.png';
+  mobileBrand.append(mobileBrandImage, el('span', '', 'DAGSTUDIO'));
+
+  // Lightweight context label above the same artwork/controls as My Wave.
+  const playerHead = el('div', 'vision-now-head');
+  playerHead.append(el('span', 'vision-now-kicker', 'DAGSTUDIO PLAYER'),
+    el('strong', 'vision-now-title', 'Сейчас играет'),
+    el('small', 'vision-now-subtitle', 'Текущий трек и ваша очередь сохранены'));
+  playingPanel?.insertBefore(playerHead, playingPanel.firstChild);
+  const swipeHint = el('div', 'vision-swipe-hint');
+  swipeHint.append(icon('arrow-left'), el('span', '', 'Листайте треки свайпом'), icon('arrow-right'));
+  playingPanel?.appendChild(swipeHint);
+  document.getElementById('cover-img')?.setAttribute('draggable', 'false');
+
+  // Horizontal gestures work on touch devices and mouse/trackpad pointer drags.
+  // Vertical scrolling and taps on controls are never interpreted as a swipe.
+  const swipeDirection = (dx, dy) =>
+    Math.abs(dx) >= 60 && Math.abs(dx) > Math.abs(dy) * 1.45 ? (dx < 0 ? 'next' : 'prev') : '';
+  let swipeStart = null;
+  let switching = false;
+  const canSwipe = target => root.classList.contains('vision-player-expanded') &&
+    target?.closest?.('.visual-container, .track-info-display') &&
+    !target.closest('button, a, input, .progress-area, .main-btns') &&
+    typeof playbackPlaylist !== 'undefined' && playbackPlaylist.length > 0 &&
+    typeof currentIndex !== 'undefined' && currentIndex >= 0;
+  const resetSwipe = () => {
     swipeStart = null;
-    if (!root.classList.contains('vision-player-expanded') || event.touches.length !== 1 ||
-        event.target.closest('button, input, a, .progress-area, .main-btns')) return;
-    swipeStart = {x:event.touches[0].clientX, y:event.touches[0].clientY};
-  }, {passive:true});
-  playingPanel?.addEventListener('touchend', event => {
-    if (!swipeStart || switching || !root.classList.contains('vision-player-expanded')) return;
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - swipeStart.x;
-    const dy = touch.clientY - swipeStart.y;
-    swipeStart = null;
-    if (Math.abs(dx) < 65 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-    if (typeof playbackPlaylist !== 'undefined' && !playbackPlaylist.length) return;
+    playingPanel?.classList.remove('vision-swipe-dragging');
+    playingPanel?.style.removeProperty('--vision-swipe-x');
+  };
+  const finishSwipe = (dx, dy) => {
+    resetSwipe();
+    if (switching) return;
+    const direction = swipeDirection(dx, dy);
+    if (!direction) return;
     switching = true;
     playingPanel.classList.remove('vision-swipe-next', 'vision-swipe-prev');
     void playingPanel.offsetWidth;
-    playingPanel.classList.add(dx < 0 ? 'vision-swipe-next' : 'vision-swipe-prev');
+    playingPanel.classList.add(direction === 'next' ? 'vision-swipe-next' : 'vision-swipe-prev');
     try {
-      if (dx < 0) window.playNext?.();
+      // Reuse the original commands: playlist, shuffled order, playback queue,
+      // smart radio and native audio remain the source of truth.
+      if (direction === 'next') window.playNext?.();
       else window.playPrev?.();
     } finally {
       window.setTimeout(() => {
         playingPanel.classList.remove('vision-swipe-next', 'vision-swipe-prev');
         switching = false;
-      }, 350);
+      }, 340);
     }
-  }, {passive:true});
-  playingPanel?.addEventListener('touchcancel', () => { swipeStart = null; }, {passive:true});
+  };
+  if ('PointerEvent' in window) {
+    playingPanel?.addEventListener('pointerdown', event => {
+      resetSwipe();
+      if (switching || event.isPrimary === false ||
+          (event.pointerType === 'mouse' && event.button !== 0) || !canSwipe(event.target)) return;
+      swipeStart = {id:event.pointerId, x:event.clientX, y:event.clientY};
+      try { playingPanel.setPointerCapture?.(event.pointerId); } catch (_) {}
+    });
+    playingPanel?.addEventListener('pointermove', event => {
+      if (!swipeStart || swipeStart.id !== event.pointerId) return;
+      const dx = event.clientX - swipeStart.x;
+      const dy = event.clientY - swipeStart.y;
+      if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy) * 1.3) return;
+      playingPanel.classList.add('vision-swipe-dragging');
+      playingPanel.style.setProperty('--vision-swipe-x', Math.max(-110, Math.min(110, dx)) + 'px');
+    });
+    playingPanel?.addEventListener('pointerup', event => {
+      if (!swipeStart || swipeStart.id !== event.pointerId) return;
+      const {x, y} = swipeStart;
+      finishSwipe(event.clientX - x, event.clientY - y);
+    });
+    playingPanel?.addEventListener('pointercancel', resetSwipe);
+    playingPanel?.addEventListener('lostpointercapture', () => {
+      if (swipeStart) resetSwipe();
+    });
+  } else {
+    // Older Android WebViews without Pointer Events.
+    playingPanel?.addEventListener('touchstart', event => {
+      resetSwipe();
+      if (switching || event.touches.length !== 1 || !canSwipe(event.target)) return;
+      swipeStart = {x:event.touches[0].clientX, y:event.touches[0].clientY};
+    }, {passive:true});
+    playingPanel?.addEventListener('touchend', event => {
+      if (!swipeStart || !event.changedTouches.length) return;
+      const {x, y} = swipeStart;
+      finishSwipe(event.changedTouches[0].clientX - x, event.changedTouches[0].clientY - y);
+    }, {passive:true});
+    playingPanel?.addEventListener('touchcancel', resetSwipe, {passive:true});
+  }
   const openSettings = () => invokeNav('settings');
 
   // Site-wide search affordance: the existing #search-input remains the ONLY
   // input (history, debounce, search sources and pagination are untouched).
   const topbar = el('header', 'vision-topbar');
+  topbar.appendChild(mobileBrand);
   const searchTrigger = button('vision-top-search', 'Открыть поиск музыки', 'magnifying-glass', openSearch);
   searchTrigger.appendChild(el('span', '', 'Трек, исполнитель или плейлист'));
   // Relocate the ORIGINAL input instead of creating a second search engine.
@@ -283,7 +348,6 @@
 
   const back = button('vision-player-back', 'Вернуться к библиотеке', 'chevron-down', () => {
     collapsePlayer();
-    if (root.classList.contains('showcase-wave-only')) openHome();
     updateNav();
   });
   root.appendChild(back);
