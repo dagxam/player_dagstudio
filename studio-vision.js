@@ -55,10 +55,12 @@
   const expandPlayer = () => {
     root.classList.add('vision-player-expanded');
     updateNav();
+    refreshVisualizer();
   };
   const collapsePlayer = () => {
     root.classList.remove('vision-player-expanded');
     updateNav();
+    refreshVisualizer();
   };
   const activateBrand = element => {
     if (!element) return;
@@ -95,6 +97,238 @@
   const swipeHint = el('div', 'vision-swipe-hint');
   swipeHint.append(icon('arrow-left'), el('span', '', 'Влево — следующий · вправо — предыдущий'), icon('arrow-right'));
   playingPanel?.appendChild(swipeHint);
+
+  // Visuals are deliberately independent of MediaElementSource and Media3.
+  // There must be only one audio pipeline: the existing EQ and native player.
+  const VISUALIZER_KEY = 'dag_visualizer_settings_v1';
+  const VISUALIZER_OPTIONS = {
+    mode: ['bars','wave','circle','pulse','particles','off'],
+    intensity: ['soft','normal','strong'],
+    color: ['theme','copper','violet','ocean'],
+    quality: ['auto','smooth','economy','off']
+  };
+  const visualizerDefaults = {mode:'bars',intensity:'normal',color:'theme',quality:'auto'};
+  const normalizeVisualizerSettings = candidate => {
+    const cfg = {};
+    for (const [key, allowed] of Object.entries(VISUALIZER_OPTIONS)) {
+      cfg[key] = allowed.includes(candidate?.[key]) ? candidate[key] : visualizerDefaults[key];
+    }
+    return cfg;
+  };
+  let visualizerSettings = visualizerDefaults;
+  try {
+    visualizerSettings = normalizeVisualizerSettings(JSON.parse(localStorage.getItem(VISUALIZER_KEY) || 'null'));
+  } catch (_) {}
+  const visualContainer = playingPanel?.querySelector('.visual-container');
+  const vizStage = el('div', 'vision-viz-stage');
+  vizStage.setAttribute('role','img');
+  vizStage.setAttribute('aria-label','Декоративная анимация текущего воспроизведения');
+  const vizCanvas = document.createElement('canvas');
+  vizCanvas.className = 'vision-viz-canvas';
+  vizCanvas.setAttribute('aria-hidden','true');
+  vizStage.appendChild(vizCanvas);
+  visualContainer?.appendChild(vizStage);
+  const vizContext = vizCanvas.getContext?.('2d', {alpha:true});
+  const visualizerAudio = document.getElementById('main-audio');
+  const vizInputs = {
+    mode: document.getElementById('vision-viz-mode'),
+    intensity: document.getElementById('vision-viz-intensity'),
+    color: document.getElementById('vision-viz-color'),
+    quality: document.getElementById('vision-viz-quality')
+  };
+  let vizFrame = 0;
+  let vizPrevious = 0;
+  let vizPhase = 0;
+  const isVisualPlaybackActive = () => {
+    // The visible play button is also updated by native Media3.
+    const button = document.getElementById('btn-play');
+    const playIcon = button?.querySelector('i');
+    if (playIcon?.classList?.contains('fa-pause')) return true;
+    if (playIcon?.classList?.contains('fa-play')) return false;
+    return !!visualizerAudio && !visualizerAudio.paused;
+  };
+  const visualizerReduced = () => {
+    const memory = Number(navigator.deviceMemory || 0);
+    const threads = Number(navigator.hardwareConcurrency || 0);
+    const saving = !!navigator.connection?.saveData;
+    return (memory > 0 && memory <= 2) || (threads > 0 && threads <= 2) || saving;
+  };
+  const visualizerFrameRate = () => {
+    if (visualizerSettings.quality === 'off') return 0;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 5;
+    if (visualizerSettings.quality === 'economy' ||
+        (visualizerSettings.quality === 'auto' && visualizerReduced())) return 18;
+    return visualizerSettings.quality === 'smooth' ? 45 : 30;
+  };
+  const visualizerActive = () => root.classList.contains('vision-player-expanded') &&
+    visualizerSettings.mode !== 'off' && visualizerFrameRate() > 0 && !document.hidden;
+  const visualizerColor = () => {
+    const fixed = {copper:'#ffb978',violet:'#d2a1ff',ocean:'#83dce9'};
+    if (visualizerSettings.color !== 'theme')
+      return fixed[visualizerSettings.color] || fixed.copper;
+    const styles = window.getComputedStyle(root);
+    const variable = styles.getPropertyValue('--theme-bright').trim();
+    return variable || '#ffb978';
+  };
+  const roundedVisualizerRect = (ctx,x,y,w,h,r) => {
+    const radius = Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+radius,y);
+    ctx.lineTo(x+w-radius,y); ctx.quadraticCurveTo(x+w,y,x+w,y+radius);
+    ctx.lineTo(x+w,y+h-radius); ctx.quadraticCurveTo(x+w,y+h,x+w-radius,y+h);
+    ctx.lineTo(x+radius,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-radius);
+    ctx.lineTo(x,y+radius); ctx.quadraticCurveTo(x,y,x+radius,y);
+    ctx.closePath();
+  };
+  const visualizerEnergy = (i,t,active) => {
+    if (!active) return .045;
+    const strength = {soft:.62,normal:1,strong:1.38}[visualizerSettings.intensity] || 1;
+    // A lightweight decorative rhythm (not an FFT measurement of the audio).
+    const pulse = Math.abs(Math.sin(t*1.7 + i*.65)*Math.cos(t*.62-i*.29));
+    const shimmer = .15*Math.abs(Math.sin(t*4.1+i*1.13));
+    return Math.min(1, (.11+.76*pulse+shimmer)*strength);
+  };
+  const drawVisualizer = (stamp) => {
+    if (!vizContext || !visualizerActive() || !vizStage.isConnected) return;
+    const rect = vizStage.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) return;
+    const rate = visualizerFrameRate();
+    if (vizPrevious && stamp-vizPrevious < 1000/rate) return;
+    const elapsed = vizPrevious ? Math.min(.08,(stamp-vizPrevious)/1000) : 0;
+    vizPrevious=stamp;
+    const playing = isVisualPlaybackActive();
+    if (playing && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+      vizPhase += elapsed * 2.8;
+    const ratio = Math.min(window.devicePixelRatio || 1,
+      rate <= 18 ? 1 : 1.5);
+    const width = Math.round(rect.width * ratio);
+    const height = Math.round(rect.height * ratio);
+    if (vizCanvas.width !== width || vizCanvas.height !== height) {
+      vizCanvas.width = width;
+      vizCanvas.height = height;
+    }
+    const ctx = vizContext;
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    const w=rect.width,h=rect.height,cx=w/2,cy=h/2;
+    ctx.clearRect(0,0,w,h);
+    const color=visualizerColor();
+    const mode=visualizerSettings.mode;
+    const quality=rate <= 18;
+    ctx.save();
+    // Slight internal aura, not a giant background painting over the album.
+    const aura=ctx.createRadialGradient(cx,cy,8,cx,cy,Math.min(w,h)*.57);
+    aura.addColorStop(0,'rgba(192,110,212,.13)');
+    aura.addColorStop(1,'rgba(5,8,20,0)');
+    ctx.fillStyle=aura; ctx.fillRect(0,0,w,h);
+    ctx.shadowColor=color;
+    ctx.shadowBlur=quality ? 5 : 14;
+    if (mode==='bars') {
+      const n=quality?24:40;
+      const gap=Math.max(3, Math.min(8,w/(n*3.5)));
+      const usable=Math.min(w*.8,520);
+      const bw=Math.max(2,(usable-gap*(n-1))/n);
+      const start=cx-usable/2;
+      for(let i=0;i<n;i++){
+        const e=visualizerEnergy(i,vizPhase,playing);
+        const bh=Math.max(4, e*h*.62);
+        ctx.globalAlpha=.55+.4*e;
+        ctx.fillStyle=color;
+        roundedVisualizerRect(ctx,start+i*(bw+gap),cy-bh/2,bw,bh,bw/2);
+        ctx.fill();
+      }
+    } else if (mode==='wave') {
+      for(let j=0;j<3;j++) {
+        ctx.beginPath();ctx.lineWidth=4-j;
+        ctx.strokeStyle=color;ctx.globalAlpha=.76-j*.2;
+        const base=h*.1 + j*h*.05;
+        for(let x=0;x<=w;x+=quality?7:4) {
+          const fade=Math.pow(Math.max(0,1-Math.abs(x-cx)/(w*.53)),1.25);
+          const amp=playing?base:3;
+          const y=cy+Math.sin((x/w)*Math.PI*(5+j) + vizPhase*(1.6+j*.32)+j)*fade*amp;
+          if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+    } else if (mode==='circle') {
+      const count=quality?48:84, radius=Math.min(w,h)*.25;
+      for(let i=0;i<count;i++){
+        const a=i/count*Math.PI*2-Math.PI/2;
+        const e=visualizerEnergy(i,vizPhase,playing);
+        const extra=5+e*Math.min(w,h)*.19;
+        ctx.lineWidth=quality?3.2:2.6;ctx.lineCap='round';
+        ctx.strokeStyle=color;ctx.globalAlpha=.3+.65*e;
+        ctx.beginPath();
+        ctx.moveTo(cx+Math.cos(a)*radius,cy+Math.sin(a)*radius);
+        ctx.lineTo(cx+Math.cos(a)*(radius+extra),cy+Math.sin(a)*(radius+extra));
+        ctx.stroke();
+      }
+      ctx.lineWidth=2;ctx.globalAlpha=.43;
+      ctx.beginPath();ctx.arc(cx,cy,radius*.84,0,Math.PI*2);ctx.stroke();
+    } else if (mode==='pulse') {
+      const e=visualizerEnergy(3,vizPhase,playing);
+      const maxRadius=Math.min(w,h)*.42;
+      for(let i=3;i>=0;i--){
+        ctx.beginPath();ctx.lineWidth=2+i*.8;
+        ctx.globalAlpha=.13+(3-i)*.12;
+        ctx.strokeStyle=color;
+        ctx.arc(cx,cy,Math.max(8,maxRadius*(.28+i*.2+e*.08)),0,Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha=.63;ctx.fillStyle=color;
+      ctx.beginPath();ctx.arc(cx,cy,maxRadius*(.17+e*.065),0,Math.PI*2);ctx.fill();
+    } else if (mode==='particles') {
+      const count=quality?32:70;
+      const maxRadius=Math.min(w,h)*.44;
+      for(let i=0;i<count;i++){
+        const theta=i*2.39996+(playing?vizPhase*.21:0);
+        const radial=Math.sqrt((i+.5)/count)*maxRadius;
+        const e=visualizerEnergy(i,vizPhase,playing);
+        const x=cx+Math.cos(theta)*radial, y=cy+Math.sin(theta)*radial*.72;
+        ctx.globalAlpha=.35+e*.55;ctx.fillStyle=color;
+        ctx.beginPath();ctx.arc(x,y,1.6+e*3.5,0,Math.PI*2);ctx.fill();
+      }
+    }
+    ctx.restore();
+  };
+  const visualizerTick = stamp => {
+    vizFrame = 0;
+    if (!visualizerActive()) { vizPrevious=0; return; }
+    drawVisualizer(stamp);
+    vizFrame = window.requestAnimationFrame(visualizerTick);
+  };
+  function refreshVisualizer() {
+    const expanded = root.classList.contains('vision-player-expanded');
+    const visible = expanded && visualizerSettings.mode !== 'off' &&
+      visualizerFrameRate()>0 && !!vizContext;
+    if (root.classList.contains('vision-viz-visible') !== visible)
+      root.classList.toggle('vision-viz-visible',visible);
+    if (visible && !document.hidden && !vizFrame) {
+      vizPrevious=0; vizFrame=window.requestAnimationFrame(visualizerTick);
+    }
+    if ((!visible || document.hidden) && vizFrame) {
+      window.cancelAnimationFrame(vizFrame);vizFrame=0;vizPrevious=0;
+    }
+  }
+  for(const [name,control] of Object.entries(vizInputs)){
+    if(!control)continue;
+    control.value=visualizerSettings[name];
+    control.addEventListener('change', () => {
+      visualizerSettings=normalizeVisualizerSettings({...visualizerSettings,[name]:control.value});
+      try{localStorage.setItem(VISUALIZER_KEY,JSON.stringify(visualizerSettings));}catch(_){}
+      for(const [key,item] of Object.entries(vizInputs))if(item)item.value=visualizerSettings[key];
+      refreshVisualizer();
+    });
+  }
+  document.addEventListener('visibilitychange',refreshVisualizer,{passive:true});
+  window.addEventListener('pagehide', () => {
+    if(vizFrame)window.cancelAnimationFrame(vizFrame);
+    vizFrame=0;
+  },{once:true});
+  // Sidebar navigation closes the fullscreen view without stopping audio.
+  const vizWatch = new MutationObserver(refreshVisualizer);
+  vizWatch.observe(root,{attributes:true,attributeFilter:['class']});
+  refreshVisualizer();
+
   // Decorative cover layers must not start browser image-drag instead of swiping.
   playingPanel?.querySelectorAll('.visual-container img').forEach(img => { img.draggable = false; });
   playingPanel?.addEventListener('dragstart', event => {
