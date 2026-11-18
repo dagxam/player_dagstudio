@@ -75,7 +75,7 @@ const classes = new Set();
 const currentQueue = [{title:'Playing',url:'https://example.org/audio.mp3'}];
 const audioState = {paused:false,currentTime:42};
 const beforePlayback = JSON.stringify({queue:currentQueue,index:0,time:audioState.currentTime,paused:audioState.paused});
-const modeCtx = {root:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}},updateNav:()=>{}};
+const modeCtx = {root:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}},updateNav:()=>{},refreshVisualizer:()=>{}};
 runInNewContext(vision.slice(openStart,openEnd) +
  '\nglobalThis.openCurrent=expandPlayer;globalThis.closeCurrent=collapsePlayer;',modeCtx);
 modeCtx.openCurrent();
