@@ -29,6 +29,7 @@ if (!in_array($requestMethod, ['GET', 'HEAD'], true)) {
     exit;
 }
 $isHead = $requestMethod === 'HEAD';
+require_once __DIR__ . '/hitmos-config.php';
 
 $url = trim($_GET['url'] ?? '');
 $source = strtolower(trim($_GET['source'] ?? ''));
@@ -65,6 +66,8 @@ foreach ($allowed as $domain) {
         break;
     }
 }
+if (!$isAllowed && $source === 'hitmos' && $scheme === 'https' &&
+    in_array($host, dagHitmosAudioHosts(), true)) $isAllowed = true;
 if (!$isAllowed) {
     http_response_code(403);
     exit;
@@ -236,7 +239,8 @@ $runAttempt = function(bool $useRange) use (
         CURLOPT_RETURNTRANSFER => false,
         // Не скачиваем тело аудиофайла при диагностическом HEAD.
         CURLOPT_NOBODY => $isHead,
-        CURLOPT_FOLLOWLOCATION => true,
+        // An authorized Hitmos API must return a final approved audio URL.
+        CURLOPT_FOLLOWLOCATION => $source !== 'hitmos',
         CURLOPT_MAXREDIRS => 5,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,

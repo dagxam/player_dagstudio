@@ -73,6 +73,7 @@ if (!file_exists('db.php')) {
     exit;
 }
 require 'db.php';
+require_once __DIR__ . '/hitmos-config.php';
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
 $input = file_get_contents('php://input');
@@ -210,11 +211,11 @@ elseif ($action === 'update_track_url') {
     $parts = parse_url($url);
     $host = strtolower((string)($parts['host'] ?? ''));
     $scheme = strtolower((string)($parts['scheme'] ?? ''));
-    $allowedTrackHosts = [
+    $allowedTrackHosts = array_merge([
         'api.audius.co', 'discoveryprovider.audius.co', 'storage.jamendo.com',
         'slider.kz', 'ru.hitmoz.org', 'hitmoz.org', 'muzofond.fm', 'zvooq.net',
         'muzvox.org', 'storage.muzvox.org', 'static.muzvox.org', 'muzca.net'
-    ];
+    ], dagHitmosAudioHosts());
 
     $allowed = false;
     if (in_array($scheme, ['http', 'https'], true) && $host !== '') {
@@ -580,7 +581,8 @@ elseif ($action === 'search_global') {
     // query string; we append q and page. The endpoint is server-side only.
     $hitmos_api = trim((string)(getenv('HITMOS_SEARCH_API_URL') ?: ''));
     $hitmos_url = parse_url($hitmos_api);
-    $hitmos_enabled = is_array($hitmos_url) &&
+    $hitmos_audio_hosts = dagHitmosAudioHosts();
+    $hitmos_enabled = count($hitmos_audio_hosts) > 0 && is_array($hitmos_url) &&
         ($hitmos_url['scheme'] ?? '') === 'https' &&
         !empty($hitmos_url['host']) && !isset($hitmos_url['port']) &&
         !isset($hitmos_url['user']) && !isset($hitmos_url['pass']) &&
@@ -772,14 +774,17 @@ elseif ($action === 'search_global') {
                     !str_contains($audio_host, '.') ||
                     filter_var($audio_host, FILTER_VALIDATE_IP) ||
                     isset($audio_url['user']) || isset($audio_url['pass']) ||
-                    isset($audio_url['port']) || strlen($audio) > 2048) continue;
+                    isset($audio_url['port']) || strlen($audio) > 2048 ||
+                    !in_array($audio_host, $hitmos_audio_hosts, true)) continue;
                 $raw_results[] = [
                     'title' => $title,
                     'artist' => $artist,
                     'url' => $audio,
                     'type' => 'audio',
                     'thumb' => 'images/cover.png',
-                    'source' => '[HITMOS]'
+                    'source' => '[HITMOS]',
+                    'release_date' => is_string($track['release_date'] ?? null)
+                        ? mb_substr($track['release_date'], 0, 30) : ''
                 ];
             }
         } else {

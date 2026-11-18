@@ -82,7 +82,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2349';
+const WEB_BUILD_LABEL = '2350';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -769,7 +769,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2364', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2365', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -2986,6 +2986,7 @@ async function testMusicSourceHealth() {
             {key:'jamendo',label:'Jamendo',source:'[JAMENDO]'},
             {key:'vk_mail',label:'VK / Slider',source:'[VK]'},
             {key:'hitmoz',label:'Hitmoz',source:'[HITMOZ]'},
+            {key:'hitmos',label:'Hitmos.fm',source:'[HITMOS]'},
             {key:'muzo',label:'Muzofond',source:'[MUZOFOND]'},
             {key:'zvooq',label:'Zvooq',source:'[ZVOOQ]'},
             {key:'muzvox',label:'MuzVox',source:'[MUZVOX]'},
@@ -3004,7 +3005,7 @@ async function testMusicSourceHealth() {
                 (Number(info.http)||0)+')';
         });
         const render=()=>{
-            result.textContent=['Проверка 8 источников (Jamendo по ключу) · '+((Date.now()-started)/1000).toFixed(1)+' с',
+            result.textContent=['Проверка '+sources.length+' источников (Hitmos по API, Jamendo по ключу) · '+((Date.now()-started)/1000).toFixed(1)+' с',
                 ...lines,
                 'HTTP 200 — не гарантия аудио. Проверка выполнена из сети сервера DAGSTUDIO.',
                 'При слабом сигнале или воспроизведении с малым буфером аудиопроверка пропускается.'
@@ -3031,7 +3032,7 @@ async function testMusicSourceHealth() {
             await Promise.all(Array.from({length:Math.min(3,pending.length)},worker));
         }
         const hasMatches=sources.filter(({source})=>Number(counts[source])>0).length;
-        lines.push('С результатами по Miyagi: '+hasMatches+' из 8 источников (Jamendo по ключу).');
+        lines.push('С результатами по Miyagi: '+hasMatches+' из '+sources.length+' источников (Hitmos по API, Jamendo по ключу).');
         lines.push('Для других исполнителей результаты могут отличаться. Работа в России без VPN проверяется отдельно на устройстве.');
         render();
         recordPlayerEvent('provider-diagnostics');

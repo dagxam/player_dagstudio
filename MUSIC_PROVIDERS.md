@@ -57,3 +57,24 @@ https://pl.dagstudio.ru. Android-клиент использует провер�
   https://kavkazmusic.tv/category/premery и
   https://zvuk-m.com/muzykalnye-premery. Это источники **метаданных и ссылок**:
   автоматическое аудиовоспроизведение требует разрешения правообладателя.
+
+
+## Hitmos в общем поиске DAGSTUDIO
+
+Источник Hitmos.fm участвует в **общем** `search_global` (не отдельная вкладка),
+когда оператор предоставил разрешённый API и домены лицензированного аудио.
+Настройка сервера PHP:
+
+- `HITMOS_SEARCH_API_URL=https://authorized-provider.example/api/search`
+- `HITMOS_AUDIO_HOSTS=cdn1.example.org,cdn2.example.org`
+
+Адреса выше — примеры формата, не рабочие URL Hitmos.
+API принимает параметры `q` и `page` и отвечает JSON вида:
+`{"tracks":[{"title":"...","artist":"...","audio_url":"https://cdn1.example.org/track.mp3","release_date":"2026-11-18"}]}`.
+
+Аудиодомены должны быть перечислены по одному, без шаблонов и IP.
+Прокси разрешает HTTPS аудио Hitmos **только** на этих точных доменах,
+не следует перенаправлениям на другие хосты и проверяет Content-Type.
+При отсутствии API или списка доменов диагностический статус —
+`configured=false`, не ложные результаты поиска. Доступность главной
+страницы Hitmos не подтверждает ни API, ни право на ретрансляцию музыки.
