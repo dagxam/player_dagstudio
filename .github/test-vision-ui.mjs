@@ -7,11 +7,11 @@ const native=read('scripts/build-native-web.mjs');
 const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
-assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=6"/);
-assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=3"/);
-assert.match(sw,/dagstudio-player-shell-v2359/);
+assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=7"/);
+assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=4"/);
+assert.match(sw,/dagstudio-player-shell-v2360/);
 for(const asset of [
- 'studio-vision.js?v=3','studio-vision.css?v=6','images/vision-hero.svg'
+ 'studio-vision.js?v=4','studio-vision.css?v=7','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
@@ -66,4 +66,46 @@ const withoutComments=css.replace(/\/\*[\s\S]*?\*\//g,'');
 const opens=(withoutComments.match(/\{/g)||[]).length;
 const closes=(withoutComments.match(/\}/g)||[]).length;
 assert.equal(opens,closes,'Design CSS braces must balance');
+// The brand must open the current player without touching playback or the queue.
+const {runInNewContext} = await import('node:vm');
+const openStart = vision.indexOf('  const expandPlayer = () => {');
+const openEnd = vision.indexOf('  const activateBrand = element => {', openStart);
+assert.ok(openStart > 0 && openEnd > openStart, 'Brand view controller exists');
+const classes = new Set();
+const currentQueue = [{title:'Playing',url:'https://example.org/audio.mp3'}];
+const audioState = {paused:false,currentTime:42};
+const beforePlayback = JSON.stringify({queue:currentQueue,index:0,time:audioState.currentTime,paused:audioState.paused});
+const modeCtx = {root:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}},updateNav:()=>{}};
+runInNewContext(vision.slice(openStart,openEnd) +
+ '\nglobalThis.openCurrent=expandPlayer;globalThis.closeCurrent=collapsePlayer;',modeCtx);
+modeCtx.openCurrent();
+assert.ok(classes.has('vision-player-expanded'),'Clicking brand expands player view');
+assert.equal(JSON.stringify({queue:currentQueue,index:0,time:audioState.currentTime,paused:audioState.paused}),
+ beforePlayback,'Opening player must not modify audio or queue');
+modeCtx.closeCurrent();
+assert.ok(!classes.has('vision-player-expanded'),'Back restores the previous view');
+assert.match(vision,/activateBrand\(brand\)/);
+assert.match(vision,/activateBrand\(headerBrand\)/);
+assert.match(vision,/topbar\.appendChild\(mobileBrand\)/);
+assert.match(vision,/pointerdown/);
+assert.match(vision,/pointermove/);
+assert.match(vision,/pointerup/);
+assert.match(vision,/touchstart/,'Legacy Android touch gestures preserved');
+assert.match(vision,/window\.playNext\?\.\(\)/);
+assert.match(vision,/window\.playPrev\?\.\(\)/);
+const deltaStart = vision.indexOf('  const swipeDirection = (dx, dy) =>');
+const deltaEnd = vision.indexOf('  let swipeStart = null;', deltaStart);
+assert.ok(deltaStart > 0 && deltaEnd > deltaStart,'Swipe direction predicate exists');
+const deltaCtx = {};
+runInNewContext(vision.slice(deltaStart,deltaEnd) +
+ '\nglobalThis.direction=swipeDirection;',deltaCtx);
+assert.equal(deltaCtx.direction(-100,8),'next','Left swipe advances original queue');
+assert.equal(deltaCtx.direction(100,8),'prev','Right swipe returns previous song');
+assert.equal(deltaCtx.direction(25,3),'','A slight drag is not a swipe');
+assert.equal(deltaCtx.direction(90,95),'','Vertical movement must not skip music');
+assert.match(css,/\.vision-ui\.vision-player-expanded>\.showcase-sidebar/);
+assert.match(css,/\.vision-ui\.vision-player-expanded>\.left-col \.vision-now-head/);
+assert.match(css,/\.vision-ui \.vision-top-brand/);
+assert.match(css,/vision-swipe-dragging/);
+
 console.log('VISION_DESKTOP_MOBILE_TABLET_TEYES_WEB_PWA_APK_PRESERVES_CONTROLLERS_OK');
