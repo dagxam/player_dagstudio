@@ -160,6 +160,8 @@ jobs:
           fi
 
       - name: Publish OTA directly to the DAGSTUDIO website
+        id: ota_primary
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -169,6 +171,20 @@ jobs:
           port: ${{ secrets.FTP_PORT || 21 }}
           local-dir: ./ota-publish/
           server-dir: /www/pl.dagstudio.ru/ota/
+          timeout: 180000
+
+      - name: Retry OTA FTP upload after connection timeout
+        if: ${{ steps.ota_primary.outcome != 'success' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          local-dir: ./ota-publish/
+          server-dir: /www/pl.dagstudio.ru/ota/
+          timeout: 180000
 
       - name: Verify primary OTA manifest and ZIP from public URL
         run: |
