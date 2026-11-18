@@ -23,10 +23,10 @@ const unknown=song('Д','Новинки '+year,null,6);
 const sorted=ctx.quickMixRankTracks([unknown,olderA,previous,nowA,archival,nowB],
  {mode:'popular'});
 assert.equal(sorted.length,6);
-assert.deepEqual(sorted.slice(0,3).map(t=>t.artist).sort(),['А','А','Б']);
+assert.equal(JSON.stringify(Array.from(sorted.slice(0,3),t=>t.artist).sort()),JSON.stringify(['А','А','Б']));
 assert.notEqual(sorted[0].artist,sorted[1].artist,
  'Within the newest year, different performers should alternate');
-assert.deepEqual(sorted.slice(3).map(t=>t.artist),['В','Г','Д'],
+assert.equal(JSON.stringify(Array.from(sorted.slice(3),t=>t.artist)),JSON.stringify(['В','Г','Д']),
  'Strict descending year order; unverified songs last');
 assert.ok(sorted.slice(0,5).every(t=>t._releaseVerified===true));
 assert.equal(sorted[5]._releaseVerified,false,
