@@ -6155,41 +6155,73 @@ if(mainSearchInput) {
 
 const QUICK_MIXES={
     charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
+        queries:['новинки музыки',`новинки 2026`,'new releases','new music'],
         artists:['Zivert','Баста','Miyagi','The Weeknd','Dua Lipa',
-          `новинки ${new Date().getFullYear()}`,'new music releases',
+          `новинки 2026`,'new music releases',
           'новые песни','latest songs','новинки России','new pop music',
           'Кавказские новинки','новая музыка','new hip hop','new rock music',
           'Султан Лагучев','Мурат Тхагалегов','Эльмира Магомедова',
           'Зульфия Чотчаева','Роза Мальсагова','Шамиль Кашешов']},
-    russian:{title:'Русские',mode:'popular',artists:['Баста','Zivert','Мот','Мияги','Макс Корж','Егор Крид']},
+    russian:{title:'Русские',mode:'popular',
+        // Genre-based searches make the catalogue less dependent on a fixed
+        // set of performers. A year in a search is not a verified release date.
+        queries:['русские песни новинки','новые русские песни','русская музыка',
+          'русский поп','русские хиты',`русские песни 2026`],
+        artists:['Zivert','Баста','Мот','Мияги','Егор Крид','Полина Гагарина',
+          'Дима Билан','Ани Лорак','JONY','Хабиб','Макс Корж','Клава Кока',
+          'Нюша','Мари Краймбрери','Сергей Лазарев','Ева Польна']},
     caucasus:{title:'Кавказские',mode:'popular',regions:[
-        // Region labels are search directions, not verified audio-language tags.
+        // Region labels are discovery directions, not certified song-language tags.
+        // Search broadly first; artist names remain fallback queries.
         {id:'dag_ru',label:'Дагестан · на русском',queries:[
-          'Эльдар Далгатов','Тимур Темиров','Эльмира Магомедова','Зульфия Чотчаева']},
-        {id:'dag_avar',label:'Дагестан · аварские',queries:['Зара Гамзатова','аварские']},
+          'дагестанские новые песни','дагестанская музыка','Эльдар Далгатов',
+          'Тимур Темиров','Эльмира Магомедова','Зульфия Чотчаева']},
+        {id:'dag_avar',label:'Дагестан · аварские',queries:[
+          'аварские песни','аварские новинки','Зара Гамзатова','аварские']},
         {id:'chechnya',label:'Чечня',queries:[
-          'чеченские','Тимур Муцураев','Иман Амирбекова','Увайс Шарипов']},
+          'чеченские песни','чеченские новинки','Тимур Муцураев','Иман Амирбекова','Увайс Шарипов']},
         {id:'ingushetia',label:'Ингушетия',queries:[
-          'ингушские','ингушская','Роза Мальсагова','Зара Аушева']},
+          'ингушские песни','ингушские новинки','Роза Мальсагова','Зара Аушева']},
         {id:'ossetia',label:'Северная Осетия',queries:[
-          'осетинские','осетинская','Мадина Кайтмазова','Амина Дзуцева']},
-        {id:'kabardino',label:'Кабардино-Балкария',queries:['кабардинские','балкарские']},
-        {id:'karachay',label:'Карачаево-Черкесия',queries:['Ислам Итляшев','карачаевские']},
-        {id:'adygea',label:'Адыгея',queries:['адыгейские','Мурат Калакуток']},
-        {id:'dag_dargin',label:'Дагестан · даргинские',queries:['даргинские','Фатима Рабаданова']},
-        {id:'dag_lezgin',label:'Дагестан · лезгинские',queries:['Мика Рамазанова','лезгинские']},
-        {id:'dag_kumyk',label:'Дагестан · кумыкские',queries:['Ислам Айдаров','кумыкские']},
-        {id:'dag_lak',label:'Дагестан · лакские',queries:['лакские','лакская']},
-        {id:'dag_tabasaran',label:'Дагестан · табасаранские',queries:['табасаранские','табасаранская']},
-        {id:'south_georgia',label:'Грузия',queries:['грузинские','Сосо Павлиашвили']},
-        {id:'south_armenia',label:'Армения',queries:['армянские','Тата Симонян']},
-        {id:'south_azerbaijan',label:'Азербайджан',queries:['азербайджанские','Ройа Айхан']}
+          'осетинские песни','осетинские новинки','Мадина Кайтмазова','Амина Дзуцева']},
+        {id:'kabardino',label:'Кабардино-Балкария',queries:[
+          'кабардинские песни','балкарские песни','кабардинские','балкарские']},
+        {id:'karachay',label:'Карачаево-Черкесия',queries:[
+          'карачаевские песни','карачаевские новинки','Ислам Итляшев','карачаевские']},
+        {id:'adygea',label:'Адыгея',queries:[
+          'адыгейские песни','адыгейские новинки','Мурат Калакуток']},
+        {id:'dag_dargin',label:'Дагестан · даргинские',queries:[
+          'даргинские песни','даргинские новинки','Фатима Рабаданова']},
+        {id:'dag_lezgin',label:'Дагестан · лезгинские',queries:[
+          'лезгинские песни','лезгинские новинки','Мика Рамазанова']},
+        {id:'dag_kumyk',label:'Дагестан · кумыкские',queries:[
+          'кумыкские песни','кумыкские новинки','Ислам Айдаров']},
+        {id:'dag_lak',label:'Дагестан · лакские',queries:[
+          'лакские песни','лакские новинки','лакская']},
+        {id:'dag_tabasaran',label:'Дагестан · табасаранские',queries:[
+          'табасаранские песни','табасаранские новинки','табасаранская']},
+        {id:'south_georgia',label:'Грузия',queries:[
+          'грузинские песни','грузинские новинки','Сосо Павлиашвили']},
+        {id:'south_armenia',label:'Армения',queries:[
+          'армянские песни','армянские новинки','Тата Симонян']},
+        {id:'south_azerbaijan',label:'Азербайджан',queries:[
+          'азербайджанские песни','азербайджанские новинки','Ройа Айхан']}
     ]},
-    foreign:{title:'Зарубежные',mode:'popular',artists:['Taylor Swift','The Weeknd','Dua Lipa','Bruno Mars','Billie Eilish','Lady Gaga']},
-    hits:{title:'Лучшее · подборка',mode:'popular',artists:['Баста','Zivert','Miyagi','Ислам Итляшев','The Weeknd','Dua Lipa']},
-    road:{title:'В дорогу',mode:'popular',artists:['Кино','Би-2','Сплин','Баста','Zivert','Макс Корж']},
-    rock:{title:'Рок',mode:'popular',artists:['Кино','Ария','ДДТ','Сплин','Би-2','Наутилус Помпилиус']},
-    retro:{title:'Ретро',mode:'classic',artists:['Руки Вверх','Мираж','Комбинация','Наутилус Помпилиус','Ласковый май','Алла Пугачёва']}
+    foreign:{title:'Зарубежные',mode:'popular',
+        queries:['new pop music','new songs','international hits','latest music'],
+        artists:['Dua Lipa','The Weeknd','Taylor Swift','Billie Eilish','Bruno Mars',
+          'Lady Gaga','Sabrina Carpenter','Ariana Grande','Ed Sheeran','SZA']},
+    hits:{title:'Лучшее · подборка',mode:'popular',
+        queries:['хиты новинки','популярные песни','песни новинки','popular music'],
+        artists:['Баста','Zivert','Miyagi','Ислам Итляшев','The Weeknd','Dua Lipa']},
+    road:{title:'В дорогу',mode:'popular',
+        queries:['музыка в дорогу','песни в дорогу','дорожные хиты'],
+        artists:['Zivert','Макс Корж','Баста','Би-2','Сплин','Кино']},
+    rock:{title:'Рок',mode:'popular',
+        queries:['русский рок новинки','русский рок','новый рок'],
+        artists:['Би-2','Сплин','ДДТ','Ария','Кино','Наутилус Помпилиус']},
+    retro:{title:'Ретро',mode:'classic',
+        artists:['Руки Вверх','Мираж','Комбинация','Наутилус Помпилиус','Ласковый май','Алла Пугачёва']}
 };
 let quickMixRequestId=0;
 let quickMixCurrent=null;
