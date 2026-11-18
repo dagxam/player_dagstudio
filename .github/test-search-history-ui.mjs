@@ -53,6 +53,14 @@ assert.equal(h.readSearchHistory()[7],'Песня 3');
 h.saveSearchQuery('  пЕсня   7 ');
 assert.equal(h.readSearchHistory().length,8,'No case-insensitive duplicates');
 assert.equal(h.readSearchHistory()[0],'пЕсня 7');
+h.saveSearchQuery('dagxam');
+assert.equal(h.readSearchHistory().some(q=>q.toLowerCase()==='dagxam'),false,
+ 'Account name must not be inserted into search history');
+stored.set('dag_search_history',JSON.stringify(['dagxam','Песня 10','Песня 9']));
+assert.deepEqual(Array.from(h.readSearchHistory()),['Песня 10','Песня 9'],
+ 'Legacy account-name seed must be hidden without deleting real queries');
+stored.clear();
+for(let n=1;n<=10;n++)h.saveSearchQuery('Песня '+n);
 h.saveSearchQuery('x');
 assert.equal(h.readSearchHistory().length,8,'Skip one-character searches');
 field.value='';
@@ -98,7 +106,7 @@ assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/studio-vision\.css\?v=5/);
 assert.match(html,/script\.js\?v=2343/);
 assert.match(sw,/dagstudio-player-shell-v2357/);
-assert.ok(sw.includes("'/studio-vision.css?v=5'"));
+assert.ok(sw.includes("'/studio-vision.css?v=6'"));
 assert.ok(sw.includes("'/script.js?v=2343'"));
 const clean=css.replace(/\/\*[\s\S]*?\*\//g,'');
 assert.equal((clean.match(/\{/g)||[]).length,(clean.match(/\}/g)||[]).length);
