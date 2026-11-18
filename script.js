@@ -6699,30 +6699,43 @@ async function loadMoreQuickMix() {
     setQuickMixStatus('Ищем новые песни…');
     const collected=[];
     try {
-        for(const {direction,query} of picks){
-            if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
+        // Fetch two independent directions simultaneously rather than waiting
+        // for a full upstream timeout before starting the second request.
+        const pageResults=await Promise.all(picks.map(async ({direction,query})=>{
+            if(requestId!==quickMixRequestId||state!==quickMixCurrent)return [];
             const page=Math.min(16,(state.pageNumbers.get(query)||1)+1);
             state.pageNumbers.set(query,page);
             if(page>=16)state.exhaustedQueries.add(query);
             try{
                 const net=getNetworkProfile();
-                const response=await api('search_global',{query,page,
+                const response=await api('search_global',{query,page,mode:'fast',
                     network:net.weak?'weak':'normal',save_data:net.saveData?1:0});
-                if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
+                if(requestId!==quickMixRequestId||state!==quickMixCurrent)return [];
                 if(response?.sources)for(const [server,health] of Object.entries(response.sources)){
                     state.checkedSources.add(server);
                     if(health?.ok)state.activeSources.add(server);
                 }
                 if(!response?.success||!response.data?.length){
-                    state.exhaustedQueries.add(query);continue;
+                    // A fast-only timeout is not proof the provider has no
+                    // music on this page. Try again with the normal budget
+                    // when that direction is selected on the next scroll.
+                    if(page>=16)state.exhaustedQueries.add(query);
+                    else state.pageNumbers.set(query,page-1);
+                    return [];
                 }
-                const fresh=quickMixUnique(response.data,[...state.tracks,...collected])
+                const fresh=quickMixUnique(response.data,state.tracks)
                     .map(track=>({...track,_mixRegion:direction.region,_mixSearchQuery:query}));
-                const ranked=quickMixRankTracks(fresh,config);
-                collected.push(...ranked.slice(0,4));
                 if(response.data.length<12)state.exhaustedQueries.add(query);
-            }catch(err){recordPlayerEvent('quick-mix-more-error');}
-        }
+                return quickMixRankTracks(fresh,config).slice(0,4);
+            }catch(err){
+                recordPlayerEvent('quick-mix-more-error');
+                state.pageNumbers.set(query,Math.max(0,page-1));
+                return [];
+            }
+        }));
+        if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
+        for(const results of pageResults)
+            collected.push(...quickMixUnique(results,[...state.tracks,...collected]));
         if(requestId!==quickMixRequestId||state!==quickMixCurrent)return;
         const unique=quickMixUnique(collected,state.tracks);
         if(unique.length){
