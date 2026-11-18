@@ -295,8 +295,12 @@ jobs:
           grep -q 'id="android-apk-download-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-update-btn"' <<< "$INDEX_HTML"
           grep -q 'id="app-version-footer"' <<< "$INDEX_HTML"
-          grep -q 'studio-vision.css?v=6' <<< "$INDEX_HTML"
-          grep -q 'studio-vision.js?v=3' <<< "$INDEX_HTML"
+          EXPECTED_VISION_STYLE="$(sed -n 's/.*href="\\(studio-vision\.css?v=[^"]*\\)".*/\\1/p' index.php | head -n 1)"
+          EXPECTED_VISION_SCRIPT="$(sed -n 's/.*src="\\(studio-vision\.js?v=[^"]*\\)".*/\\1/p' index.php | head -n 1)"
+          test -n "$EXPECTED_VISION_STYLE"
+          test -n "$EXPECTED_VISION_SCRIPT"
+          grep -Fq "$EXPECTED_VISION_STYLE" <<< "$INDEX_HTML"
+          grep -Fq "$EXPECTED_VISION_SCRIPT" <<< "$INDEX_HTML"
           for asset in studio-vision.css studio-vision.js images/vision-hero.svg; do
             curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 25 \
               "https://pl.dagstudio.ru/$asset?v=$EXPECTED" \
