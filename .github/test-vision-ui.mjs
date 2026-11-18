@@ -9,7 +9,7 @@ const expected=['Поиск','Моя волна','Плейлисты','Мне н
 
 assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=6"/);
 assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=3"/);
-assert.match(sw,/dagstudio-player-shell-v2357/);
+assert.match(sw,/dagstudio-player-shell-v2358/);
 for(const asset of [
  'studio-vision.js?v=3','studio-vision.css?v=6','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
