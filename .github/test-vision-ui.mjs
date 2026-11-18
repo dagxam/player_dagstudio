@@ -9,9 +9,9 @@ const expected=['Поиск','Моя волна','Плейлисты','Мне н
 
 assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=5"/);
 assert.match(html,/studio-center\.js\?v=7" defer><\/script>\s*<script src="studio-vision\.js\?v=2"/);
-assert.match(sw,/dagstudio-player-shell-v2355/);
+assert.match(sw,/dagstudio-player-shell-v2357/);
 for(const asset of [
- 'studio-vision.js?v=2','studio-vision.css?v=5','images/vision-hero.svg'
+ 'studio-vision.js?v=3','studio-vision.css?v=6','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
@@ -28,6 +28,12 @@ assert.match(vision,/window\.studioCenterRender\?\.\('playlists'\)/);
 assert.match(vision,/vision-mini-player/);
 assert.match(vision,/vision-bottom-nav/);
 assert.match(vision,/vision-player-expanded/);
+assert.match(vision,/activateBrand\(brand\)/,'Logo must open current playback view');
+assert.match(vision,/window\.playPrev/,'Swipe right must use existing previous-track action');
+assert.match(vision,/touchstart/);
+assert.match(vision,/touchend/);
+assert.match(css,/@keyframes visionSwipeNext/);
+assert.match(css,/@media\(min-width:769px\)/);
 assert.match(vision,/window\.togglePlay/);
 assert.match(vision,/window\.playNext/);
 assert.doesNotMatch(vision,/window\.openPlaybackQueue/);
