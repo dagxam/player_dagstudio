@@ -21,7 +21,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Text fonts are optional; every icon font is hosted locally. -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <!-- Icons bundled locally: no CDN or DNS dependency for Android/PWA. -->
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=6722">
     
@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=23">
     <link rel="stylesheet" href="studio-touch.css?v=12">
-    <link rel="stylesheet" href="studio-vision.css?v=10">
+    <link rel="stylesheet" href="studio-vision.css?v=11">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
     <script>(function(){var done=false;function reveal(){if(done)return;done=true;document.documentElement.classList.remove('studio-booting');}window.addEventListener('dag-ui-ready',reveal,{once:true});document.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#studio-navigation'))reveal();});setTimeout(reveal,3500);})();</script>
 </head>
@@ -476,7 +476,7 @@
     </div>
 </div>
 
-<script src="script.js?v=2356" defer></script>
+<script src="script.js?v=2357" defer></script>
 <script src="studio.js?v=6" defer></script>
 <script src="studio-next.js?v=18" defer></script>
 <script src="studio-center.js?v=8" defer></script>
