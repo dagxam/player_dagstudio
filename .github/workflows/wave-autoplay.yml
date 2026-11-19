@@ -1,0 +1,50 @@
+name: Wave One-Click Autoplay Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/wave-autoplay.yml"
+      - ".github/live-wave-autoplay.mjs"
+      - "script.js"
+      - "studio.js"
+      - "studio-next.js"
+      - "studio-center.js"
+      - "index.php"
+      - "sw.js"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wave:
+    name: Verify one tap and continuous Wave in Chrome
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate Chrome
+        run: |
+          which google-chrome || which chromium || which chromium-browser
+      - name: Install Chrome driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Verify this release reached production
+        run: |
+          set -e
+          EXPECTED="$GITHUB_SHA"
+          for attempt in $(seq 1 36); do
+            ACTUAL="$(curl --fail --silent --show-error --location --max-time 10 \
+              -H 'Cache-Control: no-cache' \
+              "https://pl.dagstudio.ru/deploy-$EXPECTED.txt" || true)"
+            if [ "$ACTUAL" = "$EXPECTED" ]; then
+              echo "Production verified at $EXPECTED"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Release not yet verified on the public site."
+          exit 1
+      - name: Test single-tap start and automatic next track
+        env:
+          PLAYER_URL: https://pl.dagstudio.ru/
+        run: node .github/live-wave-autoplay.mjs
