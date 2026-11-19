@@ -80,7 +80,9 @@ const NATIVE_UPDATE_META_URL =
     'https://pl.dagstudio.ru/ota-bridge.php';
 const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
-const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
+// The first-party APK mirror can lag behind if FTP deployment fails.
+// The signed Preview release is published and SHA-verified independently.
+const ANDROID_APK_DOWNLOAD_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
 const WEB_BUILD_LABEL = '2357';
 
@@ -217,6 +219,7 @@ async function getNativeAppInfoSafe() {
             return {
                 version: String(info?.version || window.DAG_NATIVE_BUILD_VERSION || 'Preview'),
                 build: String(info?.build || ''),
+                id: String(info?.id || ''),
                 native: true
             };
         }
@@ -227,6 +230,7 @@ async function getNativeAppInfoSafe() {
     return {
         version: String(window.DAG_NATIVE_BUILD_VERSION || 'Preview'),
         build: '',
+        id: '',
         native: true
     };
 }
@@ -269,9 +273,10 @@ function configureAndroidDownloadLink() {
     if (!link) return;
     // Same-origin endpoint sends Content-Disposition: attachment; browsers
     // download the APK rather than try to display it in a WebView tab.
-    link.href = '/apk-download.php';
-    link.removeAttribute('target');
-    link.setAttribute('download', 'DAGSTUDIO-PLAYER-Preview.apk');
+    link.href = ANDROID_APK_DOWNLOAD_URL;
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+    link.removeAttribute('download');
     link.onclick = function(event) {
         if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
         event.preventDefault();
@@ -489,7 +494,12 @@ window.manualUpdateApplication = async function() {
         const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
         let apkCheckFailed = false;
         if (NATIVE_PLATFORM === 'android') {
-            if (!installer || typeof installer.check !== 'function' ||
+            const appInfo = await getNativeAppInfoSafe();
+            if (appInfo.id && appInfo.id !== 'ru.dagstudio.player.preview') {
+                // The signed Preview app uses a distinct package and cannot
+                // update the production APK in-place. Continue with OTA.
+                apkCheckFailed = false;
+            } else if (!installer || typeof installer.check !== 'function' ||
                 typeof installer.install !== 'function') {
                 apkCheckFailed = true;
             } else {
@@ -644,14 +654,21 @@ async function findAvailableAppUpdate() {
     // Native Java compares versionCode, checks the trusted HTTPS origin, and
     // does not download APK bytes during this availability probe.
     const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
-    if (installer && typeof installer.check === 'function') {
+    const appInfo = await getNativeAppInfoSafe();
+    // Preview and production are different Android package IDs. The signed
+    // Preview APK cannot replace ru.dagstudio.player and should never be
+    // advertised as an in-place update to the production package.
+    const apkPackageMatches = !appInfo.id || appInfo.id === 'ru.dagstudio.player.preview';
+    if (apkPackageMatches && installer && typeof installer.check === 'function') {
         try {
             const apk = await installer.check();
             if (apk?.available) return {
                 kind: 'apk',
                 key: 'apk:' + String(apk.version || ''),
                 version: String(apk.version || 'Android'),
-                message: 'Доступна новая версия Android-приложения. После загрузки Android попросит подтвердить установку.'
+                message: 'Установлена: ' + String(apk.installedVersion || appInfo.version || 'Android') +
+                    '. Доступна: ' + String(apk.version || 'Android') +
+                    '. После загрузки подтвердите замену приложения в системном установщике.'
             };
         } catch (error) {
             console.warn('Android update availability unavailable:', error);
@@ -723,7 +740,7 @@ window.applyAvailableAppUpdate = async function() {
                 showNotification('Последняя версия Android уже установлена.');
             } else if (outcome?.status === 'installer-opened') {
                 document.getElementById('app-update-modal')?.classList.remove('show');
-                showNotification('Подтвердите установку в системном окне Android.');
+                showNotification('Подтвердите установку в системном окне Android. Если Android предложит создать второе приложение, отмените установку.');
             } else {
                 throw new Error('Не удалось запустить установку APK');
             }
@@ -741,7 +758,12 @@ window.applyAvailableAppUpdate = async function() {
         }
     } catch (error) {
         recordConnectivityFailure(error);
-        showNotification('Обновление не выполнено. ' + explainConnectionFailure(error));
+        const reason = String(error?.message || error || 'Ошибка обновления').slice(0,180);
+        if (offeredUpdate?.kind === 'apk') {
+            showConfirm('Встроенная установка APK не выполнена: ' + reason +
+                '. Открыть последнюю подписанную Preview APK из GitHub в браузере?',
+                function() { openAndroidApkDownload(); });
+        } else showNotification('Обновление не выполнено. ' + explainConnectionFailure(error));
     } finally {
         updateActionInProgress = false;
         if (button) { button.disabled = false; button.textContent = 'Обновить'; }
