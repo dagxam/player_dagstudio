@@ -30,6 +30,22 @@ const rankBegin=source.indexOf('function quickMixReleaseTimestamp(');
 const rankEnd=source.indexOf('function setQuickMixStatus(',rankBegin);
 assert.ok(rankBegin>0&&rankEnd>rankBegin);
 runInNewContext(source.slice(rankBegin,rankEnd),ctx);
+const playing={artist:'Певец',title:'Сейчас играет',url:'https://example.org/current.mp3'};
+const russianNext={artist:'Группа Р',title:'Кавказ на русском',url:'https://example.org/ru.mp3'};
+const nationalNext={artist:'Группа Н',title:'Национальная песня',url:'https://example.org/national.mp3'};
+ctx.playbackTab='mix:caucasus';
+ctx.currentIndex=0;
+ctx.playbackPlaylist=[playing,nationalNext];
+ctx.canonicalTrackUrl=t=>t.url;
+ctx.renderPlaybackQueue=()=>{};
+ctx.syncCaucasusPlaybackQueue({key:'caucasus',
+ tracks:[russianNext,playing,nationalNext]});
+assert.equal(ctx.playbackPlaylist[0].url,playing.url,
+ 'The currently playing Caucasus song never restarts during new searches');
+assert.equal(ctx.playbackPlaylist[1].url,russianNext.url,
+ 'Unplayed Caucasus tracks are re-sorted Russian first');
+assert.equal(ctx.playbackPlaylist[2].url,nationalNext.url);
+
 const popular={title:'Popular',artist:'Singer',url:'https://example.org/popular.mp3',play_count:300000,favorite_count:12000};
 const less={title:'Less',artist:'Singer',url:'https://example.org/less.mp3',play_count:5};
 const sorted=ctx.quickMixRankTracks([less,popular],{mode:'popular'});
