@@ -331,6 +331,7 @@ async function refreshAppVersionInfo() {
         main.textContent = 'Версия: ' + (info.version || 'Preview');
         const details = [];
         if (info.build) details.push('сборка ' + info.build);
+        if (info.id) details.push('пакет ' + info.id);
         if (bundleVersion) details.push('OTA ' + bundleVersion);
         extra.textContent = details.join(' · ');
     } else {
