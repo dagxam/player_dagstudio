@@ -79,7 +79,28 @@ assert.ok(configs.road.queries.length>=2);
 assert.ok(configs.rock.queries.length>=2);
 assert.equal(configs.retro.mode,'classic','Retro still serves classic music');
 const regions=ctx.quickMixSearchPlan(configs.caucasus);
-assert.equal(regions.length,configs.caucasus.regions.length);
+assert.equal(regions.length,configs.caucasus.russianQueries.length+
+ configs.caucasus.regions.length-1);
+assert.equal(regions[0].kind,'caucasus-russian');
+assert.ok(regions.slice(0,configs.caucasus.russianQueries.length)
+ .every(direction=>direction.kind==='caucasus-russian'));
+assert.ok(regions.slice(configs.caucasus.russianQueries.length)
+ .every(direction=>direction.kind==='caucasus-national'));
+const caucasusTrack=(name,release_date,russian,idx)=>({
+ artist:'Исполнитель '+idx,title:name,url:'https://example.org/caucasus-'+idx+'.mp3',
+ release_date,_caucasusRussianSearch:russian
+});
+const priorities=ctx.quickMixRankTracks([
+ caucasusTrack('Национальная старая',year-1+'-09-12',false,1),
+ caucasusTrack('Русская без даты','',true,2),
+ caucasusTrack('Национальная новая',thisYear,false,3),
+ caucasusTrack('Русская старая',year-1+'-01-10',true,4),
+ caucasusTrack('Русская новая',thisYear,true,5)
+],configs.caucasus);
+assert.equal(JSON.stringify(priorities.map(t=>t.title)),JSON.stringify([
+ 'Русская новая','Национальная новая','Русская старая',
+ 'Национальная старая','Русская без даты'
+]),'2026 Caucasus in Russian precedes 2026 national; older and undated follow');
 const oneRegion=ctx.quickMixSearchPlan({regions:[configs.caucasus.regions[0]],
  splitRegionQueries:true});
 assert.ok(oneRegion.length>=4,'A single republic searches several performers');
