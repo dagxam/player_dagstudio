@@ -115,7 +115,20 @@
     hideLikes();
     waveButton?.classList.add('active');
     document.getElementById('studio-header-offline')?.classList.remove('active');
-    if(typeof startQuickMix==='function')startQuickMix('wave');
+    // One tap: do not restart a playing station or interrupt its current song.
+    if(typeof playbackTab!=='undefined'&&playbackTab==='mix:wave'&&
+       playbackPlaylist[currentIndex]?._waveRadio){
+      if(!playbackWanted&&typeof resumePlayback==='function')resumePlayback();
+      return;
+    }
+    if(typeof quickMixCurrent!=='undefined'&&quickMixCurrent?.key==='wave'&&
+       quickMixCurrent.loading)return;
+    // Prime autoplay synchronously while the browser still recognizes the
+    // actual tap. The remote track is fetched afterward without a second Play.
+    if(typeof primeWaveAudioFromClick==='function')primeWaveAudioFromClick();
+    if(typeof startQuickMix==='function')startQuickMix('wave').catch(error=>{
+      console.warn('Wave discovery failed',String(error?.message||error));
+    });
   };
   // Return to the real list when a user searches, chooses a playlist or starts
   // a mix. No replacement of the existing source-switching/audio functions.
