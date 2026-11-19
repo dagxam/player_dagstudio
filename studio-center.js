@@ -177,12 +177,24 @@ window.studioCenterOpenPlaylist=function(id){
   if(selected)openPlaylist(selected);
   else render('playlists');
 };
+function openMixScreen(key,label){
+ // Reuse the same actual player and audio queue as My Wave; hide the track
+ // browser, but retain its data for Next/Previous and the queue control.
+ view='mix';returnView='collections';
+ bar.hidden=true;
+ root.classList.add('showcase-wave-only');
+ root.dataset.activeMix=key;
+ const heading=document.querySelector('.showcase-hero-copy h1');
+ if(heading)heading.textContent=label||'Подборка';
+ selectNav('collections');
+}
+window.studioMixScreen=openMixScreen;
 function showMix(key,label,backTo='collections'){
- showTracks(key==='charts'?'charts':'collections',label,backTo);
+ openMixScreen(key,label);
  if(typeof startQuickMix==='function')startQuickMix(key);
 }
 function region(id,label){
- showTracks('collections',label,'regions');
+ openMixScreen('caucasus_selected',label);
  if(typeof startCaucasusRadio==='function')startCaucasusRadio(id);
 }
 function browseAudius(mode,label,backTo='collections'){
@@ -303,6 +315,9 @@ window.addEventListener('dag-playlists-updated',()=>{if(view==='playlists')rende
 function openWaveScreen(){
  view='wave';returnView='home';
  bar.hidden=true;
+ delete root.dataset.activeMix;
+ const heading=document.querySelector('.showcase-hero-copy h1');
+ if(heading)heading.textContent='Моя волна';
  root.classList.add('showcase-wave-only');
  selectNav('wave');
 }
