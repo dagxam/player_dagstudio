@@ -1,4 +1,4 @@
-name: Wave One-Click Autoplay Smoke
+name: Wave Autoplay and Premium UI Smoke
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
       - "studio.js"
       - "studio-next.js"
       - "studio-center.js"
+      - "studio-vision.css"
       - "index.php"
       - "sw.js"
       - ".github/test-wave-themes.mjs"
@@ -21,7 +22,7 @@ permissions:
 
 jobs:
   wave:
-    name: Verify one tap and continuous Wave in Chrome
+    name: Verify Wave autoplay and fullscreen layout in Chrome
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +47,7 @@ jobs:
           done
           echo "Release not yet verified on the public site."
           exit 1
-      - name: Test single-tap start and automatic next track
+      - name: Test Wave autoplay and desktop/mobile/car layout
         env:
           PLAYER_URL: https://pl.dagstudio.ru/
         run: node .github/live-wave-autoplay.mjs
