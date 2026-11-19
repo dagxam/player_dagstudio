@@ -6235,7 +6235,17 @@ const QUICK_MIXES={
         artists:['Zivert','Баста','Мот','Мияги','Егор Крид','Полина Гагарина',
           'Дима Билан','Ани Лорак','JONY','Хабиб','Макс Корж','Клава Кока',
           'Нюша','Мари Краймбрери','Сергей Лазарев','Ева Польна']},
-    caucasus:{title:'Кавказские',mode:'popular',regions:[
+    caucasus:{title:'Кавказские',mode:'popular',russianFirst:true,
+        // Search directions only: providers do not guarantee verified track language.
+        // Start with Caucasian songs in Russian; national republic catalogues follow.
+        russianQueries:[
+          'кавказские песни на русском 2026',
+          'кавказские новинки на русском',
+          'дагестанские песни на русском',
+          'чеченские песни на русском',
+          'кавказские хиты на русском',
+          'осетинские песни на русском'
+        ],regions:[
         // Region labels are discovery directions, not certified song-language tags.
         // Search broadly first; artist names remain fallback queries.
         {id:'dag_ru',label:'Дагестан · на русском',queries:[
@@ -6341,6 +6351,18 @@ function quickMixRankTracks(tracks,config) {
     // then older dated music, and undated results as a transparent fallback.
     // Search terms containing a year never prove a release date.
     if(config?.mode==='classic')return quickMixDiversify(ranked.sort(scoreOrder).map(e=>e.track));
+    if(config?.russianFirst){
+        // Russian-language Caucasus discoveries precede national discoveries
+        // within each verified release-year tier. Never infer a release year
+        // from a query, and never claim the query proves the track's language.
+        const priority=e=>{
+            const fresh=e.year===currentYear?0:(e.year>0?2:4);
+            return fresh+(e.track._caucasusRussianSearch===true?0:1);
+        };
+        ranked.sort((a,b)=>priority(a)-priority(b)||
+            b.released-a.released||scoreOrder(a,b));
+        return ranked.map(e=>({...e.track,_releaseVerified:!!e.released}));
+    }
     const dated=ranked.filter(e=>e.year>0);
     const undated=ranked.filter(e=>!e.released).sort(scoreOrder);
     // Strict real RELEASE DATE chronology (day, month and year).
@@ -6354,6 +6376,20 @@ function quickMixRankTracks(tracks,config) {
     ));
     return [...verifiedByDate,
         ...quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})))];
+}
+// Only update the unplayed tail. Never restart or move the current song when
+// a later provider answers with newer Russian/national Caucasus tracks.
+function syncCaucasusPlaybackQueue(state){
+    if(state?.key!=='caucasus'||playbackTab!=='mix:caucasus'||
+        currentIndex<0||!playbackPlaylist[currentIndex])return;
+    const finished=playbackPlaylist.slice(0,currentIndex+1);
+    const knownUrls=new Set(finished.map(t=>canonicalTrackUrl(t)));
+    const knownTitles=new Set(finished.map(t=>normalizeTrackIdentity(t.artist)+'|'+
+        normalizeTrackIdentity(t.title)));
+    const upcoming=state.tracks.filter(t=>!knownUrls.has(canonicalTrackUrl(t))&&
+        !knownTitles.has(normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
+    playbackPlaylist.splice(currentIndex+1,playbackPlaylist.length-currentIndex-1,...upcoming);
+    if(typeof renderPlaybackQueue==='function')renderPlaybackQueue();
 }
 function quickMixDiversify(ordered){
     const buckets=new Map(),result=[];
@@ -6424,6 +6460,20 @@ function startCaucasusRadio(regionId) {
 }
 function quickMixSearchPlan(config) {
     if (Array.isArray(config?.regions)) {
+        if(config.russianFirst){
+            // "Весь Кавказ" first searches Russian-language Caucasus releases,
+            // then covers every national tradition without repeating dag_ru.
+            const russian=[...new Set(config.russianQueries||[])].map((query,i)=>({
+                region:'Кавказ · на русском',queries:[query],
+                id:'caucasus-ru:'+i,kind:'caucasus-russian'
+            }));
+            const national=config.regions.filter(region=>region.id!=='dag_ru')
+                .map(region=>({
+                    region:region.label,queries:[...new Set(region.queries)],
+                    id:region.id,kind:'caucasus-national'
+                }));
+            return [...russian,...national];
+        }
         if(config.splitRegionQueries){
             // A listener who selected one republic should still hear
             // multiple performers. Parallelize its category and artist seeds.
@@ -6668,7 +6718,9 @@ async function startQuickMix(key) {
         if(item.region)quickMixCurrent.searchedRegions.add(item.region);
         const first=!started;
         started=true;
-        if(playbackTab==='mix:'+key&&playbackWanted){
+        if(key==='caucasus'){
+            syncCaucasusPlaybackQueue(quickMixCurrent);
+        }else if(playbackTab==='mix:'+key&&playbackWanted){
             const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
             playbackPlaylist.push(...next.filter(t=>!known.has(canonicalTrackUrl(t))));
         }
@@ -6716,7 +6768,8 @@ async function startQuickMix(key) {
                             if(ranked.length){
                                 quickMixCurrent.pageNumbers.set(query,1);
                                 const found=ranked.map(track=>({...track,
-                                    _mixRegion:item.region,_mixSearchQuery:query}));
+                                    _mixRegion:item.region,_mixSearchQuery:query,
+                                    _caucasusRussianSearch:item.kind==='caucasus-russian'}));
                                 publishMixResults(item,found);
                                 return found;
                             }
@@ -6816,7 +6869,8 @@ async function loadMoreQuickMix() {
                     return [];
                 }
                 const fresh=quickMixUnique(response.data,state.tracks)
-                    .map(track=>({...track,_mixRegion:direction.region,_mixSearchQuery:query}));
+                    .map(track=>({...track,_mixRegion:direction.region,_mixSearchQuery:query,
+                        _caucasusRussianSearch:direction.kind==='caucasus-russian'}));
                 if(response.data.length<12)state.exhaustedQueries.add(query);
                 return quickMixRankTracks(fresh,config).slice(0,4);
             }catch(err){
@@ -6833,7 +6887,9 @@ async function loadMoreQuickMix() {
         if(unique.length){
             state.tracks.push(...unique);
             state.tracks=quickMixRankTracks(state.tracks,config);
-            if(state.key!=='wave'&&playbackTab==='mix:'+state.key&&playbackWanted){
+            if(state.key==='caucasus'){
+                syncCaucasusPlaybackQueue(state);
+            }else if(state.key!=='wave'&&playbackTab==='mix:'+state.key&&playbackWanted){
                 const known=new Set(playbackPlaylist.map(t=>canonicalTrackUrl(t)));
                 playbackPlaylist.push(...unique.filter(t=>!known.has(canonicalTrackUrl(t))));
             }
