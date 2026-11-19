@@ -783,7 +783,11 @@
  .vision-ui.vision-player-expanded>.showcase-mobile-tools{display:none!important}
  .vision-ui .showcase-mobile-shade{z-index:199!important}
  .vision-ui .showcase-mobile-toggle{
-  position:fixed!important;bottom:calc(83px + env(safe-area-inset-bottom,0px))!important;
+  /* Legacy invisible toggle is clicked programmatically by VISION's real
+     menu button. Its old top:10px otherwise blocks the visible menu icon. */
+  position:fixed!important;top:auto!important;
+  bottom:calc(83px + env(safe-area-inset-bottom,0px))!important;
+  pointer-events:none!important;
   right:10px!important;z-index:152!important;opacity:0!important;width:36px!important;
   height:36px!important;
  }
