@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2368';
+const CACHE_NAME = 'dagstudio-player-shell-v2369';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -7,7 +7,7 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2229',
     '/modern.css?v=16',
-    '/script.js?v=2354',
+    '/script.js?v=2355',
     '/studio.css?v=6',
     '/studio.js?v=5',
     '/studio-next.css?v=23',
@@ -31,16 +31,25 @@ const CORE_ASSETS = [
 
 // Icon CSS and font files are cached locally above; no optional CDN calls.
 
+// Do not promote a new service worker when a partial FTP deployment has
+// served old HTML, a missing controller or a network error. Keep the previous
+// working SW installed instead of replacing it with a broken shell.
 self.addEventListener('install', function(event) {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(function(cache) {
-                return Promise.all(CORE_ASSETS.map(function(asset) {
-                    return cache.add(asset).catch(function() { return null; });
-                }));
-            })
-            .then(function() { return self.skipWaiting(); })
-    );
+    event.waitUntil((async function() {
+        const cache=await caches.open(CACHE_NAME);
+        await Promise.all(CORE_ASSETS.map(function(asset) {
+            return cache.add(asset).catch(function() { return null; });
+        }));
+        const index=await cache.match('/index.php');
+        const controller=await cache.match('/script.js?v=2355');
+        if (!index || !controller ||
+            !(await index.text()).includes('script.js?v=2355') ||
+            !(await controller.text()).includes("WEB_BUILD_LABEL = '2355'")) {
+            await caches.delete(CACHE_NAME);
+            throw new Error('PWA update deferred: incomplete web deployment');
+        }
+        return self.skipWaiting();
+    })());
 });
 
 self.addEventListener('activate', function(event) {
@@ -98,11 +107,12 @@ self.addEventListener('fetch', function(event) {
             const cached = await caches.match('/index.php');
             const network = fetch(request, { cache: 'no-store' })
                 .then(async function(response) {
-                    if (response && response.ok) {
-                        const copy = response.clone();
-                        const cache = await caches.open(CACHE_NAME);
-                        await cache.put('/index.php', copy);
-                    }
+                    if (!response || !response.ok) return null;
+                    // Do not cache a mismatched HTML shell after a partial deploy.
+                    const html=await response.clone().text();
+                    if(!html.includes('script.js?v=2355'))return null;
+                    const cache = await caches.open(CACHE_NAME);
+                    await cache.put('/index.php', response.clone());
                     return response;
                 })
                 .catch(function() { return null; });
@@ -149,14 +159,15 @@ self.addEventListener('fetch', function(event) {
             const cached = await caches.match(request);
             const network = fetch(request, { cache: 'no-store' })
                 .then(async function(response) {
-                    if (response && response.ok) {
-                        const cache = await caches.open(CACHE_NAME);
-                        await cache.put(request, response.clone());
-                    }
+                    if(!response || !response.ok)return null;
+                    const cache=await caches.open(CACHE_NAME);
+                    await cache.put(request,response.clone());
                     return response;
                 })
                 .catch(function() { return null; });
-            if (!cached) return (await network) || Response.error();
+            if (!cached) return (await network) || new Response('Файл временно недоступен', {
+                status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}
+            });
             const timeout = new Promise(function(resolve) {
                 setTimeout(function() { resolve(null); }, 1600);
             });
@@ -167,6 +178,9 @@ self.addEventListener('fetch', function(event) {
         })());
         return;
     }
+
+    // Do not intercept unrelated cross-origin fetches or extension requests.
+    if (url.origin !== self.location.origin) return;
 
     // Остальная локальная статика: cache-first, затем сеть.
     event.respondWith(
