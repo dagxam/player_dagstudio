@@ -74,7 +74,7 @@ assert.match(html,/studio-center\.js\?v=7/);
 assert.match(sw,/dagstudio-player-shell-v\d+/);
 const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
 assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
-assert.ok(sw.includes("'/studio-center.js?v=7'"));
+assert.ok(sw.includes("'/studio-center.js?v=8'"));
 assert.match(bridge,/copyFile\(join\(root, 'studio-center\.js'\)/);
 assert.match(bridge,/copyFile\(join\(root, 'studio-vision\.css'\)/);
 const clean=css.replace(/\/\*[\s\S]*?\*\//g,'');
