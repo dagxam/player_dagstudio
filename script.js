@@ -4755,7 +4755,7 @@ function radioRememberPlayed(kind,track){
         }
     }
 }
-const WAVE_CURSOR_PREFIX='dag_wave_cursor_v3_ordered:';
+const WAVE_CURSOR_PREFIX='dag_wave_cursor_v4_four_priority:';
 let waveSearchCursor=0,waveSearchOwner='';
 function nextWaveSearchCursor(){
     const owner=tasteOwnerKey();
@@ -4835,57 +4835,66 @@ function waveThemeDirections(library=waveLibrarySeeds()){
     return [...chosen.values()].filter(Boolean);
 }
 function waveSearchDirections(library=waveLibrarySeeds()){
-    const themes=waveThemeDirections(library), year=new Date().getUTCFullYear();
-    const artistNames=[...new Set(library.map(t=>String(t.artist||'').trim()).filter(Boolean))].slice(0,35);
-    const unnamedGenres=[...new Set(library.map(t=>String(t.genre||'').trim()).filter(Boolean))]
-        .filter(g=>!themes.some(theme=>theme.match.test(g))).slice(0,12);
-    const directions=[];
-    // Rotate discovery across Russian, Caucasian and Dagestani traditions.
-    // A library dominated by one language must not monopolize the radio.
-    // These are search directions, not claims that a track belongs to a language.
-    const broad=[
-        {query:'русские песни новинки',kind:'theme',theme:'russian-pop'},
-        {query:'кавказские новинки',kind:'theme',theme:'caucasus'},
-        {query:'аварские новинки',kind:'theme',theme:'avar'},
-        {query:'дагестанские новые песни',kind:'theme',theme:'dagestan'},
-        {query:'чеченские новинки',kind:'theme',theme:'chechen'},
-        {query:'лезгинские новинки',kind:'theme',theme:'lezgin'},
-        {query:'даргинские новинки',kind:'theme',theme:'dargin'},
-        {query:'кумыкские новинки',kind:'theme',theme:'kumyk'},
-        {query:'ингушские новинки',kind:'theme',theme:'ingush'},
-        {query:'осетинские новинки',kind:'theme',theme:'ossetian'},
-        {query:'лакские новинки',kind:'theme',theme:'lak'},
-        {query:'табасаранские новинки',kind:'theme',theme:'tabasaran'},
-        {query:'кабардинские новинки',kind:'theme',theme:'kabardian'},
-        {query:'балкарские новинки',kind:'theme',theme:'balkar'},
-        {query:'карачаевские новинки',kind:'theme',theme:'karachay'},
-        {query:'адыгейские новинки',kind:'theme',theme:'adyghe'},
-        {query:'азербайджанские новинки',kind:'theme',theme:'azerbaijan'}
+    const year=new Date().getUTCFullYear();
+    // A four-step editorial cycle: Russian -> Caucasus in Russian ->
+    // international -> one national tradition. Rotate all national traditions
+    // without letting an Avar-heavy library determine the entire station.
+    // Search words are hints; never treat them as verified song metadata.
+    const russian=['русские песни новинки','российские поп хиты','русская музыка новинки',
+        'новые русские песни','русский рэп новинки','русские танцевальные хиты'];
+    const caucasus=['кавказские песни на русском','кавказские новинки на русском',
+        'дагестанские песни на русском','кавказские хиты на русском',
+        'чеченские песни на русском','кавказская музыка на русском'];
+    const foreign=['зарубежные хиты','new pop releases','international hits',
+        'foreign music hits','new english songs','new music releases'];
+    const national=[
+        {query:'аварские новинки',theme:'avar'},
+        {query:'лезгинские новинки',theme:'lezgin'},
+        {query:'даргинские новинки',theme:'dargin'},
+        {query:'кумыкские новинки',theme:'kumyk'},
+        {query:'чеченские новинки',theme:'chechen'},
+        {query:'ингушские новинки',theme:'ingush'},
+        {query:'осетинские новинки',theme:'ossetian'},
+        {query:'лакские новинки',theme:'lak'},
+        {query:'табасаранские новинки',theme:'tabasaran'},
+        {query:'кабардинские новинки',theme:'kabardian'},
+        {query:'балкарские новинки',theme:'balkar'},
+        {query:'карачаевские новинки',theme:'karachay'},
+        {query:'адыгейские новинки',theme:'adyghe'},
+        {query:'грузинские новинки',theme:'georgian'},
+        {query:'армянские новинки',theme:'armenian'},
+        {query:'азербайджанские новинки',theme:'azerbaijan'}
     ];
-    const personalized=[];
-    if(themes.length){
-        for(let round=0;round<4;round++){
-            for(const theme of themes){
-                const query=round===0?theme.queries[0]+' '+year:
-                    round===1?theme.queries[0]:
-                    round===2?theme.queries[1]:theme.queries[2];
-                personalized.push({query,kind:'theme',theme:theme.id});
-            }
-        }
-        for(const artist of artistNames.slice(0,Math.max(1,Math.ceil(themes.length/2))))
-            personalized.push({query:artist,kind:'artist',theme:''});
-    }else{
-        for(const genre of unnamedGenres){
-            personalized.push({query:genre+' '+year,kind:'theme',theme:''});
-            personalized.push({query:genre,kind:'theme',theme:''});
-        }
-        for(const artist of artistNames)personalized.push({query:artist,kind:'artist',theme:''});
+    const directions=[];
+    for(let i=0;i<national.length;i++){
+        directions.push(
+            {query:russian[i%russian.length]+' '+year,kind:'theme',theme:'russian-pop'},
+            {query:caucasus[i%caucasus.length]+' '+year,kind:'theme',theme:'caucasus'},
+            {query:foreign[i%foreign.length]+' '+year,kind:'theme',theme:'foreign'},
+            {query:national[i].query+' '+year,kind:'theme',theme:national[i].theme}
+        );
     }
-    // First cycle is predictable: Russian -> whole Caucasus -> Avar -> other
-    // republics. Listener-specific directions follow the regional cycle.
-    directions.push(...broad,...personalized);
+    // Personal tastes still influence ranking and act as search fallbacks,
+    // but they no longer displace the four main discovery priorities.
+    const themes=waveThemeDirections(library);
+    for(const theme of themes){
+        directions.push({query:theme.queries[0]+' '+year,kind:'theme',theme:theme.id});
+        directions.push({query:theme.queries[1],kind:'theme',theme:theme.id});
+    }
     return [...new Map(directions.filter(d=>d.query.trim())
         .map(d=>[normalizeTrackIdentity(d.query),d])).values()];
+}
+// Normalizes artist collaborations so that an identical singer or group
+// cannot be followed by another track credited to that same participant.
+function waveArtistCredits(artist){
+    return [...new Set(String(artist||'').replace(/\\([^)]*\\)/g,' ')
+        .split(/\\s*(?:,|;|&|\\+|\\/|×|\\bfeat\\.?\\b|\\bft\\.?\\b|\\bпри участии\\b)\\s*/i)
+        .map(value=>normalizeTrackIdentity(value).replace(/^группа\\s+/,''))
+        .filter(Boolean))];
+}
+function waveSameArtist(a,b){
+    const first=new Set(waveArtistCredits(a));
+    return first.size>0&&waveArtistCredits(b).some(credit=>first.has(credit));
 }
 function waveReleasePriority(track,now=Date.now()){
     const released=quickMixReleaseTimestamp(track);
@@ -4908,6 +4917,7 @@ async function findWaveNextTrack(){
     const history=new Set(radioRecentTracks('wave'));
     const recentArtists=new Set(waveRecentArtists().slice(0,10));
     const prior=normalizeTrackIdentity(playbackPlaylist[currentIndex]?.artist);
+    const previousCredit=playbackPlaylist[currentIndex]?.artist||'';
     const seedArtists=[...new Set(library.map(t=>normalizeTrackIdentity(t.artist)).filter(Boolean))];
     const seedGenres=[...new Set(library.map(t=>normalizeTrackIdentity(t.genre)).filter(Boolean))];
     const topics=waveThemeDirections(library);
@@ -4946,7 +4956,8 @@ async function findWaveNextTrack(){
         }
     }
     function rankedCandidates(pool){
-        const unique=quickMixUnique(pool).filter(t=>!seen(t));
+        const unique=quickMixUnique(pool).filter(t=>!seen(t)&&
+            !waveSameArtist(t.artist,previousCredit));
         return unique.map(track=>{
             const artist=normalizeTrackIdentity(track.artist),genre=normalizeTrackIdentity(track.genre);
             const taste=tasteCandidateScore(track,seedArtists);
@@ -4968,15 +4979,15 @@ async function findWaveNextTrack(){
         }).filter(Boolean).sort((a,b)=>b.score-a.score);
     }
     let ranked=rankedCandidates(results);
-    // A theme search with only an already-heard singer is not sufficient:
-    // attempt one different topic rather than looping through their catalogue.
-    if(topics.length&&(!ranked.length || ranked.every(item=>seedArtists.includes(item.artist)||item.artist===prior))){
-        const alternates=directions.filter(d=>d.kind==='theme'&&
-            !queries.some(q=>q.query===d.query));
-        if(alternates.length){
-            const other=alternates[(cursor+count)%alternates.length];
+    // Never select the same singer or group consecutively. Search the
+    // next priorities when the current provider only returned that artist.
+    // Preserve the first valid direction instead of letting a later server
+    // response jump ahead of the requested Russian/Caucasus/foreign cycle.
+    if(!ranked.length){
+        for(let step=1;step<=Math.min(4,directions.length-1)&&!ranked.length;step++){
+            const other=directions[(cursor+step)%directions.length];
             const extra=await queryTracks({...other,page:1});
-            if(extra.length)ranked=rankedCandidates([...results,...extra]);
+            if(extra.length)ranked=rankedCandidates(extra);
         }
     }
     if(!ranked.length)return null;
@@ -5014,6 +5025,8 @@ async function findWaveNextTrack(){
 let waveWarmState=null,waveWarmTimer=null;
 function waveWarmCandidateAllowed(track){
     if(!track?._waveRadio||!track.url)return false;
+    if(playbackTab==='mix:wave'&&
+        waveSameArtist(track.artist,playbackPlaylist[currentIndex]?.artist))return false;
     if(radioRecentTracks('wave').includes(radioTrackIdentity(track)))return false;
     return !(playlists||[]).some(pl=>(pl.tracks||[]).some(saved=>
         canonicalTrackUrl(saved)===canonicalTrackUrl(track)||
@@ -5334,6 +5347,9 @@ function maybePrefetchSmartRadio() {
         if (smartRadioPrefetch !== state || token!==currentPlaybackToken ||
             serial!==smartRadioRequestSerial ||
             (!smartRadioEnabled&&!isContinuousRadio())) return null;
+        if(playbackTab==='mix:wave'&&candidate&&
+            waveSameArtist(candidate.artist,playbackPlaylist[currentIndex]?.artist))
+            candidate=null;
         state.candidate=candidate;
         if (candidate) {
             if(isContinuousRadio()&&currentIndex===playbackPlaylist.length-1){
@@ -5399,7 +5415,9 @@ async function playSmartRadioNext() {
         // network request is still in flight, wait briefly rather than start
         // several competing provider searches on TEYES mobile radio.
         let candidate=prefetched?.candidate || null;
-        if(isContinuousRadio()&&prefetched?.queued&&candidate){
+        if(isContinuousRadio()&&prefetched?.queued&&candidate&&
+            !(playbackTab==='mix:wave'&&
+              waveSameArtist(candidate.artist,playbackPlaylist[currentIndex]?.artist))){
             const idx=playbackPlaylist.indexOf(candidate);
             if(idx>currentIndex){
                 smartRadioPrefetch=null;cancelContinuousRadioRetry();
@@ -5415,7 +5433,9 @@ async function playSmartRadioNext() {
         }
         // A search can finish and enqueue its result while Next is awaiting
         // that same promise. Consume it once, without duplicating the song.
-        if(isContinuousRadio()&&prefetched?.queued&&candidate){
+        if(isContinuousRadio()&&prefetched?.queued&&candidate&&
+            !(playbackTab==='mix:wave'&&
+              waveSameArtist(candidate.artist,playbackPlaylist[currentIndex]?.artist))){
             const queuedIndex=playbackPlaylist.indexOf(candidate);
             if(queuedIndex>currentIndex){
                 smartRadioPrefetch=null;cancelContinuousRadioRetry();
@@ -5426,14 +5446,17 @@ async function playSmartRadioNext() {
         if (smartRadioPrefetch===prefetched) smartRadioPrefetch=null;
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
             (!smartRadioEnabled&&!isContinuousRadio()) || !playbackWanted) return true;
-        if (!candidate || (playbackTab==='mix:wave'&&!candidate._waveRadio)||
+        if (!candidate || (playbackTab==='mix:wave'&&
+            (!candidate._waveRadio||
+             waveSameArtist(candidate.artist,playbackPlaylist[currentIndex]?.artist)))||
             (playbackTab==='mix:charts'&&!candidate._chartRadio))
             candidate=playbackTab==='mix:wave'?
                 await findWaveNextTrack():playbackTab==='mix:charts'?
                 await findChartNextTrack():await findSmartRadioTrack();
         if (serial!==smartRadioRequestSerial || token!==currentPlaybackToken ||
             (!smartRadioEnabled&&!isContinuousRadio()) || !playbackWanted) return true;
-        if (candidate) {
+        if (candidate&&!(playbackTab==='mix:wave'&&
+            waveSameArtist(candidate.artist,playbackPlaylist[currentIndex]?.artist))) {
             // Keep the current and original list; don't overwrite the browsed playlist.
             // Wave is a continuous radio. Queue the new discovery directly
             // behind the current song and never display the track list.
@@ -5601,7 +5624,9 @@ function playNext() {
     // used immediately; otherwise discovery keeps trying in the background.
     if (isContinuousRadio()) {
         const queued=playbackPlaylist[currentIndex+1];
-        if(queued&&(playbackTab==='mix:charts'||queued._waveRadio)){
+        if(queued&&(playbackTab==='mix:charts'||queued._waveRadio)&&
+            !(playbackTab==='mix:wave'&&
+              waveSameArtist(queued.artist,playbackPlaylist[currentIndex]?.artist))){
             smartRadioPrefetch=null;
             cancelContinuousRadioRetry();
             playTrack(currentIndex+1,{fromPlayback:true,fromSmartRadio:true});
