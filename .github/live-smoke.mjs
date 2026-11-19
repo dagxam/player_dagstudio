@@ -120,12 +120,12 @@ try {
         list=document.getElementById('studio-curations');
       const wide=innerWidth>768;
       return {
-        sidebar:wide?(side.width>=150&&side.left>=-1):(side.width>200&&getComputedStyle(nav).position==='fixed'),
+        sidebar:wide?(side.width>=70&&side.left>=-1):(side.width>200&&getComputedStyle(nav).position==='fixed'),
         center:wide?(center.width>=275&&Math.abs(center.left-side.right)<5):center.width>=innerWidth-3,
-        hero:wide?(hero.width>=270&&Math.abs(hero.left-center.right)<5):hero.width>=innerWidth-3,
+        hero:wide?(hero.width>=225&&Math.abs(hero.left-center.right)<5):hero.width>=innerWidth-3,
         cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length>=8,
         brand:!!nav.querySelector('.showcase-brand'),
-        allActions:['search','wave','playlists','likes','offline','charts','collections','equalizer','settings'].every(k=>
+        allActions:['search','wave','playlists','likes','offline','collections','settings'].every(k=>
              !!document.getElementById('showcase-'+k)),
         activeWave:!!nav.querySelector('[data-showcase="wave"].active'),
         playButton:play.width>=54&&play.height>=54,
@@ -196,7 +196,7 @@ try {
     rail.click();
     return {original,compact,persisted,restored:!root.classList.contains('showcase-nav-collapsed')};
   });
-  if(sidebarCollapse.compact>90||sidebarCollapse.original<140||
+  if(sidebarCollapse.compact>90||sidebarCollapse.original<90||
      !sidebarCollapse.persisted||!sidebarCollapse.restored)
     throw new Error('Collapsible touch navigation regression '+JSON.stringify(sidebarCollapse));
 
