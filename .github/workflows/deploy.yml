@@ -221,6 +221,8 @@ jobs:
             *.log
 
       - name: Retry FTP deploy after connection timeout
+        id: ftp_retry
+        continue-on-error: true
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' && steps.ftp_primary.outcome != 'success' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -251,6 +253,87 @@ jobs:
             uploads/**
             cache/**
             *.log
+
+      # Some shared-hosting FTP servers stop responding during the Action's
+      # LIST/replace operation. Upload the release-critical files separately
+      # and finish with the unique marker, so production verification can still
+      # fail safely if the site is actually unreachable.
+      - name: Rescue critical web files when FTP actions time out
+        if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' && steps.ftp_primary.outcome != 'success' && steps.ftp_retry.outcome != 'success' }}
+        env:
+          FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          FTP_PORT: ${{ secrets.FTP_PORT || '21' }}
+        run: |
+          python3 - <<'PY'
+          import ftplib
+          import os
+          import ssl
+          import time
+
+          host=os.environ['FTP_SERVER']
+          username=os.environ['FTP_USERNAME']
+          password=os.environ['FTP_PASSWORD']
+          destination=os.environ['FTP_SERVER_DIR']
+          protocol=os.environ.get('FTP_PROTOCOL','ftp').lower()
+          port=int(os.environ.get('FTP_PORT') or 21)
+          version=os.environ['GITHUB_SHA']
+          essential=['script.js','sw.js','index.php','deploy-version.txt',
+                     'deploy-'+version+'.txt']
+          if protocol not in ('ftp','ftps'):
+              raise SystemExit('FTP fallback supports ftp and explicit ftps only')
+
+          def connect():
+              ftp=(ftplib.FTP_TLS(context=ssl.create_default_context())
+                   if protocol=='ftps' else ftplib.FTP())
+              ftp.connect(host,port,timeout=25)
+              ftp.login(username,password)
+              if protocol=='ftps':
+                  ftp.prot_p()
+              ftp.set_pasv(True)
+              ftp.cwd(destination)
+              return ftp
+
+          def upload(ftp,name):
+              staged=name+'.upload-'+version[:12]
+              with open(name,'rb') as fh:
+                  ftp.storbinary('STOR '+staged,fh,blocksize=32768)
+              try:
+                  ftp.rename(staged,name)
+              except ftplib.error_perm:
+                  # Some FTP hosts prohibit renaming onto existing paths.
+                  # The original file remains intact until the staging write
+                  # completed; only then use the server's normal replace path.
+                  with open(name,'rb') as fh:
+                      ftp.storbinary('STOR '+name,fh,blocksize=32768)
+                  try:
+                      ftp.delete(staged)
+                  except ftplib.all_errors:
+                      pass
+
+          last_error=None
+          for attempt in range(1,4):
+              ftp=None
+              try:
+                  print('Critical FTP recovery attempt',attempt,flush=True)
+                  ftp=connect()
+                  for name in essential:
+                      upload(ftp,name)
+                      print('Transferred',name,flush=True)
+                  ftp.quit()
+                  print('Critical FTP recovery complete; verify production next.')
+                  break
+              except (ftplib.all_errors,OSError) as error:
+                  last_error=error
+                  print('Critical FTP recovery failed:',str(error)[:180],flush=True)
+                  try:
+                      if ftp:
+                          ftp.close()
+                  except OSError:
+                      pass
+                  if attempt==3:
+                      raise SystemExit('FTP host did not accept a complete critical release')
+                  time.sleep(4)
+          PY
 
       - name: Verify production version
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
