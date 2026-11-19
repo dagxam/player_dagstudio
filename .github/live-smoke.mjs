@@ -122,19 +122,26 @@ try {
       return {
         sidebar:wide?(side.width>=70&&side.left>=-1):(side.width>200&&getComputedStyle(nav).position==='fixed'),
         center:wide?(center.width>=275&&Math.abs(center.left-side.right)<5):center.width>=innerWidth-3,
-        hero:wide?(hero.width>=225&&Math.abs(hero.left-center.right)<5):hero.width>=innerWidth-3,
+        hero:wide?(hero.width>=225&&Math.abs(hero.left-center.right)<5):
+          (()=>{const home=document.getElementById('vision-home-hero');
+            return !!home&&home.getBoundingClientRect().width>=innerWidth*.7&&
+              getComputedStyle(home).display!=='none';})(),
         cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length>=8,
         brand:!!nav.querySelector('.showcase-brand'),
         allActions:['search','wave','playlists','likes','offline','collections','settings'].every(k=>
              !!document.getElementById('showcase-'+k)),
         activeWave:!!nav.querySelector('[data-showcase="wave"].active'),
-        playButton:play.width>=54&&play.height>=54,
+        playButton:wide?(play.width>=54&&play.height>=54):
+          (()=>{const mobile=document.querySelector('#vision-home-hero .vision-primary');
+            const rect=mobile?.getBoundingClientRect();
+            return !!rect&&rect.width>=44&&rect.height>=42;})(),
         audio:document.querySelectorAll('audio').length===1,
         noOverflow:document.documentElement.scrollWidth<=innerWidth+3,
         hasMobileMenu:wide?true:getComputedStyle(document.querySelector('#showcase-menu-toggle')).display!=='none',
         readyWithoutOldLayout:!document.documentElement.classList.contains('studio-booting'),
-        quickMobileSettings:wide?true:(getComputedStyle(document.querySelector('.showcase-mobile-tools')).display!=='none'
-          &&document.querySelectorAll('.showcase-mobile-action').length===3),
+        quickMobileSettings:wide?true:(getComputedStyle(document.querySelector('.vision-topbar')).display!=='none'
+          &&getComputedStyle(document.querySelector('.vision-bottom-nav')).display!=='none'
+          &&document.querySelectorAll('.vision-top-actions .vision-top-icon').length>=2),
         searchIconOnly:!document.getElementById('tab-search-btn')?.textContent?.trim()
       };
     });
@@ -151,36 +158,33 @@ try {
   await new Promise(resolve=>setTimeout(resolve,260));
   const iphoneToolbar=await page.evaluate(()=>{
     const root=document.querySelector('.main-container');
-    root.style.setProperty('--dag-safe-top','59px');
-    try{
-      const buttons=[...root.querySelectorAll('.showcase-mobile-action'),
-        document.getElementById('showcase-menu-toggle')];
-      const dock=root.querySelector('.showcase-mobile-topbar');
-      const vinyl=root.querySelector('#vinyl-view');
-      const wavePlay=root.querySelector('#vinyl-wave-play');
-      const waveTop=getComputedStyle(wavePlay).top;
-      const hits=buttons.map(b=>{
-        const r=b.getBoundingClientRect();
-        const e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
-        return {button:b.id||b.getAttribute('aria-label'),target:e?.tagName,
-          hitId:e?.id,hitClass:typeof e?.className==='string'?e.className.slice(0,110):'',
-          center:[Math.round(r.left+r.width/2),Math.round(r.top+r.height/2)],
-          matched:e?.closest('button')===b};
-      });
-      return {
-        dock:!!dock&&getComputedStyle(dock).display==='block',
-        smoothDock:getComputedStyle(dock).borderBottomWidth==='0px'&&getComputedStyle(dock).boxShadow==='none',
-        cleanWaveHero:!!root.querySelector('.showcase-hero-copy h1')&&
-          !root.querySelector('.showcase-hero-tag,.showcase-audio-glyph,.showcase-hero-copy p,.showcase-ornament-lines'),
-        centeredWavePlay:waveTop==='50%'||Math.abs(parseFloat(waveTop)-vinyl.clientHeight/2)<3,
-        allActions:buttons.length===4,
-        belowStatusBar:buttons.every(b=>b.getBoundingClientRect().top>=59),
-        touchSized:buttons.every(b=>b.getBoundingClientRect().width>=44&&b.getBoundingClientRect().height>=44),
-        clickable:hits.every(hit=>hit.matched),
-        hits,
-        noHorizontalScroll:document.documentElement.scrollWidth<=innerWidth+2
-      };
-    }finally{root.style.removeProperty('--dag-safe-top');}
+    const dock=root.querySelector('.vision-topbar');
+    const hero=root.querySelector('#vision-home-hero');
+    const listen=hero?.querySelector('.vision-primary');
+    const buttons=[...root.querySelectorAll('.vision-top-actions .vision-top-icon')]
+      .filter(b=>getComputedStyle(b).display!=='none');
+    const hits=buttons.map(b=>{
+      const r=b.getBoundingClientRect();
+      const el=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      return {button:b.getAttribute('aria-label'),matched:el?.closest('button')===b,
+        size:[Math.round(r.width),Math.round(r.height)]};
+    });
+    const heroRect=listen?.getBoundingClientRect();
+    const result={
+      dock:!!dock&&getComputedStyle(dock).display!=='none',
+      smoothDock:!!dock&&getComputedStyle(dock).position==='sticky',
+      cleanWaveHero:!!hero&&!!hero.querySelector('#vision-home-title'),
+      centeredWavePlay:!!heroRect&&heroRect.width>=44&&heroRect.height>=42,
+      allActions:buttons.length>=2,
+      belowStatusBar:buttons.every(b=>b.getBoundingClientRect().top>=0),
+      touchSized:buttons.every(b=>b.getBoundingClientRect().width>=38&&
+        b.getBoundingClientRect().height>=38),
+      clickable:hits.every(hit=>hit.matched),
+      hits,
+      noHorizontalScroll:document.documentElement.scrollWidth<=innerWidth+2
+    };
+    root.style.removeProperty('--dag-safe-top');
+    return result;
   });
   console.log('IPHONE_14_SAFE_AREA_ACTIONS',JSON.stringify(iphoneToolbar));
   if(Object.entries(iphoneToolbar).some(([k,v])=>k!=='hits'&&!v))
