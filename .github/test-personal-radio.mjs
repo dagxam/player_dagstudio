@@ -93,7 +93,7 @@ ctx.radioRememberPlayed('wave',recommendation);
 const reopened=await ctx.findWaveNextTrack();
 assert.notEqual(reopened.url,recommendation.url,'reopening Wave chooses another recommendation');
 assert.equal(ctx.radioRecentTracks('wave').length,1);
-assert.ok(Number(localStorage.getItem('dag_wave_cursor_v3_ordered:listener'))>=2,
+assert.ok(Number(localStorage.getItem('dag_wave_cursor_v4_four_priority:listener'))>=2,
  'Wave search positions advance across plays and browser restarts');
 ctx.playbackWanted=false;
 ctx.trafficSaverEnabled=()=>true;
