@@ -167,7 +167,10 @@ try {
       const r=b.getBoundingClientRect();
       const el=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
       return {button:b.getAttribute('aria-label'),matched:el?.closest('button')===b,
-        size:[Math.round(r.width),Math.round(r.height)]};
+        size:[Math.round(r.width),Math.round(r.height)],
+        target:el?.id||el?.className?.toString().slice(0,120),
+        topLayers:document.elementsFromPoint(r.left+r.width/2,r.top+r.height/2)
+          .slice(0,4).map(x=>x.id||x.className?.toString().slice(0,65))};
     });
     const heroRect=listen?.getBoundingClientRect();
     const result={
