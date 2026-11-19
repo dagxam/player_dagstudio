@@ -271,8 +271,8 @@ function compareOtaVersions(installed, available) {
 function configureAndroidDownloadLink() {
     const link = document.getElementById('android-apk-download-btn');
     if (!link) return;
-    // Same-origin endpoint sends Content-Disposition: attachment; browsers
-    // download the APK rather than try to display it in a WebView tab.
+    // The signed GitHub Preview release works even when the site's FTP APK
+    // mirror has not been refreshed; do not send users to an outdated copy.
     link.href = ANDROID_APK_DOWNLOAD_URL;
     link.setAttribute('target', '_blank');
     link.setAttribute('rel', 'noopener noreferrer');
@@ -518,12 +518,14 @@ window.manualUpdateApplication = async function() {
                                     showNotification('Android APK уже обновлена.');
                                 } else if (outcome?.status === 'installer-opened') {
                                     setManualUpdateButtonState('is-ready', 'Подтвердите установку');
+                                    try { sessionStorage.setItem(DAG_UPDATE_DISMISS_KEY,
+                                        'apk:' + String(apk.version || '')); } catch (error) {}
                                     showNotification('Подтвердите обновление в системном окне Android.');
                                 }
                             } catch (error) {
                                 setManualUpdateButtonState('is-error', 'Повторить обновление');
                                 showConfirm('Автоматическая установка не выполнена: ' +
-                                    explainConnectionFailure(error) +
+                                    String(error?.message || error || 'Нет ответа от установщика').slice(0,170) +
                                     '. Скачать APK через браузер?', function() {
                                     openAndroidApkDownload();
                                 });
@@ -588,7 +590,7 @@ function openAndroidApkDownload() {
             showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
         });
     } else if (!IS_NATIVE_APP) {
-        window.location.assign('/apk-download.php');
+        window.location.assign(ANDROID_APK_DOWNLOAD_URL);
     } else {
         showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
     }
@@ -739,6 +741,10 @@ window.applyAvailableAppUpdate = async function() {
                 document.getElementById('app-update-modal')?.classList.remove('show');
                 showNotification('Последняя версия Android уже установлена.');
             } else if (outcome?.status === 'installer-opened') {
+                // Installer confirmation takes place outside the WebView. Do
+                // not show the same prompt again until the next app session;
+                // a restarted app will compare Android versionCode afresh.
+                try { sessionStorage.setItem(DAG_UPDATE_DISMISS_KEY, offeredUpdate.key); } catch (error) {}
                 document.getElementById('app-update-modal')?.classList.remove('show');
                 showNotification('Подтвердите установку в системном окне Android. Если Android предложит создать второе приложение, отмените установку.');
             } else {
