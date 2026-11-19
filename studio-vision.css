@@ -2302,3 +2302,25 @@
   font-size:clamp(1rem,4.8vw,1.32rem)!important;
  }
 }
+
+/* Clear focus rings and a readable pressed state without font-icon-only cues. */
+.vision-ui.showcase-wave-only>.left-col .now-playing-heart:focus-visible,
+.vision-ui.showcase-wave-only>.left-col .wave-add-playlist-btn:focus-visible,
+.vision-ui.vision-player-expanded>.left-col .now-playing-heart:focus-visible,
+.vision-ui.vision-player-expanded>.left-col .wave-add-playlist-btn:focus-visible{
+ outline:3px solid #d8d0ff!important;outline-offset:4px!important;
+}
+.vision-ui.showcase-wave-only>.left-col .now-playing-heart.is-liked i,
+.vision-ui.vision-player-expanded>.left-col .now-playing-heart.is-liked i{
+ color:#f1b4ff!important;
+}
+@media(max-width:350px){
+ .vision-ui.showcase-wave-only>.left-col .now-playing-heart,
+ .vision-ui.vision-player-expanded>.left-col .now-playing-heart{
+  width:min(100%,139px)!important;gap:5px!important;padding:0 6px!important;
+ }
+ .vision-ui.showcase-wave-only>.left-col .now-playing-heart .np-like-label,
+ .vision-ui.vision-player-expanded>.left-col .now-playing-heart .np-like-label{
+  font-size:.67rem!important;
+ }
+}
