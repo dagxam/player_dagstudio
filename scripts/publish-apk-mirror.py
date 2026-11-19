@@ -79,7 +79,7 @@ def publish():
                 upload(ftp, file, commit)
             ftp.quit()
             return
-        except (OSError, ftplib.all_errors) as error:
+        except ftplib.all_errors as error:
             print("APK_MIRROR_FTP_RECOVERY_FAILED",
                   type(error).__name__, str(error)[:180], flush=True)
             if ftp is not None:
