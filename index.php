@@ -75,7 +75,7 @@
             <div class="np-title" id="track-title">ВЫБЕРИТЕ ТРЕК</div>
             <div class="np-artist" id="track-artist">DAGSTUDIO PLAYER</div>
             <button type="button" id="now-playing-heart" class="now-playing-heart" onclick="savePlayingTrack()" disabled
-                title="Добавить в «Мне нравится»" aria-label="Добавить текущую песню в «Мне нравится»"><i class="far fa-heart"></i></button>
+                title="Добавить в «Мне нравится»" aria-label="Добавить текущую песню в «Мне нравится»" aria-pressed="false"><i class="far fa-heart" aria-hidden="true"></i><span class="np-like-label">Нравится трек</span></button>
             <button type="button" id="wave-add-playlist-btn" class="wave-add-playlist-btn"
                 onclick="saveWavePlayingTrack()" aria-label="Добавить текущую песню Моей волны в плейлист"
                 title="Добавить в плейлист" hidden disabled><i class="fas fa-plus" aria-hidden="true"></i></button>
