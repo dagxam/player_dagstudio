@@ -5032,7 +5032,7 @@ async function findWaveNextTrack(){
 let waveWarmState=null,waveWarmTimer=null;
 function waveWarmCandidateAllowed(track){
     if(!track?._waveRadio||!track.url)return false;
-    if(playbackTab==='mix:wave'&&
+    if(typeof playbackTab!=='undefined'&&playbackTab==='mix:wave'&&
         waveSameArtist(track.artist,playbackPlaylist[currentIndex]?.artist))return false;
     if(radioRecentTracks('wave').includes(radioTrackIdentity(track)))return false;
     return !(playlists||[]).some(pl=>(pl.tracks||[]).some(saved=>
