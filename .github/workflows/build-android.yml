@@ -328,6 +328,8 @@ jobs:
           timeout: 180000
 
       - name: Retry APK mirror upload after transient FTP timeout
+        id: apk_mirror_retry
+        continue-on-error: true
         if: ${{ steps.apk_mirror_initial.outcome == 'failure' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -339,6 +341,16 @@ jobs:
           local-dir: ./apk-publish/
           server-dir: /www/pl.dagstudio.ru/apk/
           timeout: 180000
+
+      - name: Recover mirror via staged FTP if both Actions time out
+        if: ${{ steps.apk_mirror_initial.outcome != 'success' && steps.apk_mirror_retry.outcome != 'success' }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          FTP_PORT: ${{ secrets.FTP_PORT || '21' }}
+        run: python3 scripts/publish-apk-mirror.py
 
       - name: Verify HTTPS APK mirror, SHA256 and release identity
         run: |
