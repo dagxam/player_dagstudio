@@ -29,6 +29,11 @@ import org.json.JSONObject;
 final class DAGApkUpdater {
     private static final String META = "https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-native-version.json";
     private static final String PREFIX = "https://pl.dagstudio.ru/apk/DAGSTUDIO-PLAYER-Preview-";
+    private static final String GITHUB_META =
+        "https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-native-version.json";
+    private static final String GITHUB_APK =
+        "https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk";
+    private static final String PREVIEW_PACKAGE = "ru.dagstudio.player.preview";
     private static final long MAX_SIZE = 100L * 1024 * 1024;
     private final DAGCarModePlugin plugin;
     private static final long MANIFEST_TTL_MS = 90_000L;
@@ -39,11 +44,61 @@ final class DAGApkUpdater {
 
     DAGApkUpdater(DAGCarModePlugin plugin) { this.plugin = plugin; }
 
-    private OkHttpClient client() {
-        return new OkHttpClient.Builder().dns(new DAGServerDns())
-            .connectTimeout(15, TimeUnit.SECONDS).readTimeout(45, TimeUnit.SECONDS)
-            .callTimeout(210, TimeUnit.SECONDS)
-            .followRedirects(false).followSslRedirects(false).build();
+    private boolean previewPackage() {
+        // A debug/Preview package cannot replace the separately signed
+        // production application. Never offer it as an Android upgrade.
+        return PREVIEW_PACKAGE.equals(plugin.getContext().getPackageName());
+    }
+
+    private OkHttpClient client(boolean github, boolean metadata) {
+        return new OkHttpClient.Builder()
+            .dns(github ? okhttp3.Dns.SYSTEM : new DAGServerDns())
+            .connectTimeout(metadata ? 5 : 15, TimeUnit.SECONDS)
+            .readTimeout(metadata ? 9 : 45, TimeUnit.SECONDS)
+            .callTimeout(metadata ? 13 : 210, TimeUnit.SECONDS)
+            .followRedirects(github)
+            .followSslRedirects(false)
+            .build();
+    }
+
+    private static void requireGitHubTls(Response response) {
+        okhttp3.HttpUrl resolved = response.request().url();
+        String host = resolved.host();
+        if (!resolved.isHttps() ||
+            !(host.equals("github.com") ||
+              host.equals("release-assets.githubusercontent.com") ||
+              host.equals("objects.githubusercontent.com"))) {
+            throw new SecurityException("Недоверенный адрес перенаправления APK");
+        }
+    }
+
+    private JSONObject readManifest(String endpoint, boolean github) throws Exception {
+        OkHttpClient http = client(github, true);
+        try {
+            Request request = new Request.Builder().url(endpoint)
+                .header("Cache-Control", "no-store").build();
+            try (Response response = http.newCall(request).execute()) {
+                if (github) requireGitHubTls(response);
+                if (!response.isSuccessful() || response.body() == null)
+                    throw new IOException("Сервер " + (github ? "GitHub" : "APK") +
+                        " не отвечает: HTTP " + response.code());
+                if (response.body().contentLength() > 8192)
+                    throw new SecurityException("Слишком большой манифест");
+                JSONObject data = new JSONObject(response.body().string());
+                String version = data.getString("version");
+                String link = data.getString("url");
+                String sha = data.getString("sha256");
+                int code = data.getInt("version_code");
+                if (!version.matches("1\\.0\\.[0-9]+-preview") ||
+                    !(github ? link.equals(GITHUB_APK) :
+                        link.equals(PREFIX + version.replace("-preview","") + ".apk")) ||
+                    !sha.matches("(?i)[0-9a-f]{64}") || code < 1 ||
+                    code != 1000 + Integer.parseInt(
+                        version.substring("1.0.".length(), version.indexOf("-preview"))))
+                    throw new SecurityException("Недоверенный источник или версия APK");
+                return data;
+            }
+        } finally { shutdown(http); }
     }
 
     private JSONObject manifest() throws Exception {
@@ -53,30 +108,31 @@ final class DAGApkUpdater {
                 return new JSONObject(lastManifest.toString());
             }
         }
-        OkHttpClient client = client();
-        try {
-            Request request = new Request.Builder().url(META)
-                .header("Cache-Control", "no-store").build();
-            try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null)
-                    throw new IllegalStateException("Сервер APK не отвечает: " + response.code());
-                if (response.body().contentLength() > 8192)
-                    throw new SecurityException("Слишком большой манифест");
-                JSONObject data = new JSONObject(response.body().string());
-                String version = data.getString("version");
-                String link = data.getString("url");
-                String sha = data.getString("sha256");
-                if (!version.matches("1\\.0\\.[0-9]+-preview") ||
-                    !link.equals(PREFIX + version.replace("-preview","") + ".apk") ||
-                    !sha.matches("(?i)[0-9a-f]{64}") || data.getInt("version_code") < 1)
-                    throw new SecurityException("Недоверенный источник APK");
-                synchronized (META_LOCK) {
-                    lastManifest = new JSONObject(data.toString());
-                    lastManifestAt = SystemClock.elapsedRealtime();
-                }
-                return data;
-            }
-        } finally { shutdown(client); }
+        JSONObject mirror = null, github = null;
+        Exception siteError = null, githubError = null;
+        try { mirror = readManifest(META, false); }
+        catch (Exception error) { siteError = error; }
+        // The FTP-hosted version can be stale after an outage. Check the
+        // independently published signed GitHub release as well. If GitHub
+        // DNS is blocked on CC3, continue with the verified mirror.
+        try { github = readManifest(GITHUB_META, true); }
+        catch (Exception error) { githubError = error; }
+        JSONObject chosen = mirror;
+        if (github != null &&
+            (chosen == null ||
+             github.getLong("version_code") > chosen.getLong("version_code"))) {
+            chosen = github;
+        }
+        if (chosen == null)
+            throw new IOException("Не удалось проверить APK: сайт: " +
+                String.valueOf(siteError == null ? "нет данных" : siteError.getMessage()) +
+                "; GitHub: " +
+                String.valueOf(githubError == null ? "нет данных" : githubError.getMessage()));
+        synchronized (META_LOCK) {
+            lastManifest = new JSONObject(chosen.toString());
+            lastManifestAt = SystemClock.elapsedRealtime();
+        }
+        return chosen;
     }
 
     @SuppressWarnings("deprecation")
@@ -115,10 +171,23 @@ final class DAGApkUpdater {
     void check(PluginCall call) {
         new Thread(() -> {
             try {
-                JSONObject data = manifest();
                 JSObject result = new JSObject();
-                result.put("available", data.getLong("version_code") > installedCode());
+                long installed = installedCode();
+                PackageInfo app = plugin.getContext().getPackageManager().getPackageInfo(
+                    plugin.getContext().getPackageName(), 0);
+                result.put("installedCode", installed);
+                result.put("installedVersion", app.versionName);
+                result.put("packageId", plugin.getContext().getPackageName());
+                if (!previewPackage()) {
+                    result.put("available", false);
+                    result.put("channel", "different-package");
+                    call.resolve(result);
+                    return;
+                }
+                JSONObject data = manifest();
+                result.put("available", data.getLong("version_code") > installed);
                 result.put("version", data.getString("version"));
+                result.put("source", data.getString("url").equals(GITHUB_APK) ? "github" : "mirror");
                 call.resolve(result);
             } catch (Exception e) { call.reject("Ошибка проверки APK: " + e.getMessage(), e); }
         }, "dag-apk-check").start();
@@ -157,12 +226,14 @@ final class DAGApkUpdater {
                 }
             }
             if (attempt > 1) progress("retrying", offset, 0);
-            OkHttpClient http = client();
+            boolean github = GITHUB_APK.equals(url);
+            OkHttpClient http = client(github, false);
             try {
                 Request.Builder builder = new Request.Builder().url(url)
                     .header("Cache-Control", "no-store").header("Accept-Encoding", "identity");
                 if (offset > 0) builder.header("Range", "bytes=" + offset + "-");
                 try (Response response = http.newCall(builder.build()).execute()) {
+                    if (github) requireGitHubTls(response);
                     int code = response.code();
                     if (code == 416 && offset > 0) {
                         // Stale or incomplete cached range; retry a clean full download.
@@ -247,6 +318,11 @@ final class DAGApkUpdater {
     void install(PluginCall call) {
         new Thread(() -> {
             try {
+                if (!previewPackage()) {
+                    call.reject("Preview APK использует другой пакет Android. " +
+                        "Она не может обновить установленную основную версию приложения.");
+                    return;
+                }
                 if (Build.VERSION.SDK_INT >= 26 &&
                     !plugin.getContext().getPackageManager().canRequestPackageInstalls()) {
                     Activity activity = plugin.getActivity();
