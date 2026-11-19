@@ -4755,7 +4755,7 @@ function radioRememberPlayed(kind,track){
         }
     }
 }
-const WAVE_CURSOR_PREFIX='dag_wave_cursor_v2:';
+const WAVE_CURSOR_PREFIX='dag_wave_cursor_v3_ordered:';
 let waveSearchCursor=0,waveSearchOwner='';
 function nextWaveSearchCursor(){
     const owner=tasteOwnerKey();
@@ -4763,8 +4763,7 @@ function nextWaveSearchCursor(){
         waveSearchOwner=owner;
         let saved=0;
         try{saved=Number(localStorage.getItem(WAVE_CURSOR_PREFIX+owner));}catch(e){}
-        waveSearchCursor=Number.isSafeInteger(saved)&&saved>0?saved:
-            Math.floor(Math.random()*59)+1;
+        waveSearchCursor=Number.isSafeInteger(saved)&&saved>=0?saved:0;
     }
     const index=waveSearchCursor++;
     try{localStorage.setItem(WAVE_CURSOR_PREFIX+owner,String(waveSearchCursor));}catch(e){}
@@ -4847,6 +4846,7 @@ function waveSearchDirections(library=waveLibrarySeeds()){
     const broad=[
         {query:'русские песни новинки',kind:'theme',theme:'russian-pop'},
         {query:'кавказские новинки',kind:'theme',theme:'caucasus'},
+        {query:'аварские новинки',kind:'theme',theme:'avar'},
         {query:'дагестанские новые песни',kind:'theme',theme:'dagestan'},
         {query:'чеченские новинки',kind:'theme',theme:'chechen'},
         {query:'лезгинские новинки',kind:'theme',theme:'lezgin'},
@@ -4860,7 +4860,7 @@ function waveSearchDirections(library=waveLibrarySeeds()){
         {query:'балкарские новинки',kind:'theme',theme:'balkar'},
         {query:'карачаевские новинки',kind:'theme',theme:'karachay'},
         {query:'адыгейские новинки',kind:'theme',theme:'adyghe'},
-        {query:'аварские новинки',kind:'theme',theme:'avar'}
+        {query:'азербайджанские новинки',kind:'theme',theme:'azerbaijan'}
     ];
     const personalized=[];
     if(themes.length){
@@ -4881,12 +4881,9 @@ function waveSearchDirections(library=waveLibrarySeeds()){
         }
         for(const artist of artistNames)personalized.push({query:artist,kind:'artist',theme:''});
     }
-    // A different regional direction appears every other search, while the
-    // other half follows the user's playlists and listening signals.
-    for(let i=0;i<Math.max(broad.length,personalized.length);i++){
-        if(broad[i])directions.push(broad[i]);
-        if(personalized[i])directions.push(personalized[i]);
-    }
+    // First cycle is predictable: Russian -> whole Caucasus -> Avar -> other
+    // republics. Listener-specific directions follow the regional cycle.
+    directions.push(...broad,...personalized);
     return [...new Map(directions.filter(d=>d.query.trim())
         .map(d=>[normalizeTrackIdentity(d.query),d])).values()];
 }
@@ -4918,7 +4915,7 @@ async function findWaveNextTrack(){
         urls.has(String(t.url))||titles.has(tasteTrackId(t));
     const net=getNetworkProfile(),directions=waveSearchDirections(library);
     if(!directions.length)return null;
-    const cursor=nextWaveSearchCursor(),count=Math.min(net.weak?1:2,directions.length);
+    const cursor=nextWaveSearchCursor(),count=1;
     const queries=Array.from({length:count},(_,i)=>({
         ...directions[(cursor+i)%directions.length],
         page:1+Math.floor((cursor+i)/directions.length)%6
@@ -4940,6 +4937,14 @@ async function findWaveNextTrack(){
         }
     }
     let results=(await Promise.all(queries.map(queryTracks))).flat();
+    // If a region has no playable songs, try neighbouring directions rather
+    // than choosing an unrelated old file or repeating one performer.
+    if(!results.length){
+        for(let offset=1;offset<=3&&!results.length;offset++){
+            const next=directions[(cursor+offset)%directions.length];
+            results=await queryTracks({...next,page:1});
+        }
+    }
     function rankedCandidates(pool){
         const unique=quickMixUnique(pool).filter(t=>!seen(t));
         return unique.map(track=>{
@@ -4985,6 +4990,10 @@ async function findWaveNextTrack(){
     if(newArtists.length)eligible=newArtists;
     const topical=eligible.filter(item=>item.track._waveQueryKind==='theme');
     if(topical.length&&topics.length)eligible=topical;
+    const releaseYear=new Date().getUTCFullYear();
+    const latestYear=eligible.filter(item=>quickMixReleaseTimestamp(item.track)&&
+        new Date(quickMixReleaseTimestamp(item.track)).getUTCFullYear()===releaseYear);
+    if(latestYear.length)eligible=latestYear;
     const latest=eligible.filter(item=>item.release.bucket===2);
     if(latest.length)eligible=latest;
     else {
@@ -6583,6 +6592,7 @@ async function startQuickMix(key) {
         setQuickMixStatus('Для подборок нужен интернет.');return;
     }
     closeModal('quick-mixes-modal');
+    if(key!=='wave')window.studioMixScreen?.(key,config.title);
     const requestId=++quickMixRequestId;
     quickMixCurrent={key,title:config.title,tracks:waveTracks.slice(),loading:true,
         loadingMore:false, pageNumbers:new Map(), exhaustedQueries:new Set(),
