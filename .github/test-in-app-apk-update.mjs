@@ -14,7 +14,7 @@ assert.match(java,/getPackageArchiveInfo/);
 assert.match(java,/ACTION_MANAGE_UNKNOWN_APP_SOURCES/);
 assert.match(java,/FLAG_GRANT_READ_URI_PERMISSION/);
 assert.match(java,/FileProvider\.getUriForFile/);
-assert.match(java,/followRedirects\(false\)/);
+assert.match(java,/followRedirects\(github\)/);
 assert.match(java,/followSslRedirects\(false\)/);
 assert.doesNotMatch(java,/setHostnameVerifier|trustAll/);
 assert.match(java,/android\.package-archive/);
