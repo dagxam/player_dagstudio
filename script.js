@@ -4891,8 +4891,10 @@ function waveSearchDirections(library=waveLibrarySeeds()){
 // Normalizes artist collaborations so that an identical singer or group
 // cannot be followed by another track credited to that same participant.
 function waveArtistCredits(artist){
-    const cleaned=String(artist||'').replace(/\([^)]*\)/g,' ')
-        .replace(/\s+(?:feat[.]?|ft[.]?|при участии)\s+/gi,'|')
+    const cleaned=String(artist||'')
+        .replace(/\((feat[.]?|ft[.]?)([^)]*)\)/gi,' $1 $2 ')
+        .replace(/\([^)]*\)/g,' ')
+        .replace(/\s+(?:feat[.]?|ft[.]?|при участии|[xх×])\s+/gi,'|')
         .replaceAll('/','|').replaceAll('&','|');
     return [...new Set(cleaned.split(/[|,+;×]/)
         .map(value=>normalizeTrackIdentity(value).replace(/^группа\s+/,''))
