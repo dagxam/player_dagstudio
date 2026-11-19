@@ -4430,6 +4430,8 @@ async function playTrack(index, options = {}) {
     updatePlayingHeart();
     titleEl.textContent = track.title;
     artistEl.textContent = track.artist;
+    titleEl.title=String(track.title||'');
+    artistEl.title=String(track.artist||'');
     showLoader(true);
     updateState(false);
 
@@ -7228,7 +7230,11 @@ function updatePlayingHeart() {
     const liked=isFavoriteTrack(track);
     button.disabled=!track?.url || favoriteToggleInFlight.has(identity);
     button.classList.toggle('is-liked',liked);
-    button.innerHTML=liked?'<i class="fas fa-heart"></i>':'<i class="far fa-heart"></i>';
+    // Keep the premium fullscreen label after favorite toggles; previously
+    // innerHTML replaced the entire button and erased the caption.
+    button.innerHTML=(liked?'<i class="fas fa-heart" aria-hidden="true"></i>':
+        '<i class="far fa-heart" aria-hidden="true"></i>')+
+        '<span class="np-like-label">'+(liked?'В избранном':'Нравится трек')+'</span>';
     button.setAttribute('aria-pressed',liked?'true':'false');
     button.setAttribute('aria-label',liked?'Убрать текущую песню из «Мне нравится»':'Добавить текущую песню в «Мне нравится»');
     button.title=liked?'Убрать из «Мне нравится»':'Добавить в «Мне нравится»';
