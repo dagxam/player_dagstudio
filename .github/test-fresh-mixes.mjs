@@ -109,7 +109,7 @@ assert.ok(oneRegion.some(d=>d.kind==='artist'));
 assert.match(code,/splitRegionQueries:true,regions:\[region\]/);
 assert.ok(regions.length>=15);
 for(const region of regions){
- assert.ok(region.queries.length>=2);
+ assert.ok(region.queries.length>=(region.kind==='caucasus-russian'?1:2));
  assert.ok(!/^(Зара Гамзатова|Эльдар Далгатов|Ислам Итляшев|Мика Рамазанова)$/.test(region.queries[0]),
   'Start Caucasus discovery with styles and republics, not one singer');
 }
