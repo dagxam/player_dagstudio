@@ -7,7 +7,7 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2229',
     '/modern.css?v=16',
-    '/script.js?v=2352',
+    '/script.js?v=2353',
     '/studio.css?v=6',
     '/studio.js?v=5',
     '/studio-next.css?v=23',
