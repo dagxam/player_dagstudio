@@ -946,6 +946,47 @@ const AUDIO_COMPAT_PROFILE = (function() {
     return { android, androidMajor, webView, legacyAndroid, fullFileFallback };
 })();
 
+// One tap starts Wave discovery AND primes the existing HTML5 audio element
+// before the asynchronous music-source search. Browsers may reject an
+// unmuted .play() invoked only after the network request has completed.
+// A very small, genuinely silent PCM clip is played inside the user's click;
+// the actual song replaces its source when discovery finishes. Native Media3
+// is unchanged. No additional audio element or second music engine is created.
+let waveGestureSilentUrl='';
+function waveGestureSilence(){
+    if(waveGestureSilentUrl)return waveGestureSilentUrl;
+    const samples=8000*18,bytes=new Uint8Array(44+samples),view=new DataView(bytes.buffer);
+    const put=(at,value)=>{for(let i=0;i<value.length;i++)bytes[at+i]=value.charCodeAt(i);};
+    put(0,'RIFF');view.setUint32(4,36+samples,true);put(8,'WAVE');
+    put(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);
+    view.setUint16(22,1,true);view.setUint32(24,8000,true);
+    view.setUint32(28,8000,true);view.setUint16(32,1,true);
+    view.setUint16(34,8,true);put(36,'data');view.setUint32(40,samples,true);
+    bytes.fill(128,44);
+    let binary='';
+    for(let i=0;i<bytes.length;i+=8192)
+        binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+    waveGestureSilentUrl='data:audio/wav;base64,'+btoa(binary);
+    return waveGestureSilentUrl;
+}
+function primeWaveAudioFromClick(){
+    // Called synchronously by openStudioWave(), which is invoked by a real tap.
+    if(NATIVE_MEDIA3_ACTIVE||navigator.onLine===false||playbackWanted||
+        playbackPlaylist[currentIndex]||!mainAudio?.paused)return;
+    try{
+        mainAudio.src=waveGestureSilence();
+        mainAudio.loop=true;
+        mainAudio.preload='auto';
+        playbackWanted=true;
+        const attempt=mainAudio.play();
+        if(attempt&&typeof attempt.catch==='function')attempt.catch(()=>{
+            // The normal first-song path will still attempt playback.
+            recordPlayerEvent('wave-gesture-prime-unavailable');
+        });
+    }catch(error){
+        recordPlayerEvent('wave-gesture-prime-unavailable');
+    }
+}
 function requestAudioPlay() {
     try {
         const result = mainAudio.play();
@@ -4077,7 +4118,8 @@ mainAudio.addEventListener('ended', function() {
         cacheTrackSilently(finishedTrack, { reason: 'completed', priority: true });
     }
 
-    if (isRepeat) playTrack(currentIndex, {fromPlayback:true}); else playNext();
+    // Wave and Charts are endless discovery; Repeat must not trap the station.
+    if (isRepeat && !isContinuousRadio()) playTrack(currentIndex, {fromPlayback:true}); else playNext();
 });
 
 mainAudio.addEventListener('waiting', function() {
@@ -4915,7 +4957,7 @@ function waveReleasePriority(track,now=Date.now()){
 async function findWaveNextTrack(){
     if(navigator.onLine===false)return null;
     const library=waveLibrarySeeds();
-    if(!library.length)return null;
+    // A new listener can hear the editorial Wave before creating a playlist.
     const excluded=new Set((playlists||[]).filter(pl=>playlistExcludedFromLikes(pl.id))
         .flatMap(pl=>pl.tracks||[]).map(t=>tasteTrackId(t)));
     const known=[...(playlists||[]).flatMap(pl=>pl.tracks||[]),
@@ -5330,10 +5372,10 @@ function isContinuousRadio(){return playbackTab==='mix:wave'||playbackTab==='mix
 function maybePrefetchSmartRadio() {
     if ((trafficSaverEnabled()&&!isContinuousRadio()) ||
         (!smartRadioEnabled && !isContinuousRadio()) ||
-        smartRadioBusy || isRepeat || playbackQueue.length ||
+        smartRadioBusy || (isRepeat&&!isContinuousRadio()) || playbackQueue.length ||
         playbackTab==='search' || navigator.onLine===false || !playbackWanted ||
         currentIndex!==playbackPlaylist.length-1 || !playbackPlaylist[currentIndex]) return;
-    if (isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
+    if (!isContinuousRadio() && isShuffle && smartShufflePlayed.size < playbackPlaylist.length) return;
     const duration = Number(mainAudio.duration);
     const position = Number(mainAudio.currentTime);
     if (!Number.isFinite(position) || position < (isContinuousRadio()?0:8))return;
@@ -6662,10 +6704,7 @@ async function startQuickMix(key) {
     // Wave is ONLINE discovery, not a replay of the user's own playlists.
     const waveTracks=[];
     if(key==='wave'){
-        if(!seeds.length){
-            setQuickMixStatus('Добавьте песни в плейлист или послушайте их до конца — так «Моя волна» изучит вкусы.');
-            closeModal('quick-mixes-modal');return;
-        }
+        // The four editorial priorities work even for new accounts without saved music.
         QUICK_MIXES.wave={title:'Моя волна',mode:'popular',
             artists:[...new Set([...seeds.map(t=>t.genre),...seeds.map(t=>t.artist)])]
                 .filter(Boolean).slice(0,18)};
