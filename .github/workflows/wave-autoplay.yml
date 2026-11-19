@@ -12,6 +12,8 @@ on:
       - "studio-center.js"
       - "index.php"
       - "sw.js"
+      - ".github/test-wave-themes.mjs"
+      - ".github/test-update-notifications.mjs"
   workflow_dispatch:
 
 permissions:
