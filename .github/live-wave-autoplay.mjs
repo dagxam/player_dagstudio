@@ -36,9 +36,9 @@ try{
      return 'data:audio/wav;base64,'+btoa(raw);
    };
    const tracks=[
-     {title:'One tap fixture A',artist:'Fixture singer A',url:wav(3.8),
+     {title:'One tap fixture A',artist:'Fixture singer A',url:wav(14.5),
        _waveRadio:true,_smartRadio:true},
-     {title:'Continuous fixture B',artist:'Fixture singer B',url:wav(4.5),
+     {title:'Continuous fixture B',artist:'Fixture singer B',url:wav(15),
        _waveRadio:true,_smartRadio:true}
    ];
    playlists=[];playbackPlaylist=[];playbackQueue=[];currentIndex=-1;
@@ -70,7 +70,7 @@ try{
  await page.waitForFunction(()=>playbackTab==='mix:wave'&&currentIndex>0&&
    playbackPlaylist[currentIndex]?.title==='Continuous fixture B'&&
    playbackWanted&&!mainAudio.paused&&mainAudio.currentTime>0.25,
-   {timeout:21000,polling:150});
+   {timeout:26000,polling:150});
  console.log('ONE_TAP_CONTINUOUS_NEXT',JSON.stringify(await page.evaluate(()=>({
    currentIndex,song:playbackPlaylist[currentIndex]?.title,
    seconds:mainAudio.currentTime,wanted:playbackWanted,paused:mainAudio.paused,
