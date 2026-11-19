@@ -4868,10 +4868,13 @@ function waveSearchDirections(library=waveLibrarySeeds()){
     const directions=[];
     for(let i=0;i<national.length;i++){
         directions.push(
-            {query:russian[i%russian.length]+' '+year,kind:'theme',theme:'russian-pop'},
-            {query:caucasus[i%caucasus.length]+' '+year,kind:'theme',theme:'caucasus'},
-            {query:foreign[i%foreign.length]+' '+year,kind:'theme',theme:'foreign'},
-            {query:national[i].query+' '+year,kind:'theme',theme:national[i].theme}
+            {query:russian[i%russian.length]+' '+year,kind:'theme',
+                theme:'russian-pop',page:1+Math.floor(i/russian.length)},
+            {query:caucasus[i%caucasus.length]+' '+year,kind:'theme',
+                theme:'caucasus',page:1+Math.floor(i/caucasus.length)},
+            {query:foreign[i%foreign.length]+' '+year,kind:'theme',
+                theme:'foreign',page:1+Math.floor(i/foreign.length)},
+            {query:national[i].query+' '+year,kind:'theme',theme:national[i].theme,page:1}
         );
     }
     // Personal tastes still influence ranking and act as search fallbacks,
@@ -4881,8 +4884,9 @@ function waveSearchDirections(library=waveLibrarySeeds()){
         directions.push({query:theme.queries[0]+' '+year,kind:'theme',theme:theme.id});
         directions.push({query:theme.queries[1],kind:'theme',theme:theme.id});
     }
-    return [...new Map(directions.filter(d=>d.query.trim())
-        .map(d=>[normalizeTrackIdentity(d.query),d])).values()];
+    // Keep repeated category slots: deduplicating queries would remove the
+    // Russian/Caucasus/foreign groups after six national rotations.
+    return directions.filter(d=>d.query.trim());
 }
 // Normalizes artist collaborations so that an identical singer or group
 // cannot be followed by another track credited to that same participant.
@@ -4928,7 +4932,8 @@ async function findWaveNextTrack(){
     const cursor=nextWaveSearchCursor(),count=1;
     const queries=Array.from({length:count},(_,i)=>({
         ...directions[(cursor+i)%directions.length],
-        page:1+Math.floor((cursor+i)/directions.length)%6
+        page:Math.min(12,(directions[(cursor+i)%directions.length].page||1)+
+            Math.floor((cursor+i)/directions.length))
     }));
     // Each query remains an ordinary search_global request, using the same
     // providers as web/Android and no guessed audio URLs or release dates.
