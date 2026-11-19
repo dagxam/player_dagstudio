@@ -153,4 +153,44 @@ ctx.api=async()=>({success:true,data:[
 picked=await ctx.findWaveNextTrack();
 assert.equal(picked.artist,'Мияги',
  'Wave rejects the singer playing now, including their collaborations');
+// First tap must authorize HTMLMediaElement playback before an awaited
+// provider search, without creating a separate player or requiring playlists.
+let gesturePlayCalls=0;
+const gestureAudio={paused:true,loop:false,preload:'none',src:'',
+ play(){gesturePlayCalls++;this.paused=false;return Promise.resolve();}};
+const gesture={
+ NATIVE_MEDIA3_ACTIVE:false,navigator:{onLine:true},playbackWanted:false,
+ playbackPlaylist:[],currentIndex:-1,mainAudio:gestureAudio,
+ btoa:binary=>Buffer.from(binary,'binary').toString('base64'),
+ recordPlayerEvent:()=>{}
+};
+const gestureBegin=src.indexOf('let waveGestureSilentUrl=');
+const gestureEnd=src.indexOf('function requestAudioPlay()',gestureBegin);
+assert.ok(gestureBegin>0&&gestureEnd>gestureBegin,'Wave gesture helpers exist');
+runInNewContext(src.slice(gestureBegin,gestureEnd),gesture);
+gesture.primeWaveAudioFromClick();
+assert.equal(gesturePlayCalls,1,'The first click primes HTML5 playback synchronously');
+assert.equal(gestureAudio.loop,true,'The primer cannot emit an ended event while searching');
+assert.ok(gestureAudio.src.startsWith('data:audio/wav;base64,'),
+ 'Wave primes the existing audio element with silent PCM');
+assert.ok(Buffer.from(gestureAudio.src.split(',')[1],'base64').length>50000);
+gesture.primeWaveAudioFromClick();
+assert.equal(gesturePlayCalls,1,'A second click during discovery does not restart the audio element');
+gesture.NATIVE_MEDIA3_ACTIVE=true;gesture.playbackWanted=false;
+gesture.primeWaveAudioFromClick();
+assert.equal(gesturePlayCalls,1,'Media3 is never primed with an HTML5 silence track');
+const studio=readFileSync(new URL('../studio.js',import.meta.url),'utf8');
+const waveEntry=studio.slice(studio.indexOf('window.openStudioWave=function()'),
+ studio.indexOf('// Return to the real list',studio.indexOf('window.openStudioWave=function()')));
+assert.ok(waveEntry.indexOf('primeWaveAudioFromClick()')>=0);
+assert.ok(waveEntry.indexOf('primeWaveAudioFromClick()')<waveEntry.indexOf("startQuickMix('wave')"),
+ 'Wave primer executes directly in the click before asynchronous discovery');
+assert.ok(src.includes('if (isRepeat && !isContinuousRadio())'),
+ 'A persisted Repeat setting must not prevent the next Wave song');
+assert.ok(src.includes('smartRadioBusy || (isRepeat&&!isContinuousRadio())'),
+ 'Wave prefetch must work even when Repeat is enabled');
+assert.ok(!src.includes("if(!library.length)return null;"),
+ 'A new user without saved playlists must still hear the editorial Wave');
+console.log('WAVE_ONE_TAP_BROWSER_PRIME_AND_ENDLESS_AUTOPLAY_OK');
+
 console.log('WAVE_GENRE_RUSSIAN_AVAR_DIVERSE_FRESH_RELEASE_DATES_AND_EXCLUSIONS_OK');
