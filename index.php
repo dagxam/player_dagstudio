@@ -476,8 +476,8 @@
     </div>
 </div>
 
-<script src="script.js?v=2355" defer></script>
-<script src="studio.js?v=5" defer></script>
+<script src="script.js?v=2356" defer></script>
+<script src="studio.js?v=6" defer></script>
 <script src="studio-next.js?v=18" defer></script>
 <script src="studio-center.js?v=8" defer></script>
 <script src="studio-vision.js?v=6" defer></script>
