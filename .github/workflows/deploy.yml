@@ -322,7 +322,7 @@ jobs:
                   ftp.quit()
                   print('Critical FTP recovery complete; verify production next.')
                   break
-              except (ftplib.all_errors,OSError) as error:
+              except ftplib.all_errors as error:
                   last_error=error
                   print('Critical FTP recovery failed:',str(error)[:180],flush=True)
                   try:
