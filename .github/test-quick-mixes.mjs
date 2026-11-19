@@ -99,7 +99,10 @@ const sourceEnd=source.indexOf('function setQuickMixStatus(',sourceBegin);
 assert.ok(sourceBegin>0&&sourceEnd>sourceBegin);
 runInNewContext(source.slice(sourceBegin,sourceEnd),ctx);
 const plan=ctx.quickMixSearchPlan(caucasus);
-assert.equal(plan.length,caucasus.regions.length);
+assert.equal(plan.length,caucasus.russianQueries.length+caucasus.regions.length-1);
+assert.equal(plan[0].kind,'caucasus-russian');
+assert.ok(plan.some(d=>d.id==='dag_avar'&&d.kind==='caucasus-national'));
+assert.ok(!plan.some(d=>d.id==='dag_ru'&&d.kind==='caucasus-national'));
 const mixed=ctx.quickMixSpreadSources([
  {id:1,source:'[AUDIUS]'},{id:2,source:'[AUDIUS]'},
  {id:3,source:'[HITMOZ]'},{id:4,source:'[MUZOFOND]'}],3);
