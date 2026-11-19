@@ -48,6 +48,20 @@ assert.ok(directions.filter(d=>d.kind==='theme').length>
 assert.ok(directions.some(d=>/русск/i.test(d.query)));
 assert.ok(directions.some(d=>d.query.includes(String(year))),
     'The wave should query for more recent releases every theme cycle');
+assert.equal(JSON.stringify(directions.slice(0,4).map(d=>d.theme)),
+ JSON.stringify(['russian-pop','caucasus','foreign','avar']),
+ 'Wave rotates Russian, Caucasus, foreign then national tracks');
+assert.equal(JSON.stringify(directions.slice(4,8).map(d=>d.theme)),
+ JSON.stringify(['russian-pop','caucasus','foreign','lezgin']),
+ 'The next cycle keeps the priorities and rotates the national tradition');
+assert.ok(directions.slice(0,8).every(d=>d.query.includes(String(year))),
+ 'All opening Wave priority searches explicitly target the current year');
+assert.equal(ctx.waveSameArtist('JONY feat. Баста','Баста'),true,
+ 'A repeated collaborator must count as the same singer');
+assert.equal(ctx.waveSameArtist('Группа Горцы','Группа Горцы'),true,
+ 'A repeated group must be detected');
+assert.equal(ctx.waveSameArtist('Баста','Miyagi'),false,
+ 'Different artists can play successively');
 
 const newerRussian={title:'Новая русская песня',artist:'Другой исполнитель',
     url:'https://music.example/rus-new.mp3',release_date:freshDate};
@@ -59,7 +73,7 @@ assert.ok(ctx.waveReleasePriority(newerRussian).bucket>
     ctx.waveReleasePriority(oldRussian).bucket);
 assert.equal(ctx.waveReleasePriority({...newerRussian,release_date:''}).verified,false,
     'Missing dates must not be invented');
-storage.setItem('dag_wave_cursor_v3_ordered:rus-listener','0');
+storage.setItem('dag_wave_cursor_v4_four_priority:rus-listener','0');
 const calls=[];
 ctx.api=async(action,params)=>{
     assert.equal(action,'search_global');
@@ -83,7 +97,7 @@ assert.ok(themes.some(t=>t.id==='avar'));
 directions=ctx.waveSearchDirections(ctx.waveLibrarySeeds());
 assert.ok(directions.some(d=>/авар/i.test(d.query)));
 assert.ok(!directions.some(d=>/руки/i.test(d.query)));
-storage.setItem('dag_wave_cursor_v3_ordered:avar-listener','2');
+storage.setItem('dag_wave_cursor_v4_four_priority:avar-listener','3');
 const avaRecent={title:'Новая аварская песня',artist:'Певица Б',
     url:'https://music.example/avar-new.mp3',genre:'Аварские песни',release_date:freshDate};
 const avaUndated={title:'Другая аварская песня',artist:'Певец В',
@@ -121,4 +135,18 @@ assert.ok(!directions.some(d=>/Певец А/i.test(d.query)),
 assert.ok(directions.some(d=>/авар/i.test(d.query)),
     'Editorial regional rotation stays diverse even if a playlist is excluded');
 assert.ok(directions.some(d=>/русск/i.test(d.query)));
+// A provider returning the same artist under another collaboration must
+// never play that artist again immediately; another singer should win.
+ctx.currentUser='repeat-listener';
+ctx.playlists=[{id:91,name:'Русские хиты',tracks:[rus]}];
+ctx.playbackPlaylist=[{artist:'Баста',title:'Предыдущая',url:'https://music.example/prior.mp3'}];
+ctx.currentIndex=0;
+storage.setItem('dag_wave_cursor_v4_four_priority:repeat-listener','0');
+ctx.api=async()=>({success:true,data:[
+    {title:'Дуэт',artist:'Баста feat. Друг',url:'https://music.example/duet.mp3',release_date:freshDate},
+    {title:'Другая новинка',artist:'Мияги',url:'https://music.example/miyagi.mp3',release_date:freshDate}
+]});
+picked=await ctx.findWaveNextTrack();
+assert.equal(picked.artist,'Мияги',
+ 'Wave rejects the singer playing now, including their collaborations');
 console.log('WAVE_GENRE_RUSSIAN_AVAR_DIVERSE_FRESH_RELEASE_DATES_AND_EXCLUSIONS_OK');
