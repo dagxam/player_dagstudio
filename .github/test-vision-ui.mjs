@@ -9,9 +9,9 @@ const expected=['Поиск','Моя волна','Плейлисты','Мне н
 
 assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=10"/);
 assert.match(html,/studio-center\.js\?v=8" defer><\/script>\s*<script src="studio-vision\.js\?v=6"/);
-assert.match(sw,/dagstudio-player-shell-v2370/);
+assert.match(sw,/dagstudio-player-shell-v2371/);
 for(const asset of [
- 'studio-vision.js?v=6','studio-vision.css?v=10','images/vision-hero.svg'
+ 'studio-vision.js?v=6','studio-vision.css?v=11','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
