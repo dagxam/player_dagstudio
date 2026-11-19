@@ -56,6 +56,10 @@ assert.equal(JSON.stringify(directions.slice(4,8).map(d=>d.theme)),
  'The next cycle keeps the priorities and rotates the national tradition');
 assert.ok(directions.slice(0,8).every(d=>d.query.includes(String(year))),
  'All opening Wave priority searches explicitly target the current year');
+assert.equal(ctx.waveSameArtist('JONY (feat. Баста)','Баста'),true,
+ 'Credits enclosed in parentheses must still identify a repeated singer');
+assert.equal(ctx.waveSameArtist('JONY x Баста','Баста'),true,
+ 'Cross-artist X credits must still identify a repeated singer');
 assert.equal(ctx.waveSameArtist('JONY feat. Баста','Баста'),true,
  'A repeated collaborator must count as the same singer');
 assert.equal(ctx.waveSameArtist('Группа Горцы','Группа Горцы'),true,
