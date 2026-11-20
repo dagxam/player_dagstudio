@@ -619,7 +619,7 @@ try {
         centerAligned:Math.abs(v.left+v.width/2-desiredCenter)<Math.max(22,innerWidth*.055),
         noScroll:document.documentElement.scrollWidth<=innerWidth+2&&
           document.documentElement.scrollHeight<=innerHeight+2,
-        sidebarOffline:!!sidebar.querySelector('.showcase-sidebar-bottom .showcase-cache-action')};
+        sidebarOffline:!!sidebar.querySelector('#showcase-offline')};
       root.classList.remove('showcase-wave-only');
       return result;
     });
