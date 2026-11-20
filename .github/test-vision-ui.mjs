@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const html=read('index.php'),sw=read('sw.js');
 const vision=read('studio-vision.js'),css=read('studio-vision.css');
+const railCss=read('studio-sidebar-modern.css'),navScript=read('studio-next.js');
 const native=read('scripts/build-native-web.mjs');
 const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
@@ -29,6 +30,20 @@ assert.match(vision,/vision-mini-player/);
 assert.match(vision,/vision-bottom-nav/);
 assert.match(vision,/vision-player-expanded/);
 assert.match(vision,/activateBrand\(brand\)/,'Logo must open current playback view');
+
+// Logo opens the current player; a sidebar rail toggle only changes the rail.
+// The original desktop compact-grid rules put the player in column 3 / row 2
+// even when the expanded player contains just two columns.
+assert.match(railCss,/\.main-container\.studio-showcase\.vision-ui\.vision-player-expanded\.showcase-nav-collapsed\s*\{/);
+assert.match(railCss,/grid-template-columns:78px minmax\(0,1fr\)!important/);
+assert.match(railCss,/\.vision-ui\.vision-player-expanded\.showcase-nav-collapsed>\.left-col\s*\{[\s\S]*?grid-column:2!important;[\s\S]*?grid-row:1!important/);
+assert.match(railCss,/\.vision-ui\.vision-player-expanded\.showcase-nav-collapsed>\.showcase-sidebar\s*\{[\s\S]*?grid-column:1!important;[\s\S]*?grid-row:1!important/);
+assert.match(navScript,/root\.classList\.toggle\('showcase-nav-collapsed'\)/);
+assert.match(vision,/event\.target\.closest\?\.\('button, a'\)/,
+  'Clicking collapse button inside the logo must not trigger a new player navigation');
+assert.match(html,/studio-vision\.css\?v=\d+"[\s\S]*studio-sidebar-modern\.css\?v=\d+"/,
+  'The collapsed-player grid repair must load after legacy player styles');
+
 assert.match(vision,/window\.playPrev/,'Swipe right must use existing previous-track action');
 assert.match(vision,/touchstart/);
 assert.match(vision,/touchend/);
