@@ -10,40 +10,57 @@ const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 
 const get=(a,b)=>{const start=src.indexOf(a);const end=src.indexOf(b,start+a.length);assert.ok(start>0&&end>start,a);return src.slice(start,end);};
 const element=(tag='div')=>({
-  tag,attributes:{},children:[],handlers:{},style:{},
-  classList:{values:new Set(),add(v){this.values.add(v)},remove(v){this.values.delete(v)}},
+  tag,attributes:{},children:[],handlers:{},style:{},textContent:'',disabled:false,
+  classList:{
+    values:new Set(),add(v){this.values.add(v)},remove(v){this.values.delete(v)},
+    toggle(v,condition){if(condition===undefined)condition=!this.values.has(v);
+      if(condition)this.values.add(v);else this.values.delete(v);
+      return condition;}
+  },
   setAttribute(k,v){this.attributes[k]=v},
   append(...children){this.children.push(...children)},
   appendChild(child){this.children.push(child)},
   replaceChildren(){this.children=[]},
-  addEventListener(k,handler){this.handlers[k]=handler}
+  addEventListener(k,handler){this.handlers[k]=handler},
+  querySelectorAll(){return []}
 });
 const track={id:100,title:'Мама',artist:'A',url:'https://example.org/song.mp3'};
 const playlists=[{id:51,name:'Дорога',tracks:[track]},{id:52,name:'Пустой',tracks:[]}];
 const list=element(),modal=element(),opened=[],added=[],played=[];
 const ctx={
-  currentUser:'test',currentTab:51,playlists,
+  currentUser:'test',currentTab:51,playlists,selectedTrackForSave:track,
+  favoriteTrackMatches:(a,b)=>a.url===b.url||
+    (a.title===b.title&&a.artist===b.artist),
   document:{createElement:element,getElementById:id=>id==='playlist-select-list'?list:id==='save-modal'?modal:null},
   window:{studioCenterOpenPlaylist:id=>opened.push(id)},
   closeModal:id=>opened.push('close:'+id),
   showNotification:()=>{},switchTab:id=>opened.push('switch:'+id),
   playTrack:index=>played.push(index),addToPlaylist:id=>added.push(id)
 };
-runInNewContext(get('function openPlaylistSelect(isSaving = false) {','function updatePlayingHeart() {'),ctx);
+const pickerStart=src.indexOf('let playlistSavePending = false;');
+const pickerEnd=src.indexOf('function updatePlayingHeart() {',pickerStart);
+assert.ok(pickerStart>0&&pickerEnd>pickerStart);
+runInNewContext(src.slice(pickerStart,pickerEnd),ctx);
 ctx.openPlaylistSelect(false);
-assert.equal(list.children.length,2);
+assert.equal(list.children.length,2,'Navigation only shows destination playlists');
 assert.equal(list.children[0].tag,'button','Native buttons support keyboard and touch');
 assert.equal(list.children[0].type,'button');
 assert.equal(list.children[0].attributes['aria-current'],'true');
-assert.ok(list.children[0].children[1].textContent==='1 песен');
+assert.equal(list.children[0].children[1].children[1].textContent,'1 песен');
 list.children[1].handlers.click();
-assert.deepEqual(opened,['close:save-modal',52],'Opening the empty playlist displays it without auto-playing');
-assert.equal(played.length,0,'Playlist selection must not play the first song unexpectedly');
-assert.equal(added.length,0,'Playlist selection must not add a song');
+assert.deepEqual(opened,['close:save-modal',52],'Open a playlist without auto-playing');
+assert.equal(played.length,0,'Playlist selection must not launch a song');
+assert.equal(added.length,0,'Navigation selection must not add');
 ctx.openPlaylistSelect(true);
-list.children[0].handlers.click();
-assert.deepEqual(added,[51],'Save-to-playlist behavior remains separate');
-assert.equal(played.length,0);
+assert.equal(list.children.length,4,'Selected song + 2 destinations + create form');
+assert.equal(list.children[0].className,'playlist-save-summary');
+assert.equal(list.children[1].disabled,true,'Existing song is shown as already added');
+assert.equal(list.children[2].disabled,false,'Empty playlist stays selectable');
+list.children[2].handlers.click();
+assert.deepEqual(added,[52],'Save mode adds song to the chosen new destination');
+assert.equal(played.length,0,'Adding a song cannot start playback');
+assert.equal(list.children[3].tag,'form','Create-and-add exists without another dialog');
+
 assert.match(stage,/window\.studioCenterOpenPlaylist=function\(id\)/);
 assert.match(stage,/String\(item\.id\)===String\(id\)/);
 assert.match(shell,/function showCurated\(\)\{[\s\S]*?window\.openStudioLikes\?\.\(\)/);
