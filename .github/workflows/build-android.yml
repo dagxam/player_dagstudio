@@ -267,12 +267,16 @@ jobs:
         run: |
           set -e
           APK_SHA="$(awk '{print $1}' DAGSTUDIO-PLAYER-Preview.apk.sha256)"
+          SIGNER_SHA="$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs DAGSTUDIO-PLAYER-Preview.apk             | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]{64})$/\\1/p' | head -n 1 | tr 'A-F' 'a-f')"
+          [[ "$SIGNER_SHA" =~ ^[a-f0-9]{64}$ ]] || { echo 'Missing APK signing fingerprint'; exit 1; }
+          echo "DAG_NATIVE_SIGNER_SHA=$SIGNER_SHA" >> "$GITHUB_ENV"
           cat > DAGSTUDIO-PLAYER-native-version.json <<JSON
           {
             "version": "$DAG_NATIVE_VERSION",
             "version_code": $DAG_NATIVE_VERSION_CODE,
             "url": "https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk",
             "sha256": "$APK_SHA",
+            "signer_sha256": "$SIGNER_SHA",
             "commit": "$GITHUB_SHA"
           }
           JSON
@@ -314,13 +318,14 @@ jobs:
           cp DAGSTUDIO-PLAYER-Preview.apk "apk-publish/$APK_NAME"
           cp DAGSTUDIO-PLAYER-Preview.apk apk-publish/DAGSTUDIO-PLAYER-Preview.apk
           python - "$BASE_VERSION" "$APK_NAME" "$GITHUB_SHA" "$DAG_NATIVE_VERSION_CODE" <<'PY'
-          import json,sys,hashlib,pathlib
+          import json,sys,hashlib,pathlib,os
           version,name,commit,code=sys.argv[1:]
           payload={
             "version":version+"-preview",
             "version_code":int(code),
             "url":"https://pl.dagstudio.ru/apk/"+name,
             "sha256":hashlib.sha256(pathlib.Path("apk-publish",name).read_bytes()).hexdigest(),
+            "signer_sha256":os.environ["DAG_NATIVE_SIGNER_SHA"],
             "commit":commit
           }
           pathlib.Path("apk-publish/DAGSTUDIO-PLAYER-native-version.json").write_text(
