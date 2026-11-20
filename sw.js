@@ -32,6 +32,28 @@ const CORE_ASSETS = [
 
 // Icon CSS and font files are cached locally above; no optional CDN calls.
 
+// Never use a version-specific HTML substring for navigation: an older
+// controlling worker may see a newer, perfectly valid deployment. The strict
+// same-build check below remains in install() before promoting a new worker.
+function isPlayerShellHtml(html) {
+    return /<script\b[^>]*\bsrc=["']\/?script\.js\?v=\d+(?:-[a-f0-9]{12})?["'][^>]*>/i.test(String(html || '')) &&
+        /\bid=["']app-update-btn["']/i.test(String(html || ''));
+}
+
+async function findCachedPlayerShell() {
+    // Root and index.php are both precached. A successful connection to either
+    // route must be enough to open the installed PWA when DNS fails later.
+    for (const path of ['/index.php', '/']) {
+        const response = await caches.match(path);
+        if (!response || !response.ok) continue;
+        try {
+            if (isPlayerShellHtml(await response.clone().text())) return response;
+        } catch (_) {}
+    }
+    return null;
+}
+
+
 // Do not promote a new service worker when a partial FTP deployment has
 // served old HTML, a missing controller or a network error. Keep the previous
 // working SW installed instead of replacing it with a broken shell.
@@ -105,23 +127,38 @@ self.addEventListener('fetch', function(event) {
     // PWA ждёт свежий HTML до 3 секунд, затем переходит в офлайн-режим.
     if (request.mode === 'navigate') {
         event.respondWith((async function() {
-            const cached = await caches.match('/index.php');
+            const cached = await findCachedPlayerShell();
             const network = fetch(request, { cache: 'no-store' })
                 .then(async function(response) {
                     if (!response || !response.ok) return null;
-                    // Do not cache a mismatched HTML shell after a partial deploy.
-                    const html=await response.clone().text();
-                    if(!html.includes('script.js?v=2360'))return null;
+                    const html = await response.clone().text();
+                    if (!isPlayerShellHtml(html)) return null;
+                    // Keep BOTH entry points available when a newer deployment
+                    // arrives; no cache is destroyed before a valid replacement.
                     const cache = await caches.open(CACHE_NAME);
                     await cache.put('/index.php', response.clone());
+                    await cache.put('/', response.clone());
                     return response;
                 })
                 .catch(function() { return null; });
 
             if (!cached) {
-                return (await network) || (await caches.match('/')) ||
-                    new Response('Нет соединения. Повторите открытие страницы.', {
-                        status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                const fresh = await network;
+                if (fresh) return fresh;
+                const recovered = await findCachedPlayerShell();
+                if (recovered) return recovered;
+                // A genuinely unconnected, never-successfully-installed PWA
+                // cannot invent offline HTML. Tell the user how to retry.
+                return new Response(
+                    '<!doctype html><html lang="ru"><meta charset="utf-8">' +
+                    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+                    '<title>DAGSTUDIO PLAYER — нет соединения</title>' +
+                    '<body style="background:#10121b;color:#fff;font:16px system-ui;padding:32px;max-width:480px;margin:10vh auto">' +
+                    '<h1>Нет соединения</h1><p>Не удалось загрузить сайт и сохранённую копию приложения. ' +
+                    'Проверьте интернет и повторите открытие.</p>' +
+                    '<button style="padding:14px 22px;border:0;border-radius:12px;background:#e9b179;color:#111;font-weight:700" ' +
+                    'onclick="location.reload()">Повторить</button></body></html>', {
+                        status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control':'no-store' }
                     });
             }
 
