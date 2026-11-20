@@ -81,6 +81,7 @@ jobs:
           test -s studio-center.js
           test -s studio-vision.css
           test -s studio-vision.js
+          test -s studio-sidebar-modern.css
           python -m json.tool manifest.json > /dev/null
 
       - name: Verify shared web and Android UI before FTP publication
@@ -180,7 +181,7 @@ jobs:
           html = html.replace(token, 'content="' + commit + '"')
           # Give each successful website commit unique local CSS/JS URLs so
           # an old service worker cannot load old UI files after "Обновить".
-          pattern = r'((?:src|href)="(?:script\.js|studio(?:-next|-center|-vision)?\.js|(?:style|modern|studio|studio-next|studio-touch|studio-vision)\.css)\?v=\d+)(?=")'
+          pattern = r'((?:src|href)="(?:script\.js|studio(?:-next|-center|-vision)?\.js|(?:style|modern|studio|studio-next|studio-touch|studio-vision|studio-sidebar-modern)\.css)\?v=\d+)(?=")'
           html, count = re.subn(pattern, lambda m: m.group(1) + '-' + commit[:12], html)
           assert count >= 9, 'Revisioned CSS/JS assets are missing'
           file.write_text(html, encoding='utf-8')
@@ -277,7 +278,7 @@ jobs:
           protocol=os.environ.get('FTP_PROTOCOL','ftp').lower()
           port=int(os.environ.get('FTP_PORT') or 21)
           version=os.environ['GITHUB_SHA']
-          essential=['script.js','sw.js','index.php','deploy-version.txt',
+          essential=['script.js','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
                      'deploy-'+version+'.txt']
           if protocol not in ('ftp','ftps'):
               raise SystemExit('FTP fallback supports ftp and explicit ftps only')
