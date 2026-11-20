@@ -57,6 +57,7 @@ jobs:
           node .github/test-collapsed-collections.mjs
           node .github/test-playlist-visual.mjs
           node .github/test-update-notifications.mjs
+          node .github/test-pwa-offline-recovery.mjs
           node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
           node .github/test-local-icons.mjs
