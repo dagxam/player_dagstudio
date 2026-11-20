@@ -34,9 +34,25 @@ function isDagServerMedia(url) {
     return value.startsWith(DAG_SERVER_ORIGIN + '/uploads/');
 }
 
-function shouldProxyMedia(url) {
-    const value = resolveMediaUrl(url);
-    return /^https?:\/\//i.test(value) && !isDagServerMedia(value);
+// The PHP relay enforces a strict upstream-host allowlist. Routing every
+// arbitrary saved-playlist URL through it deterministically returns HTTP 403,
+// even when the Android Media3 player could play that audio URL directly.
+// Respect the relay allowlist: other HTTPS sources are attempted directly,
+// without weakening the server's SSRF protection.
+function shouldProxyMedia(trackOrUrl) {
+    const value = resolveMediaUrl(trackOrUrl);
+    if (!/^https?:\/\//i.test(value) || isDagServerMedia(value)) return false;
+    try {
+        const host = new URL(value).hostname.toLowerCase();
+        const domains = [
+            'api.audius.co', 'discoveryprovider.audius.co',
+            'storage.jamendo.com', 'slider.kz', 'ru.hitmoz.org',
+            'hitmoz.org', 'muzofond.fm', 'zvooq.net',
+            'muzvox.org', 'storage.muzvox.org',
+            'static.muzvox.org', 'muzca.net'
+        ];
+        return domains.some(domain => host === domain || host.endsWith('.' + domain));
+    } catch (_) { return false; }
 }
 
 function nativeSessionToken() {
