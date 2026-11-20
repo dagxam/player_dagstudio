@@ -131,6 +131,7 @@ jobs:
           node .github/test-playlist-visual.mjs
           node .github/test-update-notifications.mjs
           node .github/test-pwa-offline-recovery.mjs
+          node .github/test-playlist-source-recovery.mjs
 
       - name: Test quick mixes and favorite
         run: node .github/test-quick-mixes.mjs
