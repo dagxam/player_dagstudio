@@ -281,9 +281,44 @@
                 <section class="vision-viz-settings" aria-labelledby="vision-viz-heading">
                     <div class="vision-viz-heading">
                         <span class="vision-viz-heading-icon"><i class="fas fa-wave-square" aria-hidden="true"></i></span>
-                        <div><strong id="vision-viz-heading">Визуализация музыки</strong>
-                            <small>Анимация в центре большого плеера</small></div>
+                        <div class="vision-viz-title">
+                            <span class="vision-viz-eyebrow">ПЕРСОНАЛИЗАЦИЯ ЗВУКА</span>
+                            <strong id="vision-viz-heading">Визуализация музыки</strong>
+                            <small>Анимация в центре большого плеера</small>
+                        </div>
+                        <span class="vision-viz-status" id="vision-viz-status">ВКЛЮЧЕНА</span>
                     </div>
+                    <div class="vision-viz-live-preview" id="vision-viz-preview" role="img" aria-label="Предпросмотр выбранной анимации и её цвета">
+                        <canvas id="vision-viz-preview-canvas" aria-hidden="true"></canvas>
+                        <span class="vision-viz-preview-caption"><i class="fas fa-sparkles" aria-hidden="true"></i> Живой предпросмотр</span>
+                        <span class="vision-viz-preview-off" aria-hidden="true">Анимация выключена</span>
+                    </div>
+                    <fieldset class="vision-viz-palette" aria-label="Отдельный выбор цвета визуализации">
+                        <legend>Цвет визуализации <small>Независимо от темы плеера</small></legend>
+                        <div class="vision-viz-palette-choices" role="group" aria-label="Готовые цвета визуализации">
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="theme" aria-label="Цвет темы плеера" aria-pressed="false"><span class="vision-viz-swatch-dot viz-theme"></span><span>Тема</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="violet" aria-label="Фиолетовый цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-violet"></span><span>Неон</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="copper" aria-label="Медный цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-copper"></span><span>Медь</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="ocean" aria-label="Голубой цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-ocean"></span><span>Океан</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="mint" aria-label="Мятный цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-mint"></span><span>Мята</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="rose" aria-label="Розовый цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-rose"></span><span>Роза</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="ice" aria-label="Ледяной цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-ice"></span><span>Лёд</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="white" aria-label="Белый цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-white"></span><span>Белый</span></button>
+                            <button type="button" class="vision-viz-swatch" data-viz-palette="custom" aria-label="Свой цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-custom"><i class="fas fa-palette" aria-hidden="true"></i></span><span>Свой</span></button>
+                        </div>
+                        <label class="vision-viz-custom-picker" for="vision-viz-custom-color">
+                            <span><i class="fas fa-eye-dropper" aria-hidden="true"></i> Свой оттенок <small>Выбрать любой цвет</small></span>
+                            <input id="vision-viz-custom-color" type="color" value="#BFA7FF" aria-label="Выбрать свой оттенок визуализации">
+                        </label>
+                        <label class="vision-viz-sr-only" for="vision-viz-color">Текущий цвет визуализации</label>
+                        <select class="vision-viz-sr-only" id="vision-viz-color" aria-hidden="true" tabindex="-1">
+                            <option value="theme">По теме</option><option value="violet">Неон</option>
+                            <option value="copper">Медь</option><option value="ocean">Океан</option>
+                            <option value="mint">Мята</option><option value="rose">Роза</option>
+                            <option value="ice">Лёд</option><option value="white">Белый</option>
+                            <option value="custom">Свой</option>
+                        </select>
+                    </fieldset>
                     <div class="vision-viz-settings-grid">
                         <label class="vision-viz-setting" for="vision-viz-mode">Вид анимации
                             <select id="vision-viz-mode">
@@ -302,24 +337,18 @@
                                 <option value="strong">Яркая</option>
                             </select>
                         </label>
-                        <label class="vision-viz-setting" for="vision-viz-color">Цвет анимации
-                            <select id="vision-viz-color">
-                                <option value="theme">По теме плеера</option>
-                                <option value="copper">Медный</option>
-                                <option value="violet">Фиолетовый</option>
-                                <option value="ocean">Голубой</option>
-                            </select>
-                        </label>
-                        <label class="vision-viz-setting" for="vision-viz-quality">Производительность
+                        <label class="vision-viz-setting" for="vision-viz-quality">Плавность и нагрузка
                             <select id="vision-viz-quality">
-                                <option value="auto">Автоматически</option>
-                                <option value="smooth">Плавная</option>
-                                <option value="economy">Экономная</option>
-                                <option value="off">Выключить анимацию</option>
+                                <option value="auto">Автоматически · Android</option>
+                                <option value="smooth">Максимальная плавность</option>
+                                <option value="economy">Экономия ресурсов</option>
+                                <option value="off">Без анимации</option>
                             </select>
                         </label>
                     </div>
-                    <small class="vision-viz-description">Декоративные движения во время воспроизведения. На слабых устройствах частота кадров автоматически снижается. Звуковой эквалайзер настраивается отдельно.</small>
+                    <div class="vision-viz-note"><i class="fas fa-circle-info" aria-hidden="true"></i>
+                        <span>Цвет этой анимации меняется отдельно от оформления. На магнитоле Android частота кадров подбирается автоматически. Настройки сохраняются на устройстве и не изменяют звук.</span>
+                    </div>
                 </section>
                 <div class="menu-column-label">Приложение</div>
                 <button id="app-update-btn" class="menu-list-btn app-update-btn app-update-btn-top" onclick="manualUpdateApplication()" type="button">
