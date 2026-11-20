@@ -45,6 +45,7 @@ jobs:
           test -f www/studio-touch.css
           test -f www/studio-vision.js
           test -f www/studio-vision.css
+          test -s www/studio-sidebar-modern.css
           node --check www/studio-vision.js
           node --check www/studio.js
           test -f www/native-bridge.js
