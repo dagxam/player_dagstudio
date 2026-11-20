@@ -267,3 +267,47 @@
     outline-offset:2px!important;
   }
 }
+
+/* The brand/player view stays visible when the desktop navigation rail is
+   collapsed. Legacy compact-grid rules were still positioning .left-col in
+   column 3 / row 2, even though the expanded player uses only two columns.
+   Keep the now-playing surface, not the library grid, in column 2 at all
+   desktop and TEYES heights. Expanded mode never changes music state. */
+@media (min-width:769px) {
+  .main-container.studio-showcase.vision-ui.vision-player-expanded.showcase-nav-collapsed {
+    display:grid!important;
+    grid-template-columns:78px minmax(0,1fr)!important;
+    grid-template-rows:minmax(0,1fr)!important;
+    gap:0!important;
+    align-items:stretch!important;
+    justify-content:stretch!important;
+    overflow:hidden!important;
+  }
+  .vision-ui.vision-player-expanded.showcase-nav-collapsed>.showcase-sidebar {
+    display:flex!important;
+    grid-column:1!important;
+    grid-row:1!important;
+    height:100dvh!important;
+    min-height:0!important;
+    max-height:100dvh!important;
+    visibility:visible!important;
+  }
+  .vision-ui.vision-player-expanded.showcase-nav-collapsed>.left-col {
+    display:flex!important;
+    grid-column:2!important;
+    grid-row:1!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:none!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    visibility:visible!important;
+  }
+  .vision-ui.vision-player-expanded.showcase-nav-collapsed>.right-col,
+  .vision-ui.vision-player-expanded.showcase-nav-collapsed>.header-overlay {
+    display:none!important;
+  }
+  .vision-ui.vision-player-expanded.showcase-nav-collapsed>.vision-player-back {
+    left:96px!important;
+  }
+}
