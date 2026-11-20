@@ -60,9 +60,15 @@ try{
         playTrack=async()=>{playCalls++};
         // All of the actual list render modes must expose the same controls.
         for(const tab of ['search','mix:wave','mix:caucasus','studio-likes','offline',301,303]){
-          currentTab=tab;renderPlaylist();
+          // Authentication/playlist hydration is asynchronous on short WebViews:
+          // keep each scenario's fixture independent of background app boot.
+          currentTab=tab;playlist=[t];renderPlaylist();
           const row=document.querySelector('#playlist-container .track-row');
-          if(!row)throw new Error('Missing row '+tab);
+          if(!row)throw new Error('Missing row '+tab+' '+JSON.stringify({
+            listed:playlist.length,showing:listEl.children.length,
+            currentTab,connected:listEl.isConnected,
+            rows:document.querySelectorAll('.track-row').length
+          }));
           const add=row.querySelector('.track-action-save');
           const download=row.querySelector('.track-action-download');
           if(!add||!download)throw new Error('Missing actions '+tab);
