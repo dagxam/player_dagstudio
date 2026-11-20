@@ -511,11 +511,11 @@
     </div>
 </div>
 
-<script src="script.js?v=2367" defer></script>
-<script src="studio.js?v=6" defer></script>
-<script src="studio-next.js?v=19" defer></script>
+<script src="script.js?v=2368" defer></script>
+<script src="studio.js?v=7" defer></script>
+<script src="studio-next.js?v=20" defer></script>
 <script src="studio-center.js?v=8" defer></script>
-<script src="studio-vision.js?v=7" defer></script>
+<script src="studio-vision.js?v=8" defer></script>
 
 </body>
 </html>

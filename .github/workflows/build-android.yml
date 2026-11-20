@@ -6,6 +6,14 @@ on:
       - main
     paths:
       - 'native/android/**'
+      # All shared player code is bundled into the downloadable APK.
+      - 'script.js'
+      - 'studio.js'
+      - 'studio-next.js'
+      - 'studio-center.js'
+      - 'studio-vision.js'
+      - 'index.php'
+      - 'sw.js'
       - 'native/native-bridge.js'
       - 'capacitor.config.json'
       - 'scripts/configure-android-media.mjs'
@@ -109,7 +117,9 @@ jobs:
         run: node .github/test-personal-radio.mjs
 
       - name: Verify Wave themes, new releases and artist diversity
-        run: node .github/test-wave-themes.mjs
+        run: |
+          node .github/test-wave-themes.mjs
+          node .github/test-wave-caucasus-offline.mjs
 
       - name: Test continuous Wave and Charts discovery
         run: node .github/test-continuous-radio.mjs

@@ -512,8 +512,8 @@
   body.appendChild(title);
   body.appendChild(el('p', '', 'Бесконечный поток музыки, подобранный под твой вкус.'));
   const buttons = el('div', 'vision-hero-buttons');
-  const listen = button('vision-primary', 'Слушать Мою волну', 'play', openWave);
-  listen.appendChild(el('span', '', 'Слушать'));
+  const listen = button('vision-primary', 'Открыть Мою волну', 'play', openWave);
+  listen.appendChild(el('span', '', 'Открыть'));
   buttons.appendChild(listen);
   const tune = button('vision-hero-settings', 'Открыть музыкальные подборки', 'sliders',
     () => { if (typeof window.openQuickMixes === 'function') window.openQuickMixes(); });

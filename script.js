@@ -2236,7 +2236,7 @@ function isUrlStillInAnyPlaylist(trackOrUrl) {
         pl.tracks.some(track => canonicalTrackUrl(track) === resolved));
 }
 
-async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
+async function deleteDeviceCachedTrack(trackOrUrl, force = false, ownerOnly = false) {
     const track = normalizeCacheTrack(trackOrUrl);
     const resolved = canonicalTrackUrl(track);
     if (!resolved) return false;
@@ -2254,15 +2254,21 @@ async function deleteDeviceCachedTrack(trackOrUrl, force = false) {
             const owners = Array.isArray(entry.owners) ? entry.owners : [];
             const remainingOwners = owners.filter(item => item !== owner);
 
-            if (!force && remainingOwners.length > 0) {
+            if (remainingOwners.length > 0 && (ownerOnly || !force)) {
                 entry.owners = remainingOwners;
                 index[resolved] = entry;
                 writeNativeAudioIndex(index);
-                return false;
+                return ownerOnly; // Other accounts keep their saved file.
             }
 
             if (bridge && entry.path) {
-                try { await bridge.delete({ path: entry.path }); } catch (error) {}
+                try {
+                    const result=await bridge.delete({path:entry.path});
+                    if(result?.deleted!==true){
+                        const check=await bridge.get({path:entry.path});
+                        if(check?.exists)return false;
+                    }
+                } catch (error) { return false; }
             }
         }
 
@@ -2339,6 +2345,43 @@ function getOfflineCachedTracks() {
         }));
 }
 
+// Delete one downloaded song on this device, leaving every playlist intact.
+window.removeOfflineSavedTrack=function(index){
+    if(currentTab!=='offline')return;
+    const track=playlist[index],url=canonicalTrackUrl(track);
+    if(!track||!url)return;
+    if(nativeCacheWorkerRunning||webCacheWorkerRunning)
+        return showNotification('Дождитесь завершения скачивания перед удалением.');
+    const playing=playbackPlaylist[currentIndex];
+    if(playbackWanted&&canonicalTrackUrl(playing)===url)
+        return showNotification('Сначала поставьте эту песню на паузу.');
+    showConfirm('Удалить «'+String(track.title||'трек')+'» с этого устройства? В плейлистах песня останется.',async ()=>{
+        const removed=await deleteDeviceCachedTrack(track,true,true);
+        if(!removed)return showNotification('Не удалось удалить аудиофайл. Проверьте хранилище.');
+        try {
+            localStorage.setItem(offlineKeepKey(),JSON.stringify(
+                offlineKeptUrls().filter(item=>item!==url)));
+            localStorage.setItem(offlineCatalogKey(),JSON.stringify(
+                offlineCatalogRead().filter(item=>canonicalTrackUrl(item)!==url)));
+        }catch(e){}
+        if(playbackTab==='offline'){
+            const previous=playbackPlaylist[currentIndex];
+            playbackPlaylist=playbackPlaylist.filter(item=>canonicalTrackUrl(item)!==url);
+            currentIndex=previous?playbackPlaylist.findIndex(item=>
+                canonicalTrackUrl(item)===canonicalTrackUrl(previous)):-1;
+            if(currentIndex<0){
+                playbackWanted=false;
+                try{mainAudio.pause();mainAudio.removeAttribute('src');mainAudio.load();}catch(e){}
+                updateState(false);
+            }
+        }
+        if(currentTab==='offline'){
+            playlist=await offlineTrackList();
+            renderPlaylist();
+        }
+        showNotification('Песня удалена из офлайна.');
+    });
+};
 // --- ПОЛНОЭКРАННЫЙ РЕЖИМ (ПО КНОПКЕ) ---
 window.toggleFullScreen = function() {
     if (!document.fullscreenElement) {
@@ -5042,6 +5085,8 @@ function waveSearchDirections(library=waveLibrarySeeds()){
     const caucasus=['кавказские песни на русском','кавказские новинки на русском',
         'дагестанские песни на русском','кавказские хиты на русском',
         'чеченские песни на русском','кавказская музыка на русском'];
+    const caucasusStars=['Ислам Итляшев','Султан Лагучев',
+        'Эльбрус Джанмирзоев','Мурат Тхагалегов','Ислам Мальсуйгенов'];
     const foreign=['зарубежные хиты','new pop releases','international hits',
         'foreign music hits','new english songs','new music releases'];
     const national=[
@@ -5067,7 +5112,8 @@ function waveSearchDirections(library=waveLibrarySeeds()){
         directions.push(
             {query:russian[i%russian.length]+' '+year,kind:'theme',
                 theme:'russian-pop',page:1+Math.floor(i/russian.length)},
-            {query:caucasus[i%caucasus.length]+' '+year,kind:'theme',
+            {query:(i%3===1?caucasusStars[Math.floor(i/3)%caucasusStars.length]:
+                caucasus[i%caucasus.length])+' '+year,kind:'theme',
                 theme:'caucasus',page:1+Math.floor(i/caucasus.length)},
             {query:foreign[i%foreign.length]+' '+year,kind:'theme',
                 theme:'foreign',page:1+Math.floor(i/foreign.length)},
@@ -5142,6 +5188,12 @@ async function findWaveNextTrack(){
         try{
             let response=await radioSearchPage(direction.query,direction.page,net,'fast');
             let items=response?.success&&Array.isArray(response.data)?response.data:[];
+            // Search a fresh artist/title without the year when indexing omits it.
+            if(!items.length && /\s+20\d{2}$/.test(direction.query)){
+                const broad=direction.query.replace(/\s+20\d{2}$/,'');
+                response=await radioSearchPage(broad,1,net,'fast');
+                items=response?.success&&Array.isArray(response.data)?response.data:[];
+            }
             if(!items.length){
                 response=await radioSearchPage(direction.query,direction.page,net,'full');
                 items=response?.success&&Array.isArray(response.data)?response.data:[];
@@ -5239,7 +5291,7 @@ function waveWarmCandidateAllowed(track){
         radioTrackIdentity(saved)===radioTrackIdentity(track)));
 }
 function warmWaveFirstTrack(){
-    if(navigator.onLine===false||playbackWanted||!waveLibrarySeeds().length)
+    if(navigator.onLine===false||playbackWanted)
         return Promise.resolve(null);
     const owner=tasteOwnerKey();
     if(waveWarmState?.owner===owner){
@@ -6470,7 +6522,14 @@ const QUICK_MIXES={
         // Search directions only: providers do not guarantee verified track language.
         // Start with Caucasian songs in Russian; national republic catalogues follow.
         russianQueries:[
-          'кавказские песни на русском 2026',
+          'кавказские песни на русском '+new Date().getFullYear(),
+          'Ислам Итляшев '+new Date().getFullYear(),
+          'Султан Лагучев '+new Date().getFullYear(),
+          'Эльбрус Джанмирзоев '+new Date().getFullYear(),
+          'Мурат Тхагалегов '+new Date().getFullYear(),
+          'Ислам Мальсуйгенов '+new Date().getFullYear(),
+          'Руслан Швыдченко '+new Date().getFullYear(),
+          'Зульфия Чотчаева '+new Date().getFullYear(),
           'кавказские новинки на русском',
           'дагестанские песни на русском',
           'чеченские песни на русском',
@@ -6480,7 +6539,8 @@ const QUICK_MIXES={
         // Region labels are discovery directions, not certified song-language tags.
         // Search broadly first; artist names remain fallback queries.
         {id:'dag_ru',label:'Дагестан · на русском',queries:[
-          'дагестанские новые песни','дагестанская музыка','Эльдар Далгатов',
+          'дагестанские новые песни','дагестанская музыка','Ислам Итляшев',
+          'Султан Лагучев','Эльбрус Джанмирзоев','Эльдар Далгатов',
           'Тимур Темиров','Эльмира Магомедова','Зульфия Чотчаева']},
         {id:'dag_avar',label:'Дагестан · аварские',queries:[
           'аварские песни','аварские новинки','Зара Гамзатова','аварские']},
@@ -6592,7 +6652,7 @@ function quickMixRankTracks(tracks,config) {
         };
         ranked.sort((a,b)=>priority(a)-priority(b)||
             b.released-a.released||scoreOrder(a,b));
-        return ranked.map(e=>({...e.track,_releaseVerified:!!e.released}));
+        return quickMixAvoidAdjacentArtists(ranked.map(e=>({...e.track,_releaseVerified:!!e.released})));
     }
     const dated=ranked.filter(e=>e.year>0);
     const undated=ranked.filter(e=>!e.released).sort(scoreOrder);
@@ -6617,10 +6677,32 @@ function syncCaucasusPlaybackQueue(state){
     const knownUrls=new Set(finished.map(t=>canonicalTrackUrl(t)));
     const knownTitles=new Set(finished.map(t=>normalizeTrackIdentity(t.artist)+'|'+
         normalizeTrackIdentity(t.title)));
-    const upcoming=state.tracks.filter(t=>!knownUrls.has(canonicalTrackUrl(t))&&
-        !knownTitles.has(normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)));
+    const upcoming=quickMixAvoidAdjacentArtists([finished[finished.length-1],
+        ...state.tracks.filter(t=>!knownUrls.has(canonicalTrackUrl(t))&&
+        !knownTitles.has(normalizeTrackIdentity(t.artist)+'|'+normalizeTrackIdentity(t.title)))
+    ]).slice(1);
     playbackPlaylist.splice(currentIndex+1,playbackPlaylist.length-currentIndex-1,...upcoming);
     if(typeof renderPlaybackQueue==='function')renderPlaybackQueue();
+}
+// Avoid consecutive identical singers, including duet participants. The
+// verified release ordering is preserved whenever a different artist is next.
+function quickMixAvoidAdjacentArtists(ordered){
+    const remaining=(ordered||[]).slice(),out=[];
+    const credits=value=>String(value||'')
+        .replace(/\(\s*(?:feat\.?|ft\.?)\s+([^)]+)\)/gi,'|$1')
+        .replace(/\([^)]*\)/g,'')
+        .replace(/\s+(?:feat\.?|ft\.?|при участии|[xх×])\s+/gi,'|')
+        .split(/[|&,+;/×]/).map(normalizeTrackIdentity).filter(Boolean);
+    const same=(a,b)=>{
+        const first=new Set(credits(a));return credits(b).some(name=>first.has(name));
+    };
+    while(remaining.length){
+        const prior=out[out.length-1];
+        let next=prior?remaining.findIndex(track=>!same(prior.artist,track.artist)):0;
+        if(next<0)next=0; // Only one performer remains.
+        out.push(remaining.splice(next,1)[0]);
+    }
+    return out;
 }
 function quickMixDiversify(ordered){
     const buckets=new Map(),result=[];
@@ -6695,7 +6777,7 @@ function quickMixSearchPlan(config) {
             // "Весь Кавказ" first searches Russian-language Caucasus releases,
             // then covers every national tradition without repeating dag_ru.
             const russian=[...new Set(config.russianQueries||[])].map((query,i)=>({
-                region:'Кавказ · на русском',queries:[query],
+                region:'Кавказ · на русском',queries:[...new Set([query,query.replace(/\s+20\d{2}$/,'')])],
                 id:'caucasus-ru:'+i,kind:'caucasus-russian'
             }));
             const national=config.regions.filter(region=>region.id!=='dag_ru')
@@ -7230,7 +7312,7 @@ function renderPlaylist() {
             iconHtml = `<div class="track-icon-box link" style="margin-right:12px;"><i class="fas fa-music"></i></div>`;
         }
         
-        const downloadBtn = canSaveTrackOffline(t)
+        const downloadBtn = currentTab!=='offline' && canSaveTrackOffline(t)
             ? `<button type="button" class="btn-list-action track-action-download" title="Скачать для офлайна" aria-label="Скачать трек для офлайна"
                 onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download" aria-hidden="true"></i></button>`
             : '';
@@ -7256,7 +7338,12 @@ function renderPlaylist() {
                 title="Удалить из этого плейлиста" aria-label="Удалить трек из плейлиста"
                 onclick="event.stopPropagation(); window.deleteTrackGeneral('${String(t.id).replace(/[^0-9]/g,'')}','${String(currentTab).replace(/[^0-9]/g,'')}')"><i class="fas fa-trash" aria-hidden="true"></i></button>`
             : '';
-        const actionBtn = `${heartBtn}${addBtn}${downloadBtn}${removeBtn}`;
+        const offlineRemoveBtn = currentTab==='offline'
+            ? `<button type="button" class="btn-list-action track-action-remove del"
+                title="Удалить из офлайна" aria-label="Удалить скачанную песню"
+                onclick="event.stopPropagation(); window.removeOfflineSavedTrack(${i})"><i class="fas fa-trash" aria-hidden="true"></i></button>`
+            : '';
+        const actionBtn = `${heartBtn}${addBtn}${downloadBtn}${removeBtn}${offlineRemoveBtn}`;
 
         div.innerHTML = '';
 

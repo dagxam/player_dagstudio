@@ -112,6 +112,7 @@
     waveButton?.classList.remove('active');
   };
   window.openStudioWave=function(){
+    window.studioWaveScreen?.();
     hideLikes();
     waveButton?.classList.add('active');
     document.getElementById('studio-header-offline')?.classList.remove('active');

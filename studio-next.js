@@ -82,7 +82,7 @@ add('search','Поиск','magnifying-glass',()=>{
  document.getElementById('search-input')?.focus();
 });
 add('wave','Моя волна','wave-square',()=>{
- showList('wave');window.openStudioWave?.();activate('wave');
+ showList('wave');window.studioWaveScreen?.();activate('wave');
 });
 add('playlists','Плейлисты','music',()=>window.studioCenterRender?.('playlists'));
 add('likes','Мне нравится','heart',()=>{
@@ -134,7 +134,7 @@ function selectMix(key){
   return;
  }
  showList(key==='wave'?'wave':'collections');
- if(key==='wave'){window.openStudioWave?.();return;}
+ if(key==='wave'){window.studioWaveScreen?.();return;}
  if(typeof startQuickMix==='function')startQuickMix(key);
 }
 // Covers the selections made inside the original mix and republic dialogs as well
