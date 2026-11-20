@@ -71,4 +71,15 @@ assert.ok(build.includes("'native/android/**'"), 'Android source changes must bu
 assert.match(build, /  workflow_dispatch:/);
 assert.ok(!build.includes("- 'script.js'"), 'Web-only changes must not force APK');
 assert.match(script,/if \(!manual\) return \{ status: 'manual-only' \}/);
+assert.match(java,/signerMatches\(data\)/);
+assert.match(java,/result\.put\("channel", "signature-mismatch"\)/);
+assert.match(script,/recoverAndroidSigningMismatch\(\)/);
+assert.match(script,/isAndroidApkSigningMismatch\(error\)/);
+assert.match(build,/signer_sha256/);
+assert.match(build,/DAG_NATIVE_SIGNER_SHA/);
+const apkPhp=readFileSync(new URL('../apk-download.php',import.meta.url),'utf8');
+assert.match(apkPhp,/HTTP_RANGE/);
+assert.match(apkPhp,/Content-Range/);
+assert.match(apkPhp,/Accept-Ranges: bytes/);
+
 console.log('IN_APP_APK_UPDATE_CERT_SHA256_VERSION_PACKAGE_DNS_MIRROR_OK');
