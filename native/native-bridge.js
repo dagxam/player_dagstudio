@@ -347,10 +347,16 @@ window.DAG_NATIVE_BRIDGE = {
       : Promise.reject(new Error('Media3 is Android-only'))
   },
   appInfo: () => App.getInfo(),
-  openExternal: (options) => Browser.open({
-    url: String(options?.url || ''),
-    toolbarColor: '#0b0b0b'
-  })
+  openExternal: async (options) => {
+    const url = String(options?.url || '');
+    // On car head units prefer Android ACTION_VIEW to Custom Tabs for the
+    // official first-party APK attachment. All other URLs use Browser.open.
+    if (hasAndroidMedia3 && url === 'https://pl.dagstudio.ru/apk-download.php') {
+      try { return await DAGCarMode.openApkDownload(); }
+      catch (error) { console.warn('System browser APK fallback:', error); }
+    }
+    return Browser.open({url, toolbarColor:'#0b0b0b'});
+  }
 };
 
 window.DAG_CAR_APP_ACTIVE = true;
