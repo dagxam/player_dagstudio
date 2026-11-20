@@ -64,4 +64,15 @@ assert.equal(await context.refresh(titleSearch),true,
  'Only when full query has no exact matches, title-only discovery may recover a saved song');
 assert.deepEqual(requested.slice(-2),['Исполнитель Лезгинка','Лезгинка']);
 assert.equal(requestCount,2);
+requestCount=0;requested=[];
+context.api=async(action,payload)=>{
+  requestCount++;requested.push(payload.query);
+  return {data:payload.query==='Исполнитель Лезгинка'?
+    [{...matches[0],url:original}]:[matches[1]]};
+};
+const oldOnly={id:73,title:'Лезгинка',artist:'Исполнитель',url:original};
+assert.equal(await context.refresh(oldOnly),true,
+  'A query returning ONLY the expired URL must fall back to searching by title');
+assert.equal(oldOnly.url,matches[1].url);
+assert.equal(requestCount,2);
 console.log('SAVED_PLAYLIST_EXPIRED_LINK_MULTIPLE_PROVIDERS_EXACT_MATCH_AND_OFFLINE_GUARDS_OK');
