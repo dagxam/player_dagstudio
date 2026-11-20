@@ -7,12 +7,27 @@ try{
   for(const viewport of [{width:1280,height:800},{width:1024,height:600},
       {width:800,height:480},{width:390,height:844},{width:320,height:568}]){
     const page=await browser.newPage();
+    const pageErrors=[];
+    page.on('pageerror',e=>pageErrors.push(String(e?.message||e)));
     await page.setViewport(viewport);
-    await page.goto((process.env.PLAYER_URL||'https://pl.dagstudio.ru/')+
+    const navigation=await page.goto((process.env.PLAYER_URL||'https://pl.dagstudio.ru/')+
       '?song-actions='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
-    await page.waitForFunction(()=>Boolean(document.querySelector('.main-container.vision-ui'))&&
-      typeof renderPlaylist==='function'&&typeof openSaveModal==='function',
-      {timeout:22000});
+    try{
+      await page.waitForFunction(()=>Boolean(document.querySelector('.main-container.vision-ui'))&&
+        typeof renderPlaylist==='function'&&typeof openSaveModal==='function',
+        {timeout:12000});
+    }catch(error){
+      const state=await page.evaluate(()=>({
+        ready:document.readyState,
+        title:document.title,root:document.querySelector('.main-container')?.className,
+        rows:document.querySelectorAll('.track-row').length,
+        render:typeof renderPlaylist,save:typeof openSaveModal,
+        scripts:[...document.scripts].map(s=>s.src).filter(Boolean).slice(-6)
+      }));
+      throw new Error('SONG_ACTIONS_BOOT_FAILED '+viewport.width+'x'+viewport.height+
+        ' status='+navigation?.status()+' '+JSON.stringify({state,pageErrors})+
+        ' reason='+String(error?.message||error));
+    }
     const result=await page.evaluate(async()=>{
       const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       const root=document.querySelector('.main-container');
