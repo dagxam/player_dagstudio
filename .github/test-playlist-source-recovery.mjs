@@ -10,6 +10,25 @@ const func=source.slice(start,end);
 assert.ok(func.includes('track._sourceCandidates'), 'Alternates must be kept between failed starts');
 assert.ok(!func.includes('if (!track || track._refreshAttempted'),
     'One exhausted search must not permanently prevent trying subsequent provider results');
+const proxyStart=source.indexOf('function shouldProxyMedia(trackOrUrl) {');
+const proxyEnd=source.indexOf('\nfunction nativeSessionToken()',proxyStart);
+assert.ok(proxyStart>0 && proxyEnd>proxyStart);
+const proxyCtx={
+  resolveMediaUrl:value=>String(value?.url || value || ''),
+  isDagServerMedia:value=>String(value||'').startsWith('https://pl.dagstudio.ru/uploads/'),
+  URL
+};
+runInNewContext(source.slice(proxyStart,proxyEnd)+
+  '\nglobalThis.needsRelay=shouldProxyMedia;',proxyCtx);
+assert.equal(proxyCtx.needsRelay('https://api.audius.co/v1/tracks/123/stream'),true);
+assert.equal(proxyCtx.needsRelay('https://cs1-1.vkuseraudio.net/audio.mp3'),false,
+  'External VK CDN URLs must bypass a proxy that would always reject them with 403');
+assert.equal(proxyCtx.needsRelay('https://my.music-cdn.example/song.mp3'),false);
+assert.equal(proxyCtx.needsRelay('https://fake.slider.kz.attacker.example/track.mp3'),false,
+  'Relay allowlist may not match a spoofed hostname suffix');
+assert.equal(proxyCtx.needsRelay('https://cdn.slider.kz/track.mp3'),true);
+assert.equal(proxyCtx.needsRelay('https://pl.dagstudio.ru/uploads/song.mp3'),false);
+
 const original='https://old.example/song.mp3';
 const matches=[
   {title:'Лезгинка',artist:'Исполнитель',url:'https://audius.example/one.mp3',source:'[AUDIUS]'},
