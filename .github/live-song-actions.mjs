@@ -17,10 +17,15 @@ try{
       const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       const root=document.querySelector('.main-container');
       const prior={user:currentUser,pls:playlists,list:playlist,tab:currentTab,
-        played:playbackPlaylist,index:currentIndex,api,loadUserData,playTrack};
+        played:playbackPlaylist,index:currentIndex,api,loadUserData,playTrack,
+        webQueue:enqueueWebTrackCache,remember:offlineCatalogRemember};
       const t={id:1,title:'Моя тестовая песня',artist:'DAGSTUDIO Тест',
         url:'https://api.audius.co/v1/tracks/demo/stream',thumb:'',source:'[AUDIUS]'};
-      let calls=[],playCalls=0,layouts=[];
+      let calls=[],playCalls=0,layouts=[],downloads=[];
+      enqueueWebTrackCache=(track,reason,priority)=>{
+        downloads.push({track,reason,priority});
+      };
+      offlineCatalogRemember=()=>{};
       try{
         currentUser='ci-song-actions';
         playlists=[
@@ -59,6 +64,10 @@ try{
             noClipping});
           // A button click must not bubble into the playTrack handler.
           if(tab==='search'){
+            download.click();
+            if(downloads.length!==1||downloads[0].track!==t||
+               downloads[0].reason!=='manual'||!downloads[0].priority)
+               throw new Error('List download did not queue selected track');
             add.click();
             if(!document.getElementById('save-modal').classList.contains('show'))
               throw new Error('Playlist selection failed to open');
@@ -99,6 +108,9 @@ try{
            getComputedStyle(tools).display==='none')
            throw new Error('Fullscreen Wave actions are unavailable');
         const r=tools.getBoundingClientRect(),title=document.getElementById('track-title').getBoundingClientRect();
+        dl.click();
+        if(downloads.length!==2||downloads[1].track!==t)
+           throw new Error('Wave download did not queue currently playing track');
         if(r.width<60||r.right>window.innerWidth+1)throw new Error('Fullscreen tools not in viewport');
         plus.click();
         if(selectedTrackForSave!==t ||
@@ -113,15 +125,17 @@ try{
         return {viewport:window.innerWidth+'x'+window.innerHeight,
           layouts,added:calls.filter(c=>c.action==='add_track').length,
           create:calls.filter(c=>c.action==='create_playlist').length,
-          fullScreen:true,playCalls};
+          fullScreen:true,downloads:downloads.length,playCalls};
       }finally{
         closeModal('save-modal');root.classList.remove('showcase-wave-only','vision-player-expanded');
         currentUser=prior.user;playlists=prior.pls;playlist=prior.list;
         currentTab=prior.tab;playbackPlaylist=prior.played;currentIndex=prior.index;
         api=prior.api;loadUserData=prior.loadUserData;playTrack=prior.playTrack;
+        enqueueWebTrackCache=prior.webQueue;offlineCatalogRemember=prior.remember;
       }
     });
     assert.equal(result.playCalls,0);
+    assert.equal(result.downloads,2);
     assert.equal(result.layouts.length,7);
     assert.equal(result.added,2);
     assert.equal(result.create,1);
