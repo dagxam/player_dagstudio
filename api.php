@@ -370,25 +370,47 @@ elseif ($action === 'delete_playlist') {
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка удаления.']); }
 }
 elseif ($action === 'add_track') {
-    if (!isset($_SESSION['user_id'])) exit;
-    $playlist_id = $data['playlist_id'] ?? null; $t = $data['track'] ?? null;
-    if (!$playlist_id || !is_array($t)) { echo json_encode(['error' => 'Некорректные данные']); exit; }
+    if (!isset($_SESSION['user_id'])) { echo json_encode(['error' => 'Требуется вход']); exit; }
+    $playlist_id = (int)($data['playlist_id'] ?? 0);
+    $t = $data['track'] ?? null;
+    if ($playlist_id <= 0 || !is_array($t)) {
+        echo json_encode(['error' => 'Некорректные данные']); exit;
+    }
+    $title = mb_substr(trim(strip_tags((string)($t['title'] ?? ''))), 0, 200);
+    $artist = mb_substr(trim(strip_tags((string)($t['artist'] ?? ''))), 0, 200);
+    $url = mb_substr(trim(strip_tags((string)($t['url'] ?? ''))), 0, 2000);
+    $thumb = mb_substr(strip_tags((string)($t['thumb'] ?? '')), 0, 2000);
+    $type = mb_substr(strip_tags((string)($t['type'] ?? 'audio')), 0, 50);
+    if ($title === '' || $artist === '' || $url === '') {
+        echo json_encode(['error' => 'Не указана песня или ссылка на аудио']); exit;
+    }
     try {
         $chk = $pdo->prepare("SELECT 1 FROM playlists WHERE id = ? AND user_id = ?");
         $chk->execute([$playlist_id, $_SESSION['user_id']]);
-        if (!$chk->fetchColumn()) { echo json_encode(['error' => 'Доступ запрещён']); exit; }
+        if (!$chk->fetchColumn()) {
+            echo json_encode(['error' => 'Доступ запрещён']); exit;
+        }
 
+        // Protect the playlist even if two clients add the same song before
+        // they receive a fresh library snapshot. Different artist or title
+        // means a different recording and is never silently substituted.
+        $existing = $pdo->prepare("SELECT title, artist, url FROM tracks WHERE playlist_id = ?");
+        $existing->execute([$playlist_id]);
+        $nameKey = static fn($value) => mb_strtolower(trim((string)$value), 'UTF-8');
+        foreach ($existing->fetchAll(PDO::FETCH_ASSOC) as $saved) {
+            if ((string)$saved['url'] === $url ||
+                ($nameKey($saved['title']) === $nameKey($title) &&
+                 $nameKey($saved['artist']) === $nameKey($artist))) {
+                echo json_encode(['error' => 'Эта песня уже есть в плейлисте', 'duplicate' => true]);
+                exit;
+            }
+        }
         $stmt = $pdo->prepare("INSERT INTO tracks (playlist_id, title, artist, url, thumb, type) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $playlist_id, 
-            mb_substr(strip_tags($t['title'] ?? ''), 0, 200), 
-            mb_substr(strip_tags($t['artist'] ?? ''), 0, 200), 
-            mb_substr(strip_tags($t['url'] ?? ''), 0, 2000), 
-            mb_substr(strip_tags($t['thumb'] ?? ''), 0, 2000), 
-            mb_substr(strip_tags($t['type'] ?? 'audio'), 0, 50)
-        ]);
-        echo json_encode(['success' => true]);
-    } catch (Exception $e) { echo json_encode(['error' => 'Ошибка добавления трека.']); }
+        $stmt->execute([$playlist_id, $title, $artist, $url, $thumb, $type]);
+        echo json_encode(['success' => true, 'track_id' => (int)$pdo->lastInsertId()]);
+    } catch (Exception $e) {
+        echo json_encode(['error' => 'Ошибка добавления трека.']);
+    }
 }
 // Atomic, idempotent favorite toggle. The dedicated "Мне нравится" playlist
 // syncs via get_data to both browsers and Android without touching other lists.
