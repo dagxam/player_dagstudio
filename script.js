@@ -468,15 +468,11 @@ window.manualUpdateApplication = async function() {
             }
 
             setManualUpdateButtonState('is-checking', 'Применяем обновление…');
-            // Старый SW может отдавать устаревшие script.js/style.css из cache-first.
-            // Удаляем ТОЛЬКО кэш интерфейса; загруженные треки и данные не затрагиваем.
-            if ('caches' in window) {
-                const keys = await caches.keys();
-                const shellKeys = keys.filter(function(key) {
-                    return key.indexOf('dagstudio-player-shell-') === 0;
-                });
-                await Promise.all(shellKeys.map(function(key) { return caches.delete(key); }));
-            }
+            // Do NOT delete old PWA shell caches before reloading. If DNS or
+            // a partial FTP deployment fails, the existing working shell must
+            // stay available. Service Worker installs/activates a verified
+            // replacement and retires obsolete shell versions itself.
+            // Audio cache and user data are never modified here.
             const url = new URL(window.location.href);
             url.searchParams.set('update', Date.now().toString());
             window.location.replace(url.toString());
