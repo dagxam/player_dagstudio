@@ -82,7 +82,8 @@ const NATIVE_UPDATE_BACKUP_META_URL =
     'https://github.com/dagxam/player_dagstudio/releases/download/android-web/DAGSTUDIO-PLAYER-web-version.json';
 // The first-party APK mirror can lag behind if FTP deployment fails.
 // The signed Preview release is published and SHA-verified independently.
-const ANDROID_APK_DOWNLOAD_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
+const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
+const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
 const WEB_BUILD_LABEL = '2359';
 
@@ -280,16 +281,8 @@ function configureAndroidDownloadLink() {
     link.onclick = function(event) {
         if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
         event.preventDefault();
-        // System browser/download manager can handle APK attachments. The
-        // Capacitor WebView itself often silently drops APK downloads.
-        const open = window.DAG_NATIVE_BRIDGE?.openExternal;
-        if (typeof open === 'function') {
-            open({url: ANDROID_APK_DOWNLOAD_URL}).catch(function() {
-                showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
-            });
-        } else {
-            showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
-        }
+        // Do not navigate the Capacitor WebView to a binary download.
+        openAndroidApkDownload();
     };
 }
 if (document.readyState === 'loading') {
@@ -567,6 +560,12 @@ window.manualUpdateApplication = async function() {
             return;
         }
         if (NATIVE_PLATFORM === 'android') {
+            const info = await getNativeAppInfoSafe();
+            if (info.id && info.id !== 'ru.dagstudio.player.preview') {
+                setManualUpdateButtonState('is-error', 'Проверить обновление снова');
+                showNotification('Не удалось проверить веб-обновление. Preview APK не подходит для основного Android-приложения.');
+                return;
+            }
             setManualUpdateButtonState('is-ready', 'Скачать APK');
             showConfirm('Встроенное обновление сейчас недоступно. Скачать последнюю APK через браузер Android?', function() {
                 openAndroidApkDownload();
@@ -584,16 +583,29 @@ window.manualUpdateApplication = async function() {
 
 // Use the device's browser to download the verified first-party APK
 // attachment. Never pass APK bytes into the WebView as a navigation.
-function openAndroidApkDownload() {
-    const open = window.DAG_NATIVE_BRIDGE?.openExternal;
-    if (IS_NATIVE_APP && NATIVE_PLATFORM === 'android' && typeof open === 'function') {
-        open({url: ANDROID_APK_DOWNLOAD_URL}).catch(function() {
+async function openAndroidApkDownload() {
+    if (IS_NATIVE_APP && NATIVE_PLATFORM !== 'android') return;
+    if (IS_NATIVE_APP) {
+        const info = await getNativeAppInfoSafe();
+        if (info.id && info.id !== 'ru.dagstudio.player.preview') {
+            showNotification('Preview APK не заменяет основное приложение с другой подписью. Нужен APK вашего выпуска.');
+            return;
+        }
+        const open = window.DAG_NATIVE_BRIDGE?.openExternal;
+        if (typeof open !== 'function') {
             showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
-        });
-    } else if (!IS_NATIVE_APP) {
-        window.location.assign(ANDROID_APK_DOWNLOAD_URL);
+            return;
+        }
+        try {
+            await open({url: ANDROID_APK_DOWNLOAD_URL});
+        } catch (error) {
+            try { await open({url: ANDROID_APK_FALLBACK_URL}); }
+            catch (fallbackError) {
+                showNotification('Не удалось открыть браузер. Адрес APK: ' + ANDROID_APK_DOWNLOAD_URL);
+            }
+        }
     } else {
-        showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
+        window.location.assign(ANDROID_APK_DOWNLOAD_URL);
     }
 }
 
@@ -602,6 +614,27 @@ function openAndroidApkDownload() {
 // Detection is read-only. It must never pause audio, download an APK or apply
 // an OTA bundle until the listener explicitly presses "Обновить".
 const DAG_UPDATE_POLL_MS = 4 * 60 * 1000;
+
+// Native installer reports actual download/verification progress. This is
+// cosmetic only: a success message comes from the Android system installer.
+window.addEventListener('dag-apk-update-progress', function(event) {
+    if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
+    const update = event.detail || {};
+    const percent = Number(update.percent);
+    const suffix = Number.isFinite(percent) && percent >= 0
+        ? ' ' + Math.max(0, Math.min(100, Math.round(percent))) + '%' : '';
+    const states = {
+        downloading: 'Загружаем APK…',
+        retrying: 'Повторяем загрузку…',
+        verifying: 'Проверяем APK…',
+        installing: 'Открываем установку…'
+    };
+    const label = states[String(update.state || '')];
+    if (!label) return;
+    setManualUpdateButtonState('is-checking', label + (update.state === 'downloading' ? suffix : ''));
+    const apply = document.getElementById('app-update-apply-btn');
+    if (apply && updateActionInProgress) apply.textContent = label + (update.state === 'downloading' ? suffix : '');
+});
 const DAG_UPDATE_DISMISS_KEY = 'dag_update_dismissed_session_v1';
 let offeredUpdate = null;
 let updateProbePromise = null;
@@ -798,7 +831,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-         .register('/sw.js?v=2373', { scope: '/', updateViaCache: 'none' })
+         .register('/sw.js?v=2377', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
