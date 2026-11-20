@@ -3776,7 +3776,11 @@ async function refreshSavedTrackSource(track) {
         };
         try {
             candidates = await lookup(query);
-            let valid = candidates.filter(c => scoreReplacementTrack(track,c) >= 0);
+            const alreadyTried = new Set([String(track.url || ''),
+                ...(track._failedAlternateUrls || [])]);
+            const valid = candidates.filter(c => scoreReplacementTrack(track,c) >= 0 &&
+                /^https?:\/\//i.test(String(c.url || '').trim()) &&
+                !alreadyTried.has(String(c.url || '').trim()));
             // Some providers index a song by title but do not support artist
             // + title queries. Do a title-only discovery only when necessary;
             // exact artist/title matching is STILL required before switching.
