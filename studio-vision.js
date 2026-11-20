@@ -141,8 +141,14 @@
   if(vizPreviewArt){
     for(let i=0;i<17;i++){
       const mark=el('span','vision-viz-preview-mark');
+      const level=.35+.65*Math.abs(Math.sin(i*1.13+.8));
       mark.style.setProperty('--viz-i',String(i));
-      mark.style.setProperty('--viz-level',String(.35+.65*Math.abs(Math.sin(i*1.13+.8))));
+      mark.style.setProperty('--viz-level',String(level));
+      mark.style.setProperty('--viz-angle',(i*360/17).toFixed(2)+'deg');
+      mark.style.setProperty('--viz-dot-x',(50+Math.cos(i*2.39996)*Math.sqrt((i+.5)/17)*38).toFixed(1)+'%');
+      mark.style.setProperty('--viz-dot-y',(50+Math.sin(i*2.39996)*Math.sqrt((i+.5)/17)*34).toFixed(1)+'%');
+      mark.style.height=Math.round(24+level*52)+'px';
+      mark.style.animationDelay=(-i*.073).toFixed(3)+'s';
       vizPreviewArt.appendChild(mark);
     }
   }
