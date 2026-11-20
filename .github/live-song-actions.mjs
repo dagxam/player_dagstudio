@@ -28,6 +28,11 @@ try{
         ' status='+navigation?.status()+' '+JSON.stringify({state,pageErrors})+
         ' reason='+String(error?.message||error));
     }
+    // Allow the real app's asynchronous account/bootstrap callbacks to finish
+    // before installing isolated test fixtures. Short TEYES viewports can
+    // otherwise finish restoring cached account state mid-scenario.
+    await page.waitForFunction(()=>document.readyState==='complete',{timeout:15000});
+    await new Promise(resolve=>setTimeout(resolve,800));
     const result=await page.evaluate(async()=>{
       const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       const root=document.querySelector('.main-container');
@@ -115,7 +120,12 @@ try{
         create.querySelector('button').click();await wait(55);
         if(!calls.some(c=>c.action==='create_playlist'&&c.data.name==='Новый тестовый')||
            !calls.some(c=>c.action==='add_track'&&c.data.playlist_id===304))
-           throw new Error('New playlist was not populated with the selected song');
+           throw new Error('New playlist was not populated with the selected song '+JSON.stringify({
+             actions:calls.map(x=>({action:x.action,pl:x.data?.playlist_id,name:x.data?.name})),
+             selected:selectedTrackForSave?.title,user:currentUser,
+             modal:document.getElementById('save-modal')?.className,
+             disabled:create.querySelector('button')?.disabled
+           }));
         if(document.getElementById('save-modal').classList.contains('show'))
            throw new Error('Picker not closed after creating playlist');
         // Buttons act on playbackPlaylist (not an unrelated visible playlist).
