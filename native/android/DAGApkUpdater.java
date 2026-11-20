@@ -152,6 +152,27 @@ final class DAGApkUpdater {
         return info.signatures;
     }
 
+    /** Detect a legacy debug-signature install BEFORE downloading a large APK.
+     *  Published fingerprints are advisory: install() still verifies the real
+     *  APK certificate against the installed app after SHA-256 validation. */
+    private boolean signerMatches(JSONObject data) throws Exception {
+        String expected = data.optString("signer_sha256", "").toLowerCase(Locale.ROOT);
+        if (expected.isEmpty()) return true; // Older metadata has no fingerprint.
+        if (!expected.matches("[0-9a-f]{64}"))
+            throw new SecurityException("Неверный отпечаток сертификата APK");
+        PackageManager pm = plugin.getContext().getPackageManager();
+        int flags = Build.VERSION.SDK_INT >= 28 ?
+            PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
+        PackageInfo installed = pm.getPackageInfo(plugin.getContext().getPackageName(), flags);
+        Signature[] current = signatures(installed);
+        if (current == null || current.length != 1)
+            throw new SecurityException("Невозможно проверить подпись установленного APK");
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(current[0].toByteArray());
+        StringBuilder fingerprint = new StringBuilder(64);
+        for (byte b : hash) fingerprint.append(String.format(Locale.ROOT, "%02x", b & 255));
+        return fingerprint.toString().equals(expected);
+    }
+
     @SuppressWarnings("deprecation")
     private void verify(File apk, long expectedCode) throws Exception {
         PackageManager pm = plugin.getContext().getPackageManager();
@@ -185,6 +206,13 @@ final class DAGApkUpdater {
                     return;
                 }
                 JSONObject data = manifest();
+                if (!signerMatches(data)) {
+                    result.put("available", false);
+                    result.put("channel", "signature-mismatch");
+                    result.put("version", data.getString("version"));
+                    call.resolve(result);
+                    return;
+                }
                 result.put("available", data.getLong("version_code") > installed);
                 result.put("version", data.getString("version"));
                 result.put("source", data.getString("url").equals(GITHUB_APK) ? "github" : "mirror");
@@ -333,6 +361,9 @@ final class DAGApkUpdater {
                     return;
                 }
                 JSONObject data = manifest();
+                if (!signerMatches(data))
+                    throw new SecurityException("Подпись APK не совпадает с установленной. " +
+                        "Нужен APK с исходной подписью; не удаляйте приложение без резервной копии.");
                 long remote = data.getLong("version_code");
                 if (remote <= installedCode()) {
                     JSObject ok = new JSObject();
