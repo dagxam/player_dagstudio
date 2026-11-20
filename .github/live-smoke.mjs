@@ -410,10 +410,10 @@ try {
         {success:true,icon:args.icon}:{error:'test only'};
       window.dispatchEvent(new Event('dag-playlists-updated'));
       document.getElementById('showcase-playlists').click();
-      const navIsCenter=!!document.querySelector('#studio-curations .showcase-center-card') &&
+      const navIsCenter=!!document.querySelector('#studio-curations .showcase-playlist-card') &&
         document.querySelector('.right-col').classList.contains('showcase-curated') &&
         !document.getElementById('showcase-playlist-submenu');
-      const button=document.querySelector('.showcase-center-card-open');
+      const button=document.querySelector('#studio-curations .showcase-playlist-open');
       const icon=!!button?.querySelector('i.fa-mountain');
       const oldPlayback=playbackPlaylist[currentIndex];
       button.click();
@@ -429,11 +429,11 @@ try {
       footer?.querySelector('button').click();
       const downloadWorks=downloads===1;
       window.studioCenterRender('playlists');
-      document.querySelector('.showcase-center-card-settings').click();
+      document.querySelector('#studio-curations .showcase-playlist-edit').click();
       const picker=document.querySelectorAll('#tm-playlist-icons button');
       const iconEditor=picker.length===18;
       const saved=await savePlaylistIcon(701,'star');
-      const update=!!document.querySelector('#studio-curations .showcase-center-card i.fa-star');
+      const update=!!document.querySelector('#studio-curations .showcase-playlist-card i.fa-star');
       closeModal('track-manager-modal');
       // Collection -> republic/ethnicity -> song list all in the same center.
       const calls=[];
@@ -456,7 +456,7 @@ try {
       const russianList=calls.at(-1)==='russian'&&
          document.querySelector('.right-col').classList.contains('showcase-list');
       // Charts is not the regular hits mix: it must use real provider dates.
-      document.getElementById('showcase-charts').click();
+      window.studioCenterMix('charts');
       const chartsMix=calls.at(-1)==='charts'&&QUICK_MIXES.charts.mode==='recent'&&
           QUICK_MIXES.charts.autoPlayOnDiscover===false;
       const today=new Date().toISOString().slice(0,10);
