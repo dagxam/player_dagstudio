@@ -50,6 +50,13 @@ try{
    });
  });
  await page.click('#showcase-wave');
+ const navigated=await page.evaluate(()=>({
+  page:document.querySelector('.main-container')?.classList.contains('showcase-wave-only'),
+  wanted:playbackWanted,station:quickMixCurrent?.key
+ }));
+ if(!navigated.page||navigated.wanted||navigated.station==='wave')
+   throw new Error('Wave sidebar navigation must not start playback');
+ await page.click('#vinyl-wave-play');
  const immediate=await page.evaluate(()=>({
    chosen:quickMixCurrent?.key,loading:quickMixCurrent?.loading,
    want:playbackWanted,silent:mainAudio.src.startsWith('data:audio/wav;base64,'),

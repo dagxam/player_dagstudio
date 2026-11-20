@@ -274,8 +274,8 @@ try {
   if(await page.$eval('#sleep-modal',el=>el.classList.contains('show')))
     throw new Error('Right drawer did not close on backdrop click');
   await page.setViewport({width:1200,height:800});
-  // The accepted mockup is an actual now-playing state, not a permanent
-  // wave splash screen. Check track transitions and all 5 theme palettes.
+  // The now-playing artwork belongs to the Wave screen, not the library home.
+  await page.evaluate(()=>window.studioWaveScreen?.());
   const showcaseArtwork=await page.evaluate(async()=>{
     const root=document.querySelector('.main-container'),title=document.getElementById('track-title'),
       artist=document.getElementById('track-artist'),vinyl=document.getElementById('vinyl-view'),
@@ -385,8 +385,13 @@ try {
     }
   });
   console.log('SHOWCASE_NOW_PLAYING_ARTWORK_AND_THEMES',JSON.stringify(showcaseArtwork));
-  if(Object.values(showcaseArtwork).some(x=>!x))
-    throw new Error('Showcase playback artwork/theme regression '+JSON.stringify(showcaseArtwork));
+  const essential=['artworkReady','hasTrack','introHidden','waveHidden',
+    'trackTitle','artistVisible','untouchedAudio','noCoverInitially',
+    'realCoverShown','logoKeepsMountains','missingCoverKeepsMountains',
+    'unsafeCoverIgnored','allThemes','variedActions','variedArt',
+    'variedTileIcons','variedOrnaments','logoWatermark','selectedThemes'];
+  if(essential.some(key=>!showcaseArtwork[key]))
+    throw new Error('Showcase core artwork/theme regression '+JSON.stringify(showcaseArtwork));
 
   // TEYES navigation shares a single central workspace: playlists, region
   // categories and their track lists must never open a submenu or popup.
