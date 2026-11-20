@@ -2348,23 +2348,45 @@ window.downloadTrackFile = function(index) {
 
 // The visible download action stores a verified local file for Offline.
 // External MP3 export remains available as downloadTrackFile.
-window.downloadTrack = function(index) {
-    const track=playlist[index];
-    if(!track?.url)return;
-    if((track.source==='[JAMENDO]'||track.source==='[OPENVERSE]')||isJamendoStreamUrl(track.url)){
-        showNotification('Этот источник не разрешает загрузку для офлайна.');return;
+function canSaveTrackOffline(track) {
+    return Boolean(track?.url && isRemoteMediaUrl(track.url) &&
+        track.source !== '[JAMENDO]' && track.source !== '[OPENVERSE]' &&
+        !isJamendoStreamUrl(track.url));
+}
+// The list and fullscreen player deliberately share the same verified
+// offline queue: a "download" never silently exports/plays an unverified URL.
+function saveTrackOffline(track) {
+    if(!track?.url)return false;
+    if(!canSaveTrackOffline(track)){
+        showNotification('Этот источник не разрешает сохранение для офлайна.');return false;
     }
-    if(navigator.onLine===false){showNotification('Для сохранения песни нужна сеть.');return;}
+    if(navigator.onLine===false){
+        showNotification('Для скачивания песни нужна сеть.');return false;
+    }
     if(IS_NATIVE_APP){
-        if(!nativeAudioCacheBridge()){showNotification('Локальное хранилище Android недоступно.');return;}
+        if(!nativeAudioCacheBridge()){
+            showNotification('Локальное хранилище Android недоступно.');return false;
+        }
         enqueueNativeTrackCache(track,'manual',true);
     }else{
-        if(!('caches' in window)){showNotification('Браузер не поддерживает локальное аудиохранилище.');return;}
+        if(!('caches' in window)){
+            showNotification('Браузер не поддерживает локальное аудиохранилище.');return false;
+        }
         enqueueWebTrackCache(track,'manual',true);
     }
     offlineCatalogRemember(track);
-    showNotification('Песня добавлена в очередь. После полной загрузки появится в разделе «Офлайн».');
+    showNotification('Скачивание добавлено в очередь. После полной загрузки трек появится в «Офлайн».');
+    return true;
+}
+window.downloadTrack = function(index) {
+    return saveTrackOffline(playlist[index]);
 };
+function downloadPlayingTrackOffline() {
+    const root=document.querySelector('.main-container');
+    if(!root?.classList.contains('showcase-wave-only') &&
+       !root?.classList.contains('vision-player-expanded'))return false;
+    return saveTrackOffline(playbackPlaylist[currentIndex]);
+}
 
 // --- УСТАНОВКА ПРИЛОЖЕНИЯ (PWA) ---
 // Надёжная схема: используем только фактически поддерживаемый браузером
@@ -7162,10 +7184,9 @@ function renderPlaylist() {
             iconHtml = `<div class="track-icon-box link" style="margin-right:12px;"><i class="fas fa-music"></i></div>`;
         }
         
-        const downloadBtn = (t.url && isRemoteMediaUrl(t.url) &&
-            t.source !== '[JAMENDO]' && t.source !== '[OPENVERSE]' &&
-            !/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(t.url)))
-            ? `<button class="btn-list-action" style="margin-right: 5px;" title="Сохранить офлайн" aria-label="Сохранить трек на этом устройстве" onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download"></i></button>`
+        const downloadBtn = canSaveTrackOffline(t)
+            ? `<button type="button" class="btn-list-action track-action-download" title="Скачать для офлайна" aria-label="Скачать трек для офлайна"
+                onclick="event.stopPropagation(); window.downloadTrack(${i})"><i class="fas fa-download" aria-hidden="true"></i></button>`
             : '';
 
         // Heart is a reversible "Мне нравится" toggle, not a save modal.
@@ -7176,22 +7197,21 @@ function renderPlaylist() {
             aria-label="${isLiked?'Убрать из «Мне нравится»':'Добавить в «Мне нравится»'}"
             aria-pressed="${isLiked?'true':'false'}" ${busy?'disabled':''}
             onclick="event.stopPropagation(); toggleFavoriteTrack(${i})"></button>`;
-        let actionBtn = '';
-        if(currentTab === 'search' || currentTab === 'offline' || currentTab === 'studio-likes' || String(currentTab).startsWith('mix:')) {
-            actionBtn = `
-                ${downloadBtn}
-                ${heartBtn}
-                <button type="button" class="btn-list-action" title="Добавить в другой плейлист" aria-label="Выбрать плейлист"
-                    onclick="event.stopPropagation(); openSaveModal(${i})"><i class="fas fa-plus"></i></button>
-            `;
-        } else {
-            actionBtn = `
-                ${downloadBtn}
-                ${heartBtn}
-                <button type="button" class="btn-list-action del" title="Удалить из этого плейлиста" aria-label="Удалить трек из плейлиста"
-                    onclick="event.stopPropagation(); window.deleteTrackGeneral('${t.id}', '${currentTab}')"><i class="fas fa-trash"></i></button>
-            `;
-        }
+        const isSavedPlaylist = playlists.some(pl=>String(pl.id)===String(currentTab));
+        const activeSavedPlaylist = isSavedPlaylist
+            ? playlists.find(pl=>String(pl.id)===String(currentTab)) : null;
+        const addBtn = `<button type="button" class="btn-list-action track-action-save"
+            title="Добавить в плейлист" aria-label="Добавить трек в плейлист"
+            onclick="event.stopPropagation(); openSaveModal(${i})"><i class="fas fa-plus" aria-hidden="true"></i></button>`;
+        // Favorites are managed by the heart, not a second destructive trash
+        // action; in regular playlists leave the existing delete control.
+        const removeBtn = activeSavedPlaylist && activeSavedPlaylist.type!=='favorites' && t.id
+            ? `<button type="button" class="btn-list-action track-action-remove del"
+                title="Удалить из этого плейлиста" aria-label="Удалить трек из плейлиста"
+                onclick="event.stopPropagation(); window.deleteTrackGeneral('${String(t.id).replace(/[^0-9]/g,'')}','${String(currentTab).replace(/[^0-9]/g,'')}')"><i class="fas fa-trash" aria-hidden="true"></i></button>`
+            : '';
+        const actionBtn = `${heartBtn}${addBtn}${downloadBtn}${removeBtn}`;
+
         div.innerHTML = '';
 
         const left = document.createElement('div'); left.className = 'track-left';
@@ -7245,12 +7265,7 @@ function renderPlaylist() {
         left.appendChild(title); left.appendChild(artist);
 
         const actions = document.createElement('div'); actions.className = 'track-actions'; actions.innerHTML = actionBtn;
-        const queueBtn = document.createElement('button');
-        queueBtn.type='button';queueBtn.className='btn-list-action';
-        queueBtn.title='Играть следующей';queueBtn.setAttribute('aria-label','Добавить в очередь');
-        queueBtn.innerHTML='<i class="fas fa-list-ol"></i>';
-        queueBtn.onclick=function(event){event.stopPropagation();queueTrack(i);};
-        actions.insertBefore(queueBtn,actions.firstChild);
+
         const iconWrap = document.createElement('div'); iconWrap.innerHTML = iconHtml;
 
         div.appendChild(iconWrap.firstChild); div.appendChild(left); div.appendChild(actions);
