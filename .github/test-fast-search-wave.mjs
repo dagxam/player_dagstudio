@@ -6,13 +6,14 @@ const js=read('script.js'),php=read('api.php'),html=read('index.php');
 const css=read('studio-next.css'),engine=read('native/android/DAGAudioEngine.java');
 
 assert.match(html,/id="wave-add-playlist-btn"/);
-assert.match(html,/onclick="saveWavePlayingTrack\(\)"/);
+assert.match(html,/onclick="event.stopPropagation\(\); saveWavePlayingTrack\(\)"/);
 assert.match(css,/\.wave-add-playlist-btn\[hidden\]/);
 assert.match(js,/function saveWavePlayingTrack\(\)/);
 assert.match(js,/selectedTrackForSave=track;\s*openPlaylistSelect\(true\)/);
 assert.match(js,/root\?\.classList\.contains\('showcase-wave-only'\)/);
 assert.match(js,/root\?\.classList\.contains\('vision-player-expanded'\)/);
 assert.match(html,/id="wave-download-btn"/);
+assert.match(html,/onclick="event.stopPropagation\(\); downloadPlayingTrackOffline\(\)"/);
 assert.match(js,/function downloadPlayingTrackOffline\(\)/);
 assert.match(js,/mode: 'fast'/);
 assert.match(js,/mode: 'full'/);
