@@ -77,9 +77,14 @@
             <div class="np-artist" id="track-artist">DAGSTUDIO PLAYER</div>
             <button type="button" id="now-playing-heart" class="now-playing-heart" onclick="savePlayingTrack()" disabled
                 title="Добавить в «Мне нравится»" aria-label="Добавить текущую песню в «Мне нравится»" aria-pressed="false"><i class="far fa-heart" aria-hidden="true"></i><span class="np-like-label">Нравится трек</span></button>
-            <button type="button" id="wave-add-playlist-btn" class="wave-add-playlist-btn"
-                onclick="saveWavePlayingTrack()" aria-label="Добавить текущую песню Моей волны в плейлист"
-                title="Добавить в плейлист" hidden disabled><i class="fas fa-plus" aria-hidden="true"></i></button>
+            <div class="wave-track-tools" role="group" aria-label="Действия с текущей песней">
+                <button type="button" id="wave-add-playlist-btn" class="wave-add-playlist-btn"
+                    onclick="saveWavePlayingTrack()" aria-label="Добавить текущую песню в плейлист"
+                    title="Добавить в плейлист" hidden disabled><i class="fas fa-plus" aria-hidden="true"></i></button>
+                <button type="button" id="wave-download-btn" class="wave-download-btn"
+                    onclick="downloadPlayingTrackOffline()" aria-label="Скачать текущую песню для офлайна"
+                    title="Скачать для офлайна" hidden disabled><i class="fas fa-download" aria-hidden="true"></i></button>
+            </div>
         </div>
         
         <div class="progress-area" id="prog-area">
