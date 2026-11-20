@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2367';
+const WEB_BUILD_LABEL = '2368';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;

@@ -280,7 +280,14 @@ function refreshShowcase(){
  // The prominent wave invitation is shown only before a track is selected.
  titleArt.setAttribute('aria-hidden',String(hasTrack));
  const button=document.getElementById('vinyl-wave-play');
- if(button)button.hidden=hasTrack;
+ if(button){
+  // Entering the Wave from the sidebar must always offer the central Play,
+  // even if a song from another playlist was the previously selected track.
+  const wavePage=root.classList.contains('showcase-wave-only')&&!root.dataset.activeMix;
+  const waveSelected=typeof playbackTab!=='undefined'&&playbackTab==='mix:wave'
+    &&Boolean(track?._waveRadio);
+  button.hidden=hasTrack && (!wavePage || waveSelected);
+}
 }
 const trackTitle=document.getElementById('track-title');
 let observer=null;

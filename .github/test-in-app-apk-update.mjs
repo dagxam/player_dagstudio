@@ -69,7 +69,7 @@ assert.match(bridge,/dag-apk-update-progress/);
 assert.match(build, /on:\n  push:\n    branches:\n      - main\n    paths:/);
 assert.ok(build.includes("'native/android/**'"), 'Android source changes must build APK');
 assert.match(build, /  workflow_dispatch:/);
-assert.ok(!build.includes("- 'script.js'"), 'Web-only changes must not force APK');
+assert.ok(build.includes("- 'script.js'"), 'Shared UI changes must rebuild the APK');
 assert.match(script,/if \(!manual\) return \{ status: 'manual-only' \}/);
 assert.match(java,/signerMatches\(data\)/);
 assert.match(java,/result\.put\("channel", "signature-mismatch"\)/);

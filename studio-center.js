@@ -320,6 +320,8 @@ function openWaveScreen(){
  if(heading)heading.textContent='Моя волна';
  root.classList.add('showcase-wave-only');
  selectNav('wave');
+ // Update the main Play affordance immediately on navigation, not 1.2s later.
+ window.dispatchEvent(new Event('dag-artwork-updated'));
 }
 window.studioWaveScreen=openWaveScreen;
 document.getElementById('showcase-wave')?.addEventListener('click',openWaveScreen);

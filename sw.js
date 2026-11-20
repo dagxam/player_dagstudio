@@ -67,7 +67,7 @@ self.addEventListener('install', function(event) {
         const controller=await cache.match('/script.js?v=2368');
         if (!index || !controller ||
             !(await index.text()).includes('script.js?v=2368') ||
-            !(await controller.text()).includes("WEB_BUILD_LABEL = '2367'")) {
+            !(await controller.text()).includes("WEB_BUILD_LABEL = '2368'")) {
             await caches.delete(CACHE_NAME);
             throw new Error('PWA update deferred: incomplete web deployment');
         }
