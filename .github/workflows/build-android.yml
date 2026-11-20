@@ -267,7 +267,7 @@ jobs:
         run: |
           set -e
           APK_SHA="$(awk '{print $1}' DAGSTUDIO-PLAYER-Preview.apk.sha256)"
-          SIGNER_SHA="$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs DAGSTUDIO-PLAYER-Preview.apk             | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]{64})$/\\1/p' | head -n 1 | tr 'A-F' 'a-f')"
+          SIGNER_SHA="$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs DAGSTUDIO-PLAYER-Preview.apk             | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]{64})$/\1/p' | head -n 1 | tr 'A-F' 'a-f')"
           [[ "$SIGNER_SHA" =~ ^[a-f0-9]{64}$ ]] || { echo 'Missing APK signing fingerprint'; exit 1; }
           echo "DAG_NATIVE_SIGNER_SHA=$SIGNER_SHA" >> "$GITHUB_ENV"
           cat > DAGSTUDIO-PLAYER-native-version.json <<JSON
