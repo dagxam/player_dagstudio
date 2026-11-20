@@ -128,9 +128,16 @@ try{
            throw new Error('Wave download did not queue currently playing track');
         if(r.width<60||r.right>window.innerWidth+1)throw new Error('Fullscreen tools not in viewport');
         plus.click();
-        if(selectedTrackForSave!==t ||
+        if(selectedTrackForSave?.url!==t.url ||
+           selectedTrackForSave?.title!==t.title ||
            !document.getElementById('save-modal').classList.contains('show'))
-           throw new Error('Wave add chose the wrong track');
+           throw new Error('Wave add chose the wrong track '+JSON.stringify({
+             selected:selectedTrackForSave?.url,expected:t.url,
+             selectedTitle:selectedTrackForSave?.title,expectedTitle:t.title,
+             active:playbackPlaylist[currentIndex]?.url,
+             modal:document.getElementById('save-modal').className,
+             wave:root.classList.contains('showcase-wave-only')
+           }));
         closeModal('save-modal');
         root.classList.remove('showcase-wave-only');
         root.classList.add('vision-player-expanded');
