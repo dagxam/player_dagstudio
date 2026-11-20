@@ -104,15 +104,17 @@
   const VISUALIZER_OPTIONS = {
     mode: ['bars','wave','circle','pulse','particles','off'],
     intensity: ['soft','normal','strong'],
-    color: ['theme','copper','violet','ocean'],
+    color: ['theme','copper','violet','ocean','mint','rose','ice','white','custom'],
     quality: ['auto','smooth','economy','off']
   };
-  const visualizerDefaults = {mode:'bars',intensity:'normal',color:'theme',quality:'auto'};
+  const visualizerDefaults = {mode:'bars',intensity:'normal',color:'violet',quality:'auto',customColor:'#BFA7FF'};
   const normalizeVisualizerSettings = candidate => {
     const cfg = {};
     for (const [key, allowed] of Object.entries(VISUALIZER_OPTIONS)) {
       cfg[key] = allowed.includes(candidate?.[key]) ? candidate[key] : visualizerDefaults[key];
     }
+    const raw = String(candidate?.customColor || '');
+    cfg.customColor = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toUpperCase() : visualizerDefaults.customColor;
     return cfg;
   };
   let visualizerSettings = visualizerDefaults;
@@ -129,6 +131,21 @@
   vizStage.appendChild(vizCanvas);
   visualContainer?.appendChild(vizStage);
   const vizContext = vizCanvas.getContext?.('2d', {alpha:true});
+  const vizPreview = document.getElementById('vision-viz-preview');
+  const vizPreviewArt = vizPreview?.querySelector('.vision-viz-preview-art');
+  const vizSettingsCard = document.querySelector('.vision-viz-settings');
+  const vizColorButtons = [...document.querySelectorAll('[data-viz-palette]')];
+  const vizCustomColor = document.getElementById('vision-viz-custom-color');
+  const vizStatus = document.getElementById('vision-viz-status');
+  // CSS preview: lightweight on low-power Android head units, no second audio/canvas pipeline.
+  if(vizPreviewArt){
+    for(let i=0;i<17;i++){
+      const mark=el('span','vision-viz-preview-mark');
+      mark.style.setProperty('--viz-i',String(i));
+      mark.style.setProperty('--viz-level',String(.35+.65*Math.abs(Math.sin(i*1.13+.8))));
+      vizPreviewArt.appendChild(mark);
+    }
+  }
   const visualizerAudio = document.getElementById('main-audio');
   const vizInputs = {
     mode: document.getElementById('vision-viz-mode'),
@@ -162,13 +179,16 @@
   };
   const visualizerActive = () => root.classList.contains('vision-player-expanded') &&
     visualizerSettings.mode !== 'off' && visualizerFrameRate() > 0 && !document.hidden;
+  const VISUALIZER_COLORS = Object.freeze({
+    copper:'#FFB978',violet:'#D2A1FF',ocean:'#83DCE9',
+    mint:'#78EACB',rose:'#FF88BC',ice:'#A7CFFF',white:'#F5F7FF'
+  });
   const visualizerColor = () => {
-    const fixed = {copper:'#ffb978',violet:'#d2a1ff',ocean:'#83dce9'};
-    if (visualizerSettings.color !== 'theme')
-      return fixed[visualizerSettings.color] || fixed.copper;
-    const styles = window.getComputedStyle(root);
-    const variable = styles.getPropertyValue('--theme-bright').trim();
-    return variable || '#ffb978';
+    if(visualizerSettings.color==='custom')return visualizerSettings.customColor;
+    if(visualizerSettings.color!=='theme')
+      return VISUALIZER_COLORS[visualizerSettings.color]||VISUALIZER_COLORS.violet;
+    const styles=window.getComputedStyle(root);
+    return styles.getPropertyValue('--theme-bright').trim()||'#FFB978';
   };
   const roundedVisualizerRect = (ctx,x,y,w,h,r) => {
     const radius = Math.min(r,w/2,h/2);
@@ -217,9 +237,9 @@
     ctx.save();
     // Slight internal aura, not a giant background painting over the album.
     const aura=ctx.createRadialGradient(cx,cy,8,cx,cy,Math.min(w,h)*.57);
-    aura.addColorStop(0,'rgba(192,110,212,.13)');
-    aura.addColorStop(1,'rgba(5,8,20,0)');
-    ctx.fillStyle=aura; ctx.fillRect(0,0,w,h);
+    aura.addColorStop(0,color);
+    aura.addColorStop(1,'transparent');
+    ctx.save();ctx.globalAlpha=.11;ctx.fillStyle=aura;ctx.fillRect(0,0,w,h);ctx.restore();
     ctx.shadowColor=color;
     ctx.shadowBlur=quality ? 5 : 14;
     if (mode==='bars') {
@@ -309,16 +329,45 @@
       window.cancelAnimationFrame(vizFrame);vizFrame=0;vizPrevious=0;
     }
   }
+  const syncVisualizerControls=()=>{
+    for(const [key,item] of Object.entries(vizInputs))if(item)item.value=visualizerSettings[key];
+    if(vizCustomColor)vizCustomColor.value=visualizerSettings.customColor;
+    for(const btn of vizColorButtons){
+      const active=btn.dataset.vizPalette===visualizerSettings.color;
+      btn.classList.toggle('is-selected',active);
+      btn.setAttribute('aria-pressed',String(active));
+    }
+    const color=visualizerColor();
+    vizSettingsCard?.style.setProperty('--viz-selected-color',color);
+    vizPreview?.style.setProperty('--viz-selected-color',color);
+    if(vizPreview)vizPreview.dataset.vizMode=visualizerSettings.mode;
+    const off=visualizerSettings.mode==='off'||visualizerSettings.quality==='off';
+    vizPreview?.classList.toggle('is-off',off);
+    if(vizStatus){
+      vizStatus.textContent=off?'ВЫКЛЮЧЕНА':'ВКЛЮЧЕНА';
+      vizStatus.classList.toggle('is-off',off);
+    }
+  };
+  const updateVizSettings=patch=>{
+    visualizerSettings=normalizeVisualizerSettings({...visualizerSettings,...patch});
+    try{localStorage.setItem(VISUALIZER_KEY,JSON.stringify(visualizerSettings));}catch(_){}
+    syncVisualizerControls();
+    refreshVisualizer();
+  };
   for(const [name,control] of Object.entries(vizInputs)){
     if(!control)continue;
-    control.value=visualizerSettings[name];
-    control.addEventListener('change', () => {
-      visualizerSettings=normalizeVisualizerSettings({...visualizerSettings,[name]:control.value});
-      try{localStorage.setItem(VISUALIZER_KEY,JSON.stringify(visualizerSettings));}catch(_){}
-      for(const [key,item] of Object.entries(vizInputs))if(item)item.value=visualizerSettings[key];
-      refreshVisualizer();
+    control.addEventListener('change',()=>updateVizSettings({[name]:control.value}));
+  }
+  for(const btn of vizColorButtons){
+    btn.addEventListener('click',()=>{
+      updateVizSettings({color:btn.dataset.vizPalette});
+      if(btn.dataset.vizPalette==='custom')vizCustomColor?.focus();
     });
   }
+  vizCustomColor?.addEventListener('input',()=>{
+    updateVizSettings({color:'custom',customColor:vizCustomColor.value});
+  });
+  syncVisualizerControls();
   document.addEventListener('visibilitychange',refreshVisualizer,{passive:true});
   window.addEventListener('pagehide', () => {
     if(vizFrame)window.cancelAnimationFrame(vizFrame);
