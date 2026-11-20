@@ -22,10 +22,16 @@ const brandText=node('div','showcase-brand-text');brandText.appendChild(node('st
 const railToggle=node('button','showcase-rail-toggle');railToggle.type='button';
 railToggle.title='Свернуть или развернуть меню';railToggle.setAttribute('aria-label',railToggle.title);
 railToggle.appendChild(node('i','fas fa-angles-left'));logo.appendChild(railToggle);
+const mobileClose=node('button','showcase-mobile-close');mobileClose.type='button';
+mobileClose.title='Закрыть меню';mobileClose.setAttribute('aria-label','Закрыть меню');
+const closeIcon=node('i','fas fa-xmark');closeIcon.setAttribute('aria-hidden','true');mobileClose.appendChild(closeIcon);
+mobileClose.addEventListener('click',closeMobile);logo.appendChild(mobileClose);
 try{if(localStorage.getItem('dag_sidebar_collapsed')==='1')root.classList.add('showcase-nav-collapsed');}catch(e){}
 function syncRailToggle(){
  const collapsed=root.classList.contains('showcase-nav-collapsed');
  railToggle.setAttribute('aria-expanded',String(!collapsed));
+ railToggle.title=collapsed?'Развернуть меню':'Свернуть меню';
+ railToggle.setAttribute('aria-label',railToggle.title);
  railToggle.querySelector('i').className=collapsed?'fas fa-angles-right':'fas fa-angles-left';
 }
 railToggle.addEventListener('click',()=>{
@@ -33,7 +39,7 @@ railToggle.addEventListener('click',()=>{
  try{localStorage.setItem('dag_sidebar_collapsed',root.classList.contains('showcase-nav-collapsed')?'1':'0');}catch(e){}
  syncRailToggle();
 });syncRailToggle();
-const menu=node('nav','showcase-menu');const buttons=new Map();
+const menu=node('nav','showcase-menu');menu.setAttribute('aria-label','Разделы музыки');const buttons=new Map();
 const activate=key=>{
  menu.querySelectorAll('.showcase-nav-btn').forEach(b=>{const match=b.dataset.showcase===key;b.classList.toggle('active',match);
  if(match)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -201,7 +207,7 @@ touchAction('Подборки','layer-group',()=>window.studioCenterRender?.('co
 touchAction('Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();window.studioSettingsPage?.();});
 root.appendChild(mobileTools);
 const mobileToggle=node('button','showcase-mobile-toggle');mobileToggle.id='showcase-menu-toggle';
-mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыть навигацию');mobileToggle.setAttribute('aria-expanded','false');
+mobileToggle.type='button';mobileToggle.setAttribute('aria-label','Открыть навигацию');mobileToggle.setAttribute('aria-expanded','false');mobileToggle.setAttribute('aria-controls','studio-navigation');
 mobileToggle.appendChild(node('i','fas fa-bars'));
 mobileToggle.addEventListener('click',()=>{
  const open=!nav.classList.contains('open');
