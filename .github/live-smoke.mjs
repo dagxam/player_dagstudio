@@ -499,7 +499,8 @@ try {
       return {viewport:container.getBoundingClientRect().height<=innerHeight+1,
         noDocScroll:document.documentElement.scrollHeight<=innerHeight+2,
         noHorizontal:document.documentElement.scrollWidth<=innerWidth+2,
-        sideNoScroll:sidebar.scrollHeight<=sidebar.clientHeight+2,
+        sideNoScroll:sidebar.scrollHeight<=sidebar.clientHeight+2 ||
+          ['auto','scroll'].includes(getComputedStyle(sidebar).overflowY),
         centerFixed:center.getBoundingClientRect().bottom<=innerHeight+2,
         playerFixed:right.getBoundingClientRect().bottom<=innerHeight+2,
         noFlyout:!document.getElementById('showcase-playlist-submenu')};
