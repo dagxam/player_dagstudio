@@ -348,7 +348,7 @@ try {
         themes[name]={
           tint:root.dataset.showcaseTint,
           ring:getComputedStyle(vinyl).boxShadow,
-          action:getComputedStyle(document.querySelector('.showcase-cache-action')).backgroundImage,
+          action:getComputedStyle(document.querySelector('.showcase-nav-btn.active')).backgroundImage,
           card:getComputedStyle(document.querySelector('.showcase-card-play')).borderColor,
           art:getComputedStyle(landscape).filter,
           tile:getComputedStyle(tile).backgroundImage,

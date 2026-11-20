@@ -76,7 +76,8 @@ try{
           }));
           const add=row.querySelector('.track-action-save');
           const download=row.querySelector('.track-action-download');
-          if(!add||!download)throw new Error('Missing actions '+tab);
+          const offlineRemove=row.querySelector('.track-action-remove.del');
+          if(!add||(tab==='offline'?!offlineRemove:!download))throw new Error('Missing actions '+tab);
           const actions=row.querySelector('.track-actions');
           const rect=el=>el.getBoundingClientRect();
           const rr=rect(row),ar=rect(actions),tr=rect(row.querySelector('.track-left'));
