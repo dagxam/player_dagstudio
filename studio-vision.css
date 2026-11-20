@@ -2324,3 +2324,301 @@
   font-size:.67rem!important;
  }
 }
+
+/* VISUALIZER OPEN STAGE + INDEPENDENT PALETTE — no black visualizer card.
+   The animation sits transparently on the player's existing background. */
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage{
+  background:transparent!important;
+  border:0!important;border-radius:0!important;
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  overflow:visible!important;isolation:isolate!important;
+  min-width:0!important;
+}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage::before,
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-stage::after{
+  display:none!important;content:none!important;
+}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .vision-viz-canvas{
+  background:transparent!important;border:0!important;box-shadow:none!important;
+  width:100%!important;height:100%!important;
+}
+/* Keeps the atmospheric art visible, without adding a dark rectangle. */
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container{
+  background:transparent!important;
+}
+.vision-ui.vision-player-expanded.vision-viz-visible>.left-col .visual-container::before{
+  opacity:.3!important;filter:blur(25px)!important;
+}
+
+/* A complete settings section with its own hierarchy, rich but modest on TEYES. */
+#menu-modal .vision-viz-settings{
+  --viz-selected-color:#D2A1FF;
+  position:relative;isolation:isolate;overflow:hidden;
+  display:flex!important;flex-direction:column!important;gap:14px!important;
+  margin:17px 0 22px!important;padding:19px!important;
+  border-radius:21px!important;border:1px solid #ffffff20!important;
+  background:
+    radial-gradient(ellipse at 98% -9%,rgba(var(--theme-rgb,192,108,66),.19),transparent 60%),
+    linear-gradient(148deg,#242333,#171c2a 58%,#141720)!important;
+  box-shadow:0 10px 31px #0002,inset 0 1px #ffffff12!important;
+}
+#menu-modal .vision-viz-settings::before{
+  content:"";position:absolute;inset:0 22px auto;height:2px;
+  background:linear-gradient(90deg,transparent,var(--viz-selected-color),transparent);
+  opacity:.75;pointer-events:none;
+}
+#menu-modal .vision-viz-heading{
+  display:flex!important;align-items:center!important;gap:13px!important;min-width:0;
+}
+#menu-modal .vision-viz-heading-icon{
+  width:46px!important;height:46px!important;flex:0 0 46px!important;
+  display:grid!important;place-items:center!important;
+  border:1px solid #ffffff25!important;border-radius:14px!important;
+  background:linear-gradient(135deg,#ffffff18,#ffffff06)!important;
+  color:var(--viz-selected-color)!important;
+  box-shadow:inset 0 1px #ffffff20!important;
+}
+#menu-modal .vision-viz-heading-icon i{font-size:1.12rem!important}
+#menu-modal .vision-viz-title{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+#menu-modal .vision-viz-eyebrow{
+  font-size:.57rem;font-weight:850;letter-spacing:.17em;color:var(--viz-selected-color);
+}
+#menu-modal .vision-viz-heading strong{
+  font-size:clamp(.94rem,1.5vw,1.13rem)!important;font-weight:850!important;
+  line-height:1.18!important;letter-spacing:-.025em!important;color:#fcfaff!important;
+}
+#menu-modal .vision-viz-heading small{
+  font-size:.71rem!important;line-height:1.25;color:#b6b9cc!important;
+  margin:0!important;
+}
+#menu-modal .vision-viz-status{
+  display:inline-flex;align-items:center;gap:6px;
+  white-space:nowrap;padding:6px 8px;border-radius:999px;
+  font:800 .57rem/1 Inter,Arial,sans-serif;letter-spacing:.055em;
+  color:#9ce2c7;border:1px solid #7ddfba40;background:#8ae7c418;
+}
+#menu-modal .vision-viz-status::before{
+  content:"";width:6px;height:6px;border-radius:50%;background:currentColor;
+}
+#menu-modal .vision-viz-status.is-off{
+  color:#b5aec0;border-color:#ffffff20;background:#ffffff0a;
+}
+
+/* Preview: a tiny CSS-only animation, no audio analyzer or second canvas. */
+#menu-modal .vision-viz-live-preview{
+  position:relative;isolation:isolate;
+  display:grid;place-items:center;min-height:112px;height:130px;
+  overflow:hidden;border-radius:17px;border:1px solid #ffffff19;
+  background:
+    radial-gradient(ellipse at 50% 51%,color-mix(in srgb,var(--viz-selected-color) 15%,transparent),transparent 64%),
+    linear-gradient(105deg,#242338,#1b2433 50%,#292034);
+  box-shadow:inset 0 1px #ffffff13;
+}
+#menu-modal .vision-viz-live-preview::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 31px,#ffffff04 32px 33px);
+}
+#menu-modal .vision-viz-preview-art{
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  position:absolute;inset:7px 12px 18px;overflow:hidden;
+  pointer-events:none;
+}
+#menu-modal .vision-viz-preview-mark{
+  display:block;position:relative;flex:0 0 5px;width:5px;
+  height:66px;min-width:5px;border-radius:50px;
+  background:var(--viz-selected-color);
+  box-shadow:0 0 14px var(--viz-selected-color);
+  transform-origin:center;
+  animation:vision-viz-minibars 1.15s ease-in-out infinite alternate;
+}
+@keyframes vision-viz-minibars{from{transform:scaleY(.23);opacity:.55}to{transform:scaleY(1);opacity:1}}
+#menu-modal .vision-viz-live-preview[data-viz-mode="wave"] .vision-viz-preview-mark{
+  flex-basis:6px;width:6px;min-width:6px;height:6px!important;border-radius:50%;
+  animation-name:vision-viz-miniwave;animation-duration:1.5s;
+}
+@keyframes vision-viz-miniwave{from{transform:translateY(-24px);opacity:.45}to{transform:translateY(24px);opacity:1}}
+#menu-modal .vision-viz-live-preview[data-viz-mode="circle"] .vision-viz-preview-mark{
+  position:absolute;left:50%;top:49%;flex:none;
+  width:3px;min-width:3px;height:21px!important;border-radius:4px;
+  transform-origin:center;
+  animation:vision-viz-minicircle 1.45s ease-in-out infinite alternate;
+  animation-delay:0s!important;
+  transform:translate(-50%,-50%) rotate(var(--viz-angle)) translateY(-36px);
+}
+@keyframes vision-viz-minicircle{from{opacity:.35}to{opacity:1}}
+#menu-modal .vision-viz-live-preview[data-viz-mode="pulse"] .vision-viz-preview-mark{
+  position:absolute;left:50%;top:49%;
+  flex:none;width:45px;min-width:45px;height:45px!important;
+  background:transparent;border:2px solid var(--viz-selected-color);
+  border-radius:50%;transform:translate(-50%,-50%);
+  animation:vision-viz-minipulse 1.8s ease-out infinite;
+}
+#menu-modal .vision-viz-live-preview[data-viz-mode="pulse"] .vision-viz-preview-mark:nth-child(n+5){
+  display:none!important;
+}
+@keyframes vision-viz-minipulse{
+  0%{transform:translate(-50%,-50%) scale(.4);opacity:.9}
+  100%{transform:translate(-50%,-50%) scale(2.2);opacity:0}
+}
+#menu-modal .vision-viz-live-preview[data-viz-mode="particles"] .vision-viz-preview-mark{
+  position:absolute;flex:none;left:var(--viz-dot-x);top:var(--viz-dot-y);
+  width:5px;min-width:5px;height:5px!important;
+  border-radius:50%;animation:vision-viz-miniparticles 1.65s ease-in-out infinite alternate;
+}
+@keyframes vision-viz-miniparticles{from{transform:scale(.6);opacity:.35}to{transform:scale(1.7);opacity:1}}
+#menu-modal .vision-viz-preview-caption{
+  position:absolute;bottom:10px;left:15px;z-index:2;
+  display:inline-flex;align-items:center;gap:7px;
+  font:700 .64rem/1.2 Inter,Arial,sans-serif;letter-spacing:.025em;
+  color:#e7d8ed;text-shadow:0 1px 8px #141320;
+}
+#menu-modal .vision-viz-preview-caption i{color:var(--viz-selected-color)}
+#menu-modal .vision-viz-preview-off{
+  display:none;position:absolute;z-index:3;color:#c6bfca;
+  padding:7px 12px;border-radius:99px;background:#0d1220aa;
+  font:750 .76rem Inter,Arial,sans-serif;
+}
+#menu-modal .vision-viz-live-preview.is-off .vision-viz-preview-art,
+#menu-modal .vision-viz-live-preview.is-off .vision-viz-preview-caption{visibility:hidden}
+#menu-modal .vision-viz-live-preview.is-off .vision-viz-preview-off{display:block}
+
+/* Palette is entirely separate from the site's six global themes. */
+#menu-modal .vision-viz-palette{
+  display:block;min-width:0;border:1px solid #ffffff18;
+  border-radius:16px;padding:12px 12px 13px;margin:0;
+  background:linear-gradient(125deg,#ffffff06,#ffffff02);
+}
+#menu-modal .vision-viz-palette legend{
+  padding:0 5px;color:#f1eaf4;
+  font:800 .77rem/1.35 Inter,Arial,sans-serif;
+}
+#menu-modal .vision-viz-palette legend small{
+  margin-left:5px;font-size:.64rem;font-weight:500;color:#b8b3c5;
+}
+#menu-modal .vision-viz-palette-choices{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:7px;min-width:0;
+}
+#menu-modal .vision-viz-swatch{
+  position:relative;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:6px;
+  min-width:0;min-height:66px;padding:6px 2px;
+  border:1px solid transparent;border-radius:12px;
+  color:#bdb8cc;background:transparent;cursor:pointer;
+  font:650 .62rem Inter,Arial,sans-serif;
+  transition:background .16s,border-color .16s,transform .16s;
+}
+#menu-modal .vision-viz-swatch:hover{background:#ffffff0d;border-color:#ffffff20}
+#menu-modal .vision-viz-swatch.is-selected{
+  border-color:var(--viz-selected-color);
+  background:#ffffff10;color:#fff;
+  box-shadow:inset 0 1px #ffffff14;
+}
+#menu-modal .vision-viz-swatch:focus-visible,
+#menu-modal .vision-viz-custom-picker input:focus-visible{
+  outline:2px solid var(--viz-selected-color)!important;outline-offset:2px!important;
+}
+#menu-modal .vision-viz-swatch-dot{
+  display:grid;place-items:center;flex:0 0 31px;width:31px;height:31px;
+  border-radius:50%;border:2px solid #ffffff32;
+  background:var(--dot-color,#BFA7FF);
+  box-shadow:0 0 0 3px #ffffff08,0 5px 14px #0005;
+}
+#menu-modal .vision-viz-swatch.is-selected .vision-viz-swatch-dot{
+  box-shadow:0 0 0 3px #111927,0 0 0 5px var(--viz-selected-color);
+}
+#menu-modal .viz-theme{--dot-color:var(--theme-bright,#ffbc87)}
+#menu-modal .viz-violet{--dot-color:#D2A1FF}
+#menu-modal .viz-copper{--dot-color:#FFB978}
+#menu-modal .viz-ocean{--dot-color:#83DCE9}
+#menu-modal .viz-mint{--dot-color:#78EACB}
+#menu-modal .viz-rose{--dot-color:#FF88BC}
+#menu-modal .viz-ice{--dot-color:#A7CFFF}
+#menu-modal .viz-white{--dot-color:#F5F7FF}
+#menu-modal .viz-custom{--dot-color:var(--viz-selected-color);color:#181a25;font-size:.8rem}
+#menu-modal .vision-viz-custom-picker{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:12px;padding:9px 11px;min-height:51px;
+  border:1px solid #ffffff17;border-radius:11px;background:#ffffff07;
+  color:#e5e0ef;
+}
+#menu-modal .vision-viz-custom-picker>span{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font:740 .73rem Inter,Arial,sans-serif;min-width:0;
+}
+#menu-modal .vision-viz-custom-picker>span>i{color:var(--viz-selected-color)}
+#menu-modal .vision-viz-custom-picker small{font-size:.64rem;color:#aba4b7;font-weight:500}
+#menu-modal .vision-viz-custom-picker input[type="color"]{
+  display:block;flex:0 0 48px;width:48px;height:34px;
+  padding:3px;border:1px solid #ffffff48;border-radius:9px;
+  background:#171924;cursor:pointer;
+}
+#menu-modal .vision-viz-sr-only{
+  position:absolute!important;width:1px!important;height:1px!important;
+  padding:0!important;margin:-1px!important;overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;
+  white-space:nowrap!important;border:0!important;
+}
+#menu-modal select.vision-viz-sr-only{pointer-events:none!important}
+#menu-modal .vision-viz-settings-grid{
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:10px!important;min-width:0;
+}
+#menu-modal .vision-viz-settings-grid .vision-viz-setting{
+  display:flex;flex-direction:column;gap:6px;min-width:0;
+  color:#d6d1e1!important;font-size:.72rem!important;font-weight:750!important;
+}
+#menu-modal .vision-viz-settings-grid .vision-viz-setting:last-child{
+  grid-column:1/-1;
+}
+#menu-modal .vision-viz-settings-grid select{
+  display:block!important;min-width:0!important;width:100%!important;
+  min-height:45px!important;padding:10px 12px!important;
+  border-radius:11px!important;border:1px solid #ffffff2b!important;
+  color:#f6f2fa!important;background:#131828!important;
+  font:650 .77rem Inter,Arial,sans-serif!important;cursor:pointer;
+}
+#menu-modal .vision-viz-settings-grid select:focus-visible{
+  outline:2px solid var(--viz-selected-color)!important;outline-offset:2px!important;
+}
+#menu-modal .vision-viz-note{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:10px 12px;border-radius:11px;background:#ffffff08;
+  color:#b3afc2;font:500 .68rem/1.5 Inter,Arial,sans-serif;
+}
+#menu-modal .vision-viz-note i{
+  flex:0 0 auto;margin-top:2px;color:var(--viz-selected-color);
+}
+@media(max-width:560px){
+  #menu-modal .vision-viz-settings{
+    padding:14px!important;gap:12px!important;margin:12px 0 18px!important;border-radius:17px!important;
+  }
+  #menu-modal .vision-viz-heading{gap:9px!important}
+  #menu-modal .vision-viz-heading-icon{
+    width:40px!important;height:40px!important;flex-basis:40px!important;
+  }
+  #menu-modal .vision-viz-eyebrow{font-size:.51rem}
+  #menu-modal .vision-viz-heading strong{font-size:.9rem!important}
+  #menu-modal .vision-viz-heading small{font-size:.64rem!important}
+  #menu-modal .vision-viz-status{font-size:.5rem;padding:5px 6px}
+  #menu-modal .vision-viz-live-preview{min-height:104px;height:113px}
+  #menu-modal .vision-viz-palette{padding:10px 8px!important}
+  #menu-modal .vision-viz-palette-choices{
+    grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;
+  }
+  #menu-modal .vision-viz-swatch{min-height:58px!important;gap:4px;padding:5px 2px!important}
+  #menu-modal .vision-viz-swatch-dot{width:28px;height:28px;flex-basis:28px}
+  #menu-modal .vision-viz-settings-grid{grid-template-columns:1fr!important}
+  #menu-modal .vision-viz-settings-grid .vision-viz-setting:last-child{grid-column:auto}
+}
+@media(min-width:561px) and (max-height:650px){
+  #menu-modal .vision-viz-settings{gap:10px!important;padding:13px!important}
+  #menu-modal .vision-viz-live-preview{height:96px;min-height:96px}
+  #menu-modal .vision-viz-palette-choices{grid-template-columns:repeat(5,minmax(0,1fr))}
+  #menu-modal .vision-viz-swatch{min-height:55px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  #menu-modal .vision-viz-preview-mark{animation:none!important;opacity:.8}
+  #menu-modal .vision-viz-swatch{transition:none!important}
+}
