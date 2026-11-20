@@ -7311,7 +7311,7 @@ function openPlaylistSelect(isSaving = false){
         btn.className='playlist-select-btn';
         const already=!!(isSaving&&(pl.tracks||[]).some(t=>favoriteTrackMatches(t,track)));
         btn.setAttribute('aria-label',(isSaving?'Добавить песню в ':'Открыть ')+(pl.name||'плейлист'));
-        if(String(pl.id)===String(currentTab))btn.classList.add('is-selected');
+        if(String(pl.id)===String(currentTab)){btn.classList.add('is-selected');btn.setAttribute('aria-current','true');}
         const glyph=document.createElement('span');glyph.className='playlist-select-glyph';
         const icon=document.createElement('i');icon.className='fas fa-'+(pl.type==='favorites'?'heart':'music');
         glyph.appendChild(icon);
