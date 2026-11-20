@@ -3752,53 +3752,78 @@ function scoreReplacementTrack(saved, candidate) {
 }
 
 async function refreshSavedTrackSource(track) {
-    if (!track || track._refreshAttempted || navigator.onLine === false) return false;
-    track._refreshAttempted = true;
+    if (!track || navigator.onLine === false || (track._sourceSwitches || 0) >= 3) return false;
     const persisted=!!track.id&&playlists.some(pl=>Array.isArray(pl.tracks)&&
         pl.tracks.some(t=>String(t.id)===String(track.id)));
     const savedArtist = normalizeTrackIdentity(track.artist);
-
     const query = [track.artist, track.title].filter(Boolean).join(' ').trim();
     if (!query) return false;
 
     artistEl.textContent = 'Обновляем источник трека…';
+    // Search only once per playback selection. If the first replacement has
+    // expired too, reuse the remaining exact matches instead of refusing all
+    // further recovery attempts. An audio URL is never considered working
+    // until actual playback has advanced for 12 seconds.
+    if (!Array.isArray(track._sourceCandidates)) {
+        if (track._sourceLookupDone) return false;
+        let candidates = [];
+        const lookup = async search => {
+            const result = await api('search_global', {
+                query: search, page: 1,
+                network: isWeakConnection() ? 'weak' : 'normal'
+            });
+            return result && Array.isArray(result.data) ? result.data : [];
+        };
+        try {
+            candidates = await lookup(query);
+            let valid = candidates.filter(c => scoreReplacementTrack(track,c) >= 0);
+            // Some providers index a song by title but do not support artist
+            // + title queries. Do a title-only discovery only when necessary;
+            // exact artist/title matching is STILL required before switching.
+            if (!valid.length && savedArtist && String(track.title || '').trim())
+                candidates = [...candidates, ...(await lookup(String(track.title).trim()))];
+        } catch (error) {
+            // A temporary provider timeout must not permanently mark this
+            // track as searched; future manual/recovery attempts may retry.
+            console.warn('Saved track source search unavailable:', error);
+            return false;
+        }
+        const seen = new Set();
+        track._sourceCandidates = candidates
+            .map(candidate => ({candidate, score: scoreReplacementTrack(track,candidate) +
+                sourceHealthScore(candidate.source)}))
+            .filter(item => item.score >= (savedArtist ? 155 : 85) &&
+                /^https?:\/\//i.test(String(item.candidate?.url || '').trim()))
+            .sort((a,b) => b.score - a.score)
+            .filter(item => {
+                const url = String(item.candidate.url).trim();
+                if (seen.has(url)) return false;
+                seen.add(url); return true;
+            }).slice(0,20);
+        track._sourceLookupDone = true;
+    }
 
-    const result = await api('search_global', {
-        query: query,
-        page: 1,
-        network: isWeakConnection() ? 'weak' : 'normal'
-    });
-
-    const candidates = result && Array.isArray(result.data) ? result.data : [];
-    if (!candidates.length) return false;
-
-    const excluded=new Set([String(track.url||''),...(track._failedAlternateUrls||[])]);
-    const ranked=candidates
-        .map(candidate=>({candidate,score:scoreReplacementTrack(track,candidate)+
-            sourceHealthScore(candidate.source)}))
-        .filter(item=>item.score>=(savedArtist?155:85)&&item.candidate?.url&&
-            !excluded.has(String(item.candidate.url)))
-        .sort((a,b)=>b.score-a.score);
-
-    if (!ranked.length) return false;
-
-    const replacement = ranked[0].candidate;
+    const excluded = new Set([String(track.url || ''), ...(track._failedAlternateUrls || [])]);
+    const next = track._sourceCandidates.find(item =>
+        !excluded.has(String(item.candidate.url || '').trim()));
+    if (!next) return false;
+    const replacement = next.candidate;
     const newUrl = String(replacement.url || '').trim();
     if (!newUrl || newUrl === String(track.url || '').trim()) return false;
-    if((track._sourceSwitches||0)>=3)return false;
-    track._sourceSwitches=(track._sourceSwitches||0)+1;
-    track._failedAlternateUrls=[...(track._failedAlternateUrls||[]),String(track.url||'')].slice(-8);
 
-    // Trial-run the URL. A saved playlist is updated only after 12 seconds
-    // of successful audio, never merely because a search returned a match.
-    track._pendingSaveSource=persisted?{url:newUrl,thumb:replacement.thumb||track.thumb||'',
-        source:replacement.source||'',at:Date.now()}:null;
-    track.url=newUrl;
-    if(replacement.thumb)track.thumb=replacement.thumb;
-    track.source=replacement.source||track.source||'';
-    track._streamRetries=0;
-    track._playingFromCache=false;
-
+    track._sourceSwitches = (track._sourceSwitches || 0) + 1;
+    track._failedAlternateUrls = [...(track._failedAlternateUrls || []),
+        String(track.url || '')].slice(-8);
+    // Never persist the mere search result. The timeupdate handler saves only
+    // after the replacement actually plays on this device.
+    track._pendingSaveSource = persisted
+        ? {url:newUrl,thumb:replacement.thumb || track.thumb || '',
+           source:replacement.source || '',at:Date.now()} : null;
+    track.url = newUrl;
+    if (replacement.thumb) track.thumb = replacement.thumb;
+    track.source = replacement.source || track.source || '';
+    track._streamRetries = 0;
+    track._playingFromCache = false;
     return true;
 }
 
@@ -4449,7 +4474,9 @@ async function playTrack(index, options = {}) {
         track._streamRetries = 0;
         track._earlyEndRetries = 0;
         track._cachedRecoveryAttempts = 0;
-        track._refreshAttempted = false;
+        track._refreshAttempted = false; // legacy saved playback metadata
+        track._sourceLookupDone = false;
+        track._sourceCandidates = null;
     }
     track._serverRecordedForUrl='';
     resetMediaAdvanceClock();
