@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2376';
+const CACHE_NAME = 'dagstudio-player-shell-v2377';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -7,7 +7,7 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2229',
     '/modern.css?v=16',
-    '/script.js?v=2359',
+    '/script.js?v=2360',
     '/studio.css?v=6',
     '/studio.js?v=6',
     '/studio-next.css?v=23',
@@ -24,7 +24,7 @@ const CORE_ASSETS = [
     '/vendor/fontawesome/webfonts/fa-brands-400.woff2',
     '/images/studio-wave.svg',
     '/images/studio-sunset.svg',
-    '/manifest.json?v=2216',
+    '/manifest.json?v=2217',
     '/images/faviconch.png',
     '/images/icon-192.png',
     '/images/cover.png'
@@ -42,10 +42,10 @@ self.addEventListener('install', function(event) {
             return cache.add(asset).catch(function() { return null; });
         }));
         const index=await cache.match('/index.php');
-        const controller=await cache.match('/script.js?v=2359');
+        const controller=await cache.match('/script.js?v=2360');
         if (!index || !controller ||
-            !(await index.text()).includes('script.js?v=2359') ||
-            !(await controller.text()).includes("WEB_BUILD_LABEL = '2359'")) {
+            !(await index.text()).includes('script.js?v=2360') ||
+            !(await controller.text()).includes("WEB_BUILD_LABEL = '2360'")) {
             await caches.delete(CACHE_NAME);
             throw new Error('PWA update deferred: incomplete web deployment');
         }
@@ -111,7 +111,7 @@ self.addEventListener('fetch', function(event) {
                     if (!response || !response.ok) return null;
                     // Do not cache a mismatched HTML shell after a partial deploy.
                     const html=await response.clone().text();
-                    if(!html.includes('script.js?v=2359'))return null;
+                    if(!html.includes('script.js?v=2360'))return null;
                     const cache = await caches.open(CACHE_NAME);
                     await cache.put('/index.php', response.clone());
                     return response;
