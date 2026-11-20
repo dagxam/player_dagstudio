@@ -289,7 +289,7 @@
                         <span class="vision-viz-status" id="vision-viz-status">ВКЛЮЧЕНА</span>
                     </div>
                     <div class="vision-viz-live-preview" id="vision-viz-preview" role="img" aria-label="Предпросмотр выбранной анимации и её цвета">
-                        <canvas id="vision-viz-preview-canvas" aria-hidden="true"></canvas>
+                        <div class="vision-viz-preview-art" aria-hidden="true"></div>
                         <span class="vision-viz-preview-caption"><i class="fas fa-sparkles" aria-hidden="true"></i> Живой предпросмотр</span>
                         <span class="vision-viz-preview-off" aria-hidden="true">Анимация выключена</span>
                     </div>
