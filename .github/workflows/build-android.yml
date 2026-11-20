@@ -4,6 +4,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'native/android/**'
+      - 'native/native-bridge.js'
+      - 'capacitor.config.json'
+      - 'scripts/configure-android-media.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'images/icon.png'
+      - '.github/workflows/build-android.yml'
   workflow_dispatch:
 
 permissions:
