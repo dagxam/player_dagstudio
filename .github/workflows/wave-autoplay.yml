@@ -11,6 +11,8 @@ on:
       - "studio-next.js"
       - "studio-center.js"
       - "studio-vision.css"
+      - "studio-sidebar-modern.css"
+      - ".github/live-sidebar-player.mjs"
       - "index.php"
       - "sw.js"
       - ".github/test-wave-themes.mjs"
@@ -47,6 +49,10 @@ jobs:
           done
           echo "Release not yet verified on the public site."
           exit 1
+      - name: Test brand player stays visible across sidebar collapse
+        env:
+          PLAYER_URL: https://pl.dagstudio.ru/
+        run: node .github/live-sidebar-player.mjs
       - name: Test Wave autoplay and desktop/mobile/car layout
         env:
           PLAYER_URL: https://pl.dagstudio.ru/
