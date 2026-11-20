@@ -247,3 +247,23 @@
     transition:none!important;
   }
 }
+
+/* Mobile drawer has its own clear, fingertip-sized close action. */
+.vision-ui .showcase-mobile-close{display:none!important}
+@media(max-width:768px){
+  .vision-ui .showcase-brand {align-items:center!important}
+  .vision-ui .showcase-mobile-close {
+    display:grid!important;place-items:center!important;
+    margin-left:auto!important;flex:0 0 42px!important;
+    width:42px!important;height:42px!important;min-height:42px!important;
+    border:1px solid rgba(var(--theme-rgb,192,108,66),.32)!important;
+    border-radius:12px!important;
+    color:var(--nav-ink)!important;
+    background:rgba(255,255,255,.055)!important;
+    cursor:pointer;
+  }
+  .vision-ui .showcase-mobile-close:focus-visible{
+    outline:2px solid var(--theme-bright,var(--accent-color,#ffc16c))!important;
+    outline-offset:2px!important;
+  }
+}
