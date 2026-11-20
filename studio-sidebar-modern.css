@@ -361,3 +361,57 @@
     margin:1px 0 0!important;
   }
 }
+
+/* Android portrait and TEYES landscape: the Home "Моя волна" promo is content
+   driven. Older height:clamp(154px,28vh,200px) could clip the description or
+   Listen button because the card itself has overflow:hidden. Do not reduce
+   text size merely to make the fixed-height card fit. Other player views and
+   the active Wave fullscreen screen are unaffected. */
+@media (min-width:769px) and (max-height:740px) {
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero {
+    height:auto!important;
+    min-height:clamp(172px,30dvh,215px)!important;
+    flex:0 0 auto!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero .vision-hero-copy {
+    height:auto!important;
+    min-height:clamp(172px,30dvh,215px)!important;
+    justify-content:center!important;
+    padding:13px 18px 15px!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero .vision-hero-copy h1 {
+    font-size:clamp(1.3rem,2.4vw,2rem)!important;
+    line-height:1.15!important;
+    margin:6px 0 5px!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero .vision-hero-copy p {
+    font-size:clamp(.76rem,1.25vw,.9rem)!important;
+    line-height:1.4!important;
+    margin:0 0 10px!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated {
+    overflow-y:auto!important;
+    min-height:0!important;
+  }
+}
+@media (max-width:768px) {
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero {
+    height:auto!important;
+    min-height:211px!important;
+    flex:0 0 auto!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero .vision-hero-copy {
+    height:auto!important;
+    min-height:211px!important;
+    justify-content:center!important;
+    padding:18px 17px 19px!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero .vision-hero-copy h1 {
+    line-height:1.12!important;
+    margin:7px 0 6px!important;
+  }
+  .vision-ui.vision-home-active>.right-col.showcase-curated>.vision-home-hero .vision-hero-copy p {
+    line-height:1.42!important;
+    margin:0 0 12px!important;
+  }
+}
