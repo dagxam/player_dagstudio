@@ -470,4 +470,11 @@ jobs:
           grep -qi '^content-type: application/vnd.android.package-archive' /tmp/dag-apk-download-headers.txt
           BYTES="$(awk 'tolower($1)=="content-length:" {gsub("\r","",$2); print $2}' /tmp/dag-apk-download-headers.txt | tail -n 1)"
           test "${BYTES:-0}" -gt 1000000
-          echo "APK_ATTACHMENT_DOWNLOAD_VERIFIED bytes=$BYTES"
+          curl --fail --silent --show-error --location --range 0-63 --retry 2 --max-time 45 \
+            -D /tmp/dag-apk-range-headers.txt \
+            "https://pl.dagstudio.ru/apk-download.php?range-check=$GITHUB_SHA" \
+            -o /tmp/dag-apk-first64.bin
+          test "$(wc -c < /tmp/dag-apk-first64.bin)" -eq 64
+          grep -Eq '^HTTP/[0-9.]+ 206' /tmp/dag-apk-range-headers.txt
+          grep -qi '^content-range: bytes 0-63/' /tmp/dag-apk-range-headers.txt
+          echo "APK_ATTACHMENT_AND_RESUMABLE_DOWNLOAD_VERIFIED bytes=$BYTES"
