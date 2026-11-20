@@ -311,3 +311,53 @@
     left:96px!important;
   }
 }
+
+/* Compact car/tablet screens were hiding the wordmark in vision.css while the
+   modern navigation hid the logo below 1600px. This left only the collapse
+   arrow clickable. Keep a distinct, usable logo/brand and rail toggle. */
+@media (min-width:769px) and (max-width:1199px),
+       (min-width:769px) and (max-height:740px) {
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand {
+    display:flex!important;
+    flex-direction:column!important;
+    justify-content:center!important;
+    align-items:center!important;
+    gap:4px!important;
+    padding:7px 3px!important;
+    margin:0 0 9px!important;
+    text-align:center!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand-icon {
+    display:block!important;
+    width:30px!important;
+    height:30px!important;
+    min-width:30px!important;
+    max-width:30px!important;
+    flex:0 0 30px!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand-text {
+    display:block!important;
+    flex:0 1 auto!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    text-align:center!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand-text strong {
+    font-size:clamp(.62rem,.9vw,.8rem)!important;
+    letter-spacing:-.045em!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand-text small {
+    font-size:.49rem!important;
+    letter-spacing:.08em!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-rail-toggle {
+    display:grid!important;
+    flex:0 0 30px!important;
+    height:30px!important;
+    width:33px!important;
+    min-width:33px!important;
+    max-width:33px!important;
+    margin:1px 0 0!important;
+  }
+}
