@@ -127,6 +127,8 @@ try{
         if(downloads.length!==2||downloads[1].track!==t)
            throw new Error('Wave download did not queue currently playing track');
         if(r.width<60||r.right>window.innerWidth+1)throw new Error('Fullscreen tools not in viewport');
+        // This click must not bubble to the touch drawer's backdrop handler.
+        // Previously the picker opened and immediately closed on TEYES/tablet.
         plus.click();
         if(selectedTrackForSave?.url!==t.url ||
            selectedTrackForSave?.title!==t.title ||
