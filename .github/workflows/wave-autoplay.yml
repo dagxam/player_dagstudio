@@ -14,6 +14,8 @@ on:
       - "studio-sidebar-modern.css"
       - ".github/live-sidebar-player.mjs"
       - ".github/live-android-home-hero.mjs"
+      - ".github/live-song-actions.mjs"
+      - "api.php"
       - "index.php"
       - "sw.js"
       - ".github/test-wave-themes.mjs"
@@ -50,6 +52,10 @@ jobs:
           done
           echo "Release not yet verified on the public site."
           exit 1
+      - name: Test download and add-to-playlist across all music screens
+        env:
+          PLAYER_URL: https://pl.dagstudio.ru/
+        run: node .github/live-song-actions.mjs
       - name: Test My Wave Home text and controls fit Android screens
         env:
           PLAYER_URL: https://pl.dagstudio.ru/
