@@ -271,6 +271,29 @@ public class DAGCarModePlugin extends Plugin {
         new DAGApkUpdater(this).install(call);
     }
 
+    /** Open the first-party APK mirror in Android's download-capable browser.
+     *  Custom Tabs inside older TEYES WebViews may discard APK attachments. */
+    @PluginMethod
+    public void openApkDownload(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("Окно Android недоступно");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://pl.dagstudio.ru/apk-download.php"));
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+                call.resolve();
+            } catch (Exception error) {
+                call.reject("Нет доступного браузера для загрузки APK", error);
+            }
+        });
+    }
+
     @PluginMethod
     public void loadAudio(PluginCall call) {
         String url = call.getString("url", "");
