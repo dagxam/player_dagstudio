@@ -37,8 +37,10 @@ for(const id of ['app-update-modal','app-update-title','app-update-apply-btn',
 assert.match(html, /name="dag-build-commit" content="__DAG_BUILD_COMMIT__"/);
 assert.match(css, /#app-update-modal\.show/);
 assert.match(js, /async function offerNativeUpdateOnLaunch\(/);
-assert.match(js, /\.register\('\/sw\.js\?v=2373'/,
- 'Service Worker must request current update shell');
+const shellVersion = sw.match(/dagstudio-player-shell-v(\d+)/)?.[1];
+assert.ok(shellVersion, 'PWA shell version missing');
+assert.ok(js.includes(".register('/sw.js?v=" + shellVersion + "'"),
+ 'Service Worker registration must request the current update shell');
 assert.match(js, /setTimeout\(\(\) => offerNativeUpdateOnLaunch\(true\)/,
  'Check for updates soon after startup');
 assert.match(js, /sessionStorage\.setItem\(DAG_UPDATE_DISMISS_KEY, offeredUpdate\.key\)/,
