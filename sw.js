@@ -1,5 +1,5 @@
 // sw.js - Service Worker DAGSTUDIO PLAYER PWA
-const CACHE_NAME = 'dagstudio-player-shell-v2383';
+const CACHE_NAME = 'dagstudio-player-shell-v2384';
 const RUNTIME_CACHE = 'dagstudio-player-runtime-v2297';
 
 const CORE_ASSETS = [
@@ -7,16 +7,16 @@ const CORE_ASSETS = [
     '/index.php',
     '/style.css?v=2229',
     '/modern.css?v=16',
-    '/script.js?v=2366',
+    '/script.js?v=2367',
     '/studio.css?v=6',
     '/studio.js?v=6',
     '/studio-next.css?v=23',
     '/studio-next.js?v=19',
     '/studio-center.js?v=8',
     '/studio-touch.css?v=12',
-    '/studio-vision.css?v=11',
+    '/studio-vision.css?v=12',
     '/studio-sidebar-modern.css?v=7',
-    '/studio-vision.js?v=6',
+    '/studio-vision.js?v=7',
     '/images/vision-hero.svg',
     '/vendor/fontawesome/css/all.min.css?v=6722',
     '/vendor/fontawesome/webfonts/fa-solid-900.woff2',
@@ -64,10 +64,10 @@ self.addEventListener('install', function(event) {
             return cache.add(asset).catch(function() { return null; });
         }));
         const index=await cache.match('/index.php');
-        const controller=await cache.match('/script.js?v=2366');
+        const controller=await cache.match('/script.js?v=2367');
         if (!index || !controller ||
-            !(await index.text()).includes('script.js?v=2366') ||
-            !(await controller.text()).includes("WEB_BUILD_LABEL = '2366'")) {
+            !(await index.text()).includes('script.js?v=2367') ||
+            !(await controller.text()).includes("WEB_BUILD_LABEL = '2367'")) {
             await caches.delete(CACHE_NAME);
             throw new Error('PWA update deferred: incomplete web deployment');
         }
