@@ -615,26 +615,6 @@ async function openAndroidApkDownload() {
 // an OTA bundle until the listener explicitly presses "Обновить".
 const DAG_UPDATE_POLL_MS = 4 * 60 * 1000;
 
-// Native installer reports actual download/verification progress. This is
-// cosmetic only: a success message comes from the Android system installer.
-window.addEventListener('dag-apk-update-progress', function(event) {
-    if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
-    const update = event.detail || {};
-    const percent = Number(update.percent);
-    const suffix = Number.isFinite(percent) && percent >= 0
-        ? ' ' + Math.max(0, Math.min(100, Math.round(percent))) + '%' : '';
-    const states = {
-        downloading: 'Загружаем APK…',
-        retrying: 'Повторяем загрузку…',
-        verifying: 'Проверяем APK…',
-        installing: 'Открываем установку…'
-    };
-    const label = states[String(update.state || '')];
-    if (!label) return;
-    setManualUpdateButtonState('is-checking', label + (update.state === 'downloading' ? suffix : ''));
-    const apply = document.getElementById('app-update-apply-btn');
-    if (apply && updateActionInProgress) apply.textContent = label + (update.state === 'downloading' ? suffix : '');
-});
 const DAG_UPDATE_DISMISS_KEY = 'dag_update_dismissed_session_v1';
 let offeredUpdate = null;
 let updateProbePromise = null;
@@ -7757,6 +7737,27 @@ if (IS_NATIVE_APP) {
         if(!document.hidden) synchronizeProfileTheme().catch(()=>{});
     },90000);
 }
+
+// Native installer reports actual download/verification progress. This is
+// cosmetic only: a success message comes from the Android system installer.
+window.addEventListener('dag-apk-update-progress', function(event) {
+    if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
+    const update = event.detail || {};
+    const percent = Number(update.percent);
+    const suffix = Number.isFinite(percent) && percent >= 0
+        ? ' ' + Math.max(0, Math.min(100, Math.round(percent))) + '%' : '';
+    const states = {
+        downloading: 'Загружаем APK…',
+        retrying: 'Повторяем загрузку…',
+        verifying: 'Проверяем APK…',
+        installing: 'Открываем установку…'
+    };
+    const label = states[String(update.state || '')];
+    if (!label) return;
+    setManualUpdateButtonState('is-checking', label + (update.state === 'downloading' ? suffix : ''));
+    const apply = document.getElementById('app-update-apply-btn');
+    if (apply && updateActionInProgress) apply.textContent = label + (update.state === 'downloading' ? suffix : '');
+});
 
 // Site, installed PWA and Android share the same visible update dialog.
 // A foreground refresh is only a version check; no music is interrupted.
