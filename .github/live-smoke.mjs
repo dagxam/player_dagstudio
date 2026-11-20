@@ -449,12 +449,12 @@ try {
       const regions=regionGrid.length>10&&
         document.querySelector('.right-col').classList.contains('showcase-curated');
       regionGrid[1].querySelector('button').click();
-      const regionList=document.querySelector('.right-col').classList.contains('showcase-list')
+      const regionList=document.querySelector('.main-container').classList.contains('showcase-wave-only')
         &&calls.at(-1).startsWith('region:');
       window.studioCenterRender('collections');
       document.querySelectorAll('#studio-curations .showcase-center-card')[1].querySelector('button').click();
       const russianList=calls.at(-1)==='russian'&&
-         document.querySelector('.right-col').classList.contains('showcase-list');
+         document.querySelector('.main-container').classList.contains('showcase-wave-only');
       // Charts is not the regular hits mix: it must use real provider dates.
       window.studioCenterMix('charts');
       const chartsMix=calls.at(-1)==='charts'&&QUICK_MIXES.charts.mode==='recent'&&
