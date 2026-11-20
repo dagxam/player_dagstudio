@@ -511,6 +511,9 @@ window.manualUpdateApplication = async function() {
             } else {
                 try {
                     const apk = await installer.check();
+                    if (apk?.channel === 'signature-mismatch') {
+                        androidApkSigningConflict = true;
+                    }
                     if (apk?.available) {
                         setManualUpdateButtonState('is-ready', 'Доступно обновление приложения');
                         showConfirm('Доступна новая версия Android ' +
@@ -529,6 +532,10 @@ window.manualUpdateApplication = async function() {
                                     showNotification('Подтвердите обновление в системном окне Android.');
                                 }
                             } catch (error) {
+                                if (isAndroidApkSigningMismatch(error)) {
+                                    await recoverAndroidSigningMismatch();
+                                    return;
+                                }
                                 setManualUpdateButtonState('is-error', 'Повторить обновление');
                                 showConfirm('Автоматическая установка не выполнена: ' +
                                     String(error?.message || error || 'Нет ответа от установщика').slice(0,170) +
@@ -553,7 +560,10 @@ window.manualUpdateApplication = async function() {
         }
         if (result.status === 'current' || result.status === 'throttled') {
             await refreshAppVersionInfo();
-            if (apkCheckFailed && NATIVE_PLATFORM === 'android') {
+            if (androidApkSigningConflict && NATIVE_PLATFORM === 'android') {
+                setManualUpdateButtonState('is-error', 'Требуется совместимый APK');
+                showNotification('Интерфейс обновлён. Для обновления нативного APK нужна та же подпись, что у установленной версии.');
+            } else if (apkCheckFailed && NATIVE_PLATFORM === 'android') {
                 setManualUpdateButtonState('is-ready', 'Скачать APK');
                 showConfirm('Обновления веб-части не найдены, но проверить версию APK не удалось. Скачать APK через браузер?', function() {
                     openAndroidApkDownload();
@@ -573,6 +583,11 @@ window.manualUpdateApplication = async function() {
         }
         if (NATIVE_PLATFORM === 'android') {
             const info = await getNativeAppInfoSafe();
+            if (androidApkSigningConflict) {
+                setManualUpdateButtonState('is-error', 'Требуется совместимый APK');
+                showNotification('Подпись APK не совпадает. Сохраните данные; старое приложение нельзя заменить этим APK.');
+                return;
+            }
             if (info.id && info.id !== 'ru.dagstudio.player.preview') {
                 setManualUpdateButtonState('is-error', 'Проверить обновление снова');
                 showNotification('Не удалось проверить веб-обновление. Preview APK не подходит для основного Android-приложения.');
@@ -595,7 +610,30 @@ window.manualUpdateApplication = async function() {
 
 // Use the device's browser to download the verified first-party APK
 // attachment. Never pass APK bytes into the WebView as a navigation.
+let androidApkSigningConflict = false;
+function isAndroidApkSigningMismatch(error) {
+    const message = String(error?.message || error || '');
+    return /(?:подпис[^.\n]{0,80}не совпад|signature[^.\n]{0,80}(?:mismatch|does not match|different)|signing.certificat[^.\n]{0,80}different|INSTALL_FAILED_UPDATE_INCOMPATIBLE)/i.test(message);
+}
+
+async function recoverAndroidSigningMismatch() {
+    androidApkSigningConflict = true;
+    setManualUpdateButtonState('is-checking', 'Проверяем веб-обновление…');
+    const update = await checkNativeLiveUpdate(true, true);
+    if (update.status === 'updated') return;
+    setManualUpdateButtonState('is-error', 'Требуется совместимый APK');
+    const status = update.status === 'current'
+        ? 'Интерфейс уже обновлён.'
+        : 'Веб-обновление недоступно: ' + String(update.error || update.status || '').slice(0,100) + '.';
+    showNotification('Подпись APK отличается от установленной. ' + status +
+        ' Не удаляйте приложение до сохранения локальных данных. Для замены APK нужна исходная подпись.');
+}
+
 async function openAndroidApkDownload() {
+    if (androidApkSigningConflict) {
+        showNotification('Этот APK не обновит установленную версию: подписи различаются. Сначала сохраните локальные данные.');
+        return;
+    }
     if (IS_NATIVE_APP && NATIVE_PLATFORM !== 'android') return;
     if (IS_NATIVE_APP) {
         const info = await getNativeAppInfoSafe();
@@ -690,6 +728,9 @@ async function findAvailableAppUpdate() {
     if (apkPackageMatches && installer && typeof installer.check === 'function') {
         try {
             const apk = await installer.check();
+            if (apk?.channel === 'signature-mismatch') {
+                androidApkSigningConflict = true;
+            }
             if (apk?.available) return {
                 kind: 'apk',
                 key: 'apk:' + String(apk.version || ''),
@@ -789,6 +830,11 @@ window.applyAvailableAppUpdate = async function() {
             throw new Error(result.error || 'Не удалось применить OTA');
         }
     } catch (error) {
+        if (offeredUpdate?.kind === 'apk' && isAndroidApkSigningMismatch(error)) {
+            document.getElementById('app-update-modal')?.classList.remove('show');
+            await recoverAndroidSigningMismatch();
+            return;
+        }
         recordConnectivityFailure(error);
         const reason = String(error?.message || error || 'Ошибка обновления').slice(0,180);
         if (offeredUpdate?.kind === 'apk') {
