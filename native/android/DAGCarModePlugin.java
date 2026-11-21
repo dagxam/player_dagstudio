@@ -183,6 +183,20 @@ public class DAGCarModePlugin extends Plugin {
      * This avoids the CC3 platform DNS resolver used by generic FileTransfer.
      * The WebView never supplies filesystem paths or a destination host.
      */
+    private static final java.util.concurrent.atomic.AtomicReference<okhttp3.Call> backgroundAudioTransfer =
+        new java.util.concurrent.atomic.AtomicReference<>();
+
+    static void cancelBackgroundAudioTransfer() {
+        okhttp3.Call transfer = backgroundAudioTransfer.get();
+        if (transfer != null) transfer.cancel();
+    }
+
+    @PluginMethod
+    public void cancelAudioCacheDownload(PluginCall call) {
+        cancelBackgroundAudioTransfer();
+        call.resolve();
+    }
+
     @PluginMethod
     public void downloadOwnAudio(PluginCall call) {
         final String value = call.getString("url", "");
@@ -214,6 +228,7 @@ public class DAGCarModePlugin extends Plugin {
             File target = new File(dir, key.toLowerCase(java.util.Locale.ROOT) +
                 "." + extension.toLowerCase(java.util.Locale.ROOT) + ".downloading");
             final long maxBytes = 100L * 1024L * 1024L;
+            okhttp3.Call transfer = null;
             OkHttpClient client = new OkHttpClient.Builder()
                 .dns(new DAGServerDns())
                 .connectTimeout(12, TimeUnit.SECONDS)
@@ -228,7 +243,14 @@ public class DAGCarModePlugin extends Plugin {
                     .header("Accept", "audio/*")
                     .header("Accept-Encoding", "identity")
                     .build();
-                try (Response response = client.newCall(request).execute()) {
+                transfer = client.newCall(request);
+                if (!backgroundAudioTransfer.compareAndSet(null, transfer))
+                    throw new IOException("DAG_PLAYBACK_PRIORITY: cache transfer busy");
+                if (DAGAudioEngine.playbackNeedsBandwidth()) {
+                    transfer.cancel();
+                    throw new IOException("DAG_PLAYBACK_PRIORITY");
+                }
+                try (Response response = transfer.execute()) {
                     if (response.code() != 200 || response.body() == null)
                         throw new IOException("Audio endpoint HTTP " + response.code());
                     String type = response.header("Content-Type", "").toLowerCase(java.util.Locale.ROOT);
@@ -258,8 +280,12 @@ public class DAGCarModePlugin extends Plugin {
                 }
             } catch (Exception error) {
                 target.delete();
-                call.reject("Verified HTTPS audio cache download failed: " + error.getMessage(), error);
+                if ((transfer != null && transfer.isCanceled()) ||
+                    String.valueOf(error.getMessage()).contains("DAG_PLAYBACK_PRIORITY"))
+                    call.reject("DAG_PLAYBACK_PRIORITY: canceled by playback", error);
+                else call.reject("Verified HTTPS audio cache download failed: " + error.getMessage(), error);
             } finally {
+                if (transfer != null) backgroundAudioTransfer.compareAndSet(transfer, null);
                 client.dispatcher().executorService().shutdown();
                 client.connectionPool().evictAll();
             }

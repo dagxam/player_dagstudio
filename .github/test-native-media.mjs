@@ -129,3 +129,15 @@ withoutDuration.detail={hasSource:true,requestId:unknown._requestId,state:'ended
 window.dispatchEvent(withoutDuration);
 assert.equal(early,1);assert.equal(finished,0);
 console.log('MEDIA3_WEAK_NETWORK_GUARDS_OK');
+
+const switched=new window.DAGNativeAudioAdapter();
+let transitions=0;
+switched.addEventListener('playing',()=>transitions++);
+for (const url of ['https://pl.dagstudio.ru/uploads/a.mp3','https://pl.dagstudio.ru/uploads/b.mp3']) {
+  switched.src=url; await switched.play();
+  const ready=new Event('dag-native-audio-status');
+  ready.detail={hasSource:true,requestId:switched._requestId,state:'ready',playing:true,positionMs:3000,durationMs:200000,bufferedPositionMs:90000,error:''};
+  window.dispatchEvent(ready);
+}
+assert.equal(transitions,2,'each new track must emit playing even after a previously playing track');
+console.log('MEDIA3_TRACK_TRANSITIONS_OK');

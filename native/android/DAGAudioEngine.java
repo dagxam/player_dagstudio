@@ -33,6 +33,7 @@ import java.io.File;
 public final class DAGAudioEngine {
     private static final long DISK_CACHE_BYTES = 256L * 1024L * 1024L;
     private static JSObject lastStatus = new JSObject();
+    private static volatile boolean streamNeedsBandwidth;
     private final ExoPlayer player;
     private final SimpleCache cache;
     private Equalizer equalizer;
@@ -68,7 +69,7 @@ public final class DAGAudioEngine {
         // Prefer a deep streaming reservoir and refill it before it runs dry.
         // Local cache files should still start immediately.
         DefaultLoadControl control = new DefaultLoadControl.Builder()
-            .setBufferDurationsMsForStreaming(35000, 180000, 1000, 4500)
+            .setBufferDurationsMsForStreaming(60000, 180000, 2500, 12000)
             .setBufferDurationsMsForLocalPlayback(1000, 50000, 500, 1000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(15000, true)
@@ -97,7 +98,11 @@ public final class DAGAudioEngine {
         publish();
     }
 
+    public static boolean playbackNeedsBandwidth() { return streamNeedsBandwidth; }
+
     public void load(String url, String cacheKey, long startMs, String requestId) {
+        streamNeedsBandwidth = url.startsWith("https://") || url.startsWith("http://");
+        if (streamNeedsBandwidth) DAGCarModePlugin.cancelBackgroundAudioTransfer();
         lastError = "";
         playbackRequestId = requestId == null ? "" : requestId;
         hasSource = true;
@@ -199,6 +204,11 @@ public final class DAGAudioEngine {
     // otherwise the WebView progress bar and seeking UI stay frozen.
     public void publishProgress() {
         JSObject status = status();
+        long duration = player.getDuration();
+        streamNeedsBandwidth = hasSource && player.getPlayWhenReady() &&
+            player.getPlaybackState() != Player.STATE_ENDED &&
+            (duration == C.TIME_UNSET || duration <= 0 || player.getBufferedPosition() < duration - 1000);
+        if (streamNeedsBandwidth) DAGCarModePlugin.cancelBackgroundAudioTransfer();
         synchronized (DAGAudioEngine.class) { lastStatus = status; }
         DAGCarModePlugin.notifyAudioStatus(status);
     }
@@ -211,6 +221,7 @@ public final class DAGAudioEngine {
     public static synchronized JSObject lastStatus() { return lastStatus; }
 
     public void release() {
+        streamNeedsBandwidth = false;
         if (equalizer != null) {
             try { equalizer.release(); } catch (Exception ignored) {}
             equalizer = null;

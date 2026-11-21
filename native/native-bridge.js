@@ -67,6 +67,7 @@ async function statCached(path) {
 }
 
 const audioCache = {
+  cancel: () => hasAndroidMedia3 ? DAGCarMode.cancelAudioCacheDownload() : Promise.resolve(),
   async get(options) {
     const path = String(options?.path || '');
     if (!path) return { exists: false };
@@ -142,6 +143,8 @@ const audioCache = {
         });
         }
       } catch (error) {
+        // Playback cancellation is deliberate; never start a competing fallback download.
+        if (/DAG_PLAYBACK_PRIORITY|canceled by playback/i.test(String(error?.message || error))) throw error;
         // Legacy Android fallback, still staged. Do not touch a valid old cache.
         await Filesystem.deleteFile({ directory: Directory.Data, path: stagingPath }).catch(() => {});
         await Filesystem.downloadFile({

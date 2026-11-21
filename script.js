@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2369';
+const WEB_BUILD_LABEL = '2370';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2386', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2387', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -1097,7 +1097,7 @@ const AUDIO_COMPAT_PROFILE = (function() {
     // blocks efficient seeking and forces whole-file refetch on reconnect.
     const chromeMatch = ua.match(/(?:Chrome|Chromium)\/(\d+)/i);
     const chromeMajor = chromeMatch ? Number(chromeMatch[1]) : 0;
-    const fullFileFallback = android && ((androidMajor > 0 && androidMajor <= 9) ||
+    const fullFileFallback = !NATIVE_MEDIA3_ACTIVE && android && ((androidMajor > 0 && androidMajor <= 9) ||
         (webView && chromeMajor > 0 && chromeMajor < 92));
     // Keep the EQ guard on all WebViews: WebAudio can break their media element.
     const legacyAndroid = android && (webView || (androidMajor > 0 && androidMajor <= 10));
@@ -1917,6 +1917,23 @@ function maybePrecacheNextTrack() {
     cacheTrackSilently(nextTrack, { reason: 'next', priority: true });
 }
 
+// Playback owns the network even during the gap before the new song starts.
+let webCacheAbortController = null;
+function playbackNeedsNetworkPriority() {
+    return playbackWanted && !isCurrentTrackFullyReady();
+}
+function prioritizePlaybackNetwork() {
+    if (webCacheAbortController) webCacheAbortController.abort();
+    if (IS_NATIVE_APP && nativeCacheWorkerRunning) {
+        const cancel = nativeAudioCacheBridge()?.cancel;
+        if (typeof cancel === 'function') Promise.resolve(cancel()).catch(()=>{});
+    }
+}
+function offlineDownloadDeferred(error) {
+    return error?.name === 'AbortError' ||
+        /DAG_PLAYBACK_PRIORITY|canceled by playback/i.test(String(error?.message || error));
+}
+
 function scheduleNativeCacheWorker(delay = 0) {
     if (IS_NATIVE_APP && window.DAG_CAR_APP_ACTIVE === false) return;
     clearTimeout(nativeCacheRetryTimer);
@@ -1963,7 +1980,7 @@ async function processNativeCacheQueue() {
         scheduleNativeCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
-    if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
+    if (playbackNeedsNetworkPriority()) {
         scheduleNativeCacheWorker(15000);
         return;
     }
@@ -1972,14 +1989,14 @@ async function processNativeCacheQueue() {
     try {
         while (nativeCacheQueue.length > 0 && navigator.onLine !== false &&
             window.DAG_CAR_APP_ACTIVE !== false) {
-            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
+            if (playbackNeedsNetworkPriority()) {
                 scheduleNativeCacheWorker(15000);
                 break;
             }
 
             const job = nativeCacheQueue.shift();
             if (!job) break;
-            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
+            if (playbackNeedsNetworkPriority()) {
                 nativeCacheQueue.unshift(job);
                 scheduleNativeCacheWorker(15000);
                 break;
@@ -2000,6 +2017,11 @@ async function processNativeCacheQueue() {
                 offlineBatchProgress(job.resolved);
                 if (job.reason === 'paused-current') notifyPausedCacheReady(job.track);
             } catch (error) {
+                if (offlineDownloadDeferred(error)) {
+                    nativeCacheQueue.unshift(job);
+                    scheduleNativeCacheWorker(15000);
+                    break;
+                }
                 job.attempts += 1;
                 if (job.attempts < 5) {
                     nativeCacheQueue.push(job);
@@ -2091,7 +2113,7 @@ async function processWebCacheQueue() {
         scheduleWebCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
-    if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
+    if (playbackNeedsNetworkPriority()) {
         scheduleWebCacheWorker(12000);
         return;
     }
@@ -2099,14 +2121,14 @@ async function processWebCacheQueue() {
     webCacheWorkerRunning = true;
     try {
         while (webCacheQueue.length > 0 && navigator.onLine !== false) {
-            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
+            if (playbackNeedsNetworkPriority()) {
                 scheduleWebCacheWorker(12000);
                 break;
             }
 
             const job = webCacheQueue.shift();
             if (!job) break;
-            if (mainAudio && !mainAudio.paused && !isCurrentTrackFullyReady()) {
+            if (playbackNeedsNetworkPriority()) {
                 webCacheQueue.unshift(job);
                 scheduleWebCacheWorker(12000);
                 break;
@@ -2119,9 +2141,12 @@ async function processWebCacheQueue() {
                         ? resolved
                         : buildProxyUrl(job.track, { norange: true });
 
+                    if (playbackNeedsNetworkPriority()) throw new Error('DAG_PLAYBACK_PRIORITY');
+                    webCacheAbortController = new AbortController();
                     const response = await fetch(cacheUrl, {
                         cache: 'no-store',
-                        credentials: 'same-origin'
+                        credentials: 'same-origin',
+                        signal: webCacheAbortController.signal
                     });
 
                     // Кэшируем только целый аудиофайл, а не частичный Range или HTML-ошибку.
@@ -2155,6 +2180,11 @@ async function processWebCacheQueue() {
                     break;
                 }
             } catch (error) {
+                if (offlineDownloadDeferred(error)) {
+                    webCacheQueue.unshift(job);
+                    scheduleWebCacheWorker(12000);
+                    break;
+                }
                 job.attempts += 1;
                 if (job.attempts < 5) {
                     webCacheQueue.push(job);
@@ -2164,9 +2194,12 @@ async function processWebCacheQueue() {
                 webCacheQueuedUrls.delete(job.resolved);
                 offlineBatchProgress(job.resolved,true);
                 console.warn('PWA audio cache download failed:', job.resolved, error);
+            } finally {
+                webCacheAbortController = null;
             }
         }
     } finally {
+        webCacheAbortController = null;
         webCacheWorkerRunning = false;
     }
 }
@@ -4208,7 +4241,7 @@ async function recoverCurrentStreamInternal(reason, track) {
         }
     }
     const retry = track._streamRetries;
-    const useNoRange = AUDIO_COMPAT_PROFILE.fullFileFallback || retry >= 2;
+    const useNoRange = !NATIVE_MEDIA3_ACTIVE && (AUDIO_COMPAT_PROFILE.fullFileFallback || retry >= 2);
     let retryUrl = resolveMediaUrl(track.url);
 
     if (shouldProxyMedia(track)) {
@@ -4221,6 +4254,7 @@ async function recoverCurrentStreamInternal(reason, track) {
 
     showLoader(true);
     mainAudio.pause();
+    prioritizePlaybackNetwork();
     mainAudio.src = retryUrl;
     mainAudio.load();
 
@@ -4378,7 +4412,10 @@ mainAudio.addEventListener('waiting', function() {
     if (mainAudio.ended) return;
     playbackHealth.stalls += 1;
     if (mainAudio.paused) return;
-    if (bufferedSecondsAhead() <= 1) showLoader(true);
+    if (bufferedSecondsAhead() <= 1) {
+        prioritizePlaybackNetwork();
+        showLoader(true);
+    }
     scheduleStreamRecovery('waiting');
 });
 
@@ -4386,7 +4423,10 @@ mainAudio.addEventListener('stalled', function() {
     if (mainAudio.ended) return;
     playbackHealth.stalls += 1;
     if (mainAudio.paused) return;
-    if (bufferedSecondsAhead() <= 1) showLoader(true);
+    if (bufferedSecondsAhead() <= 1) {
+        prioritizePlaybackNetwork();
+        showLoader(true);
+    }
     scheduleStreamRecovery('stalled');
 });
 
@@ -4636,6 +4676,7 @@ async function playTrack(index, options = {}) {
         if (label) label.textContent='Подбор начнётся ближе к концу плейлиста.';
     }
     playbackWanted = true;
+    prioritizePlaybackNetwork();
     cancelContinuousRadioRetry();
     currentIndex = index;
     if (isShuffle) smartShufflePlayed.add(index);
@@ -4788,7 +4829,7 @@ async function playTrack(index, options = {}) {
         }
         mainAudio.src = finalUrl;
         mainAudio.loop = false;
-        mainAudio.preload = AUDIO_COMPAT_PROFILE.fullFileFallback ? 'metadata' : 'auto';
+        mainAudio.preload = 'auto';
         mainAudio.load();
 
         armPlaybackWatchdog(token, 'startup-timeout');
@@ -4876,12 +4917,15 @@ function pausePlayback() {
     releaseWakeLock();
     syncCarNativeMedia(false);
     saveNativePlaybackSnapshot(true);
+    if (IS_NATIVE_APP) scheduleNativeCacheWorker(500);
+    else scheduleWebCacheWorker(500);
     // Pausing must never publish an unfinished automatic offline download.
 }
 function resumePlayback() {
     const track = playbackPlaylist[currentIndex];
     if (!track) return;
     playbackWanted = true;
+    prioritizePlaybackNetwork();
     resetMediaAdvanceClock(mainAudio.currentTime);
     window.skipCounter = 0;
     if (eqGraphReady && eqAudioContext && eqAudioContext.state === 'suspended') {
@@ -5651,7 +5695,7 @@ function maybePrefetchSmartRadio() {
     // mobile radio we must not trade reliable sound for recommendations.
     if (!playbackPlaylist[currentIndex]._playingFromCache &&
         !isCurrentTrackFullyReady() &&
-        bufferedSecondsAhead() < (playbackTab==='mix:wave'?20:45)) return;
+        bufferedSecondsAhead() < (getNetworkProfile().weak ? 60 : (playbackTab==='mix:wave'?30:45))) return;
     const token=currentPlaybackToken, serial=smartRadioRequestSerial;
     if (smartRadioPrefetch?.token === token && smartRadioPrefetch.serial === serial) return;
     const state={token,serial,candidate:null,promise:null};

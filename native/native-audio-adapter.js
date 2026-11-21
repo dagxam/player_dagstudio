@@ -27,13 +27,21 @@
       this._loadedAt = 0;
       this._requestId = '';
       this._lastReportedError = '';
-      window.addEventListener('dag-native-audio-status', e => this._update(e.detail || {}));
+      this._lastPushAt = 0;
+      this._pollInFlight = false;
+      window.addEventListener('dag-native-audio-status', e => {
+        const data = e.detail || {};
+        if (data.hasSource && (!data.requestId || data.requestId === this._requestId)) this._lastPushAt = Date.now();
+        this._update(data);
+      });
       this._poll = setInterval(() => {
-        if (!this._loaded) return;
-        window.DAG_NATIVE_BRIDGE?.audioPlayer?.status()
-          .then(data => this._update(data || {}))
-          .catch(() => {});
-      }, 900);
+        if (!this._loaded || this._pollInFlight || Date.now() - this._lastPushAt < 2600) return;
+        const bridge = window.DAG_NATIVE_BRIDGE?.audioPlayer;
+        if (!bridge) return;
+        this._pollInFlight = true;
+        bridge.status().then(data => this._update(data || {}))
+          .catch(() => {}).finally(() => {this._pollInFlight = false;});
+      }, 1200);
     }
     addEventListener(...args) { return super.addEventListener(...args); }
     _emit(name) { this.dispatchEvent(new Event(name)); }
@@ -49,6 +57,9 @@
       this._duration = 0;
       this._buffered = 0;
       this._loaded = '';
+      this._playing = false;
+      this._lastSeek = 0;
+      this._lastPushAt = 0;
       this._state = 'idle';
     }
     get currentTime() { return this._position; }
@@ -94,6 +105,7 @@
       this._ended = false;
       this._error = null;
       if (this._loaded !== this._src) {
+        const requestId = this._requestId;
         this._loaded = this._src;
         this._loadedAt = Date.now();
         this._state = 'buffering';
@@ -108,6 +120,7 @@
             requestId: this._requestId
           });
         } catch (error) {
+          if (requestId !== this._requestId) throw error;
           this._loaded = '';
           this._wanted = false;
           this._error = {code: 2};

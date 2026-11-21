@@ -8,7 +8,7 @@ const layout=readFileSync(new URL('../studio-next.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.php',import.meta.url),'utf8');
 
 assert.match(js,/const WEB_BUILD_LABEL = '\d+'/);
-assert.match(android,/setBufferDurationsMsForStreaming\(35000, 180000, 1000, 4500\)/);
+assert.match(android,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(android, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 assert.match(android,/DefaultLoadErrorHandlingPolicy\(8\)/);
 assert.match(js,/cacheTrackSilently\(finishedTrack, \{ reason: 'completed'/);
@@ -61,3 +61,23 @@ assert.doesNotMatch(index,/hitmos-external-link/);
 assert.doesNotMatch(js,/renderHitmosExternalResult/);
 assert.doesNotMatch(js,/listEl\.prepend\(row\)/);
 console.log('WEAK_NETWORK_BUFFER_AND_MOBILE_LIST_AND_APK_UI_OK');
+
+assert.match(js,/const fullFileFallback = !NATIVE_MEDIA3_ACTIVE/);
+assert.match(js,/const useNoRange = !NATIVE_MEDIA3_ACTIVE/);
+assert.match(js,/signal: webCacheAbortController.signal/);
+const priorityStart=js.indexOf('let webCacheAbortController = null;');
+const priorityEnd=js.indexOf('function scheduleNativeCacheWorker',priorityStart);
+let aborts=0, cancels=0;
+const priorityContext={playbackWanted:true, mainAudio:{paused:true}, IS_NATIVE_APP:true,
+ nativeCacheWorkerRunning:true,isCurrentTrackFullyReady:()=>false,
+ nativeAudioCacheBridge:()=>({cancel:()=>{cancels++;return Promise.resolve();}})};
+runInNewContext(js.slice(priorityStart,priorityEnd)+
+ '\nglobalThis.test={playbackNeedsNetworkPriority,prioritizePlaybackNetwork,offlineDownloadDeferred,setAbort(c){webCacheAbortController=c;}}',priorityContext);
+assert.equal(priorityContext.test.playbackNeedsNetworkPriority(),true,'new song owns network while old decoder is paused');
+priorityContext.test.setAbort({abort(){aborts++;}});
+priorityContext.test.prioritizePlaybackNetwork();
+assert.equal(aborts,1);assert.equal(cancels,1);
+assert.equal(priorityContext.test.offlineDownloadDeferred(new Error('DAG_PLAYBACK_PRIORITY')),true);
+priorityContext.playbackWanted=false;
+assert.equal(priorityContext.test.playbackNeedsNetworkPriority(),false);
+console.log('FOREGROUND_AUDIO_NETWORK_PRIORITY_OK');

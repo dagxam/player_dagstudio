@@ -15,7 +15,7 @@ assert.match(script, /buffered\.end\(i\) >= duration - 1\.5/);
 assert.match(dns, /Dns\.SYSTEM\.lookup\(HOST\)/);
 assert.match(dns, /resolver\.execute/);
 assert.match(dns, /candidates\.add\(trusted\)/);
-assert.match(media, /setBufferDurationsMsForStreaming\(35000, 180000, 1000, 4500\)/);
+assert.match(media, /setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(media, /setBufferDurationsMsForLocalPlayback\(1000, 50000, 500, 1000\)/);
 const nativeCache = read('../native/native-bridge.js');
 const audioNative = read('../native/android/DAGCarModePlugin.java');
