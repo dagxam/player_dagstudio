@@ -1862,7 +1862,7 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
             source: track.source || old.source || '',
             owners,
             reason: offlineCacheReason(old.reason, reason),
-            lastPlayedAt: reason === 'played' ? Date.now() : Number(old.lastPlayedAt || 0),
+            lastPlayedAt: (reason === 'played' || reason === 'completed') ? Date.now() : Number(old.lastPlayedAt || 0),
             lastAccessAt: Date.now()
         };
         writeNativeAudioIndex(index);
@@ -1905,7 +1905,7 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
         owners,
         reason: offlineCacheReason(old.reason, reason),
         cachedAt: Date.now(),
-        lastPlayedAt: reason === 'played' ? Date.now() : Number(old.lastPlayedAt || 0),
+        lastPlayedAt: (reason === 'played' || reason === 'completed') ? Date.now() : Number(old.lastPlayedAt || 0),
         lastAccessAt: Date.now()
     };
     writeNativeAudioIndex(latestIndex);
