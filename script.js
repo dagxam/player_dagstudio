@@ -4064,6 +4064,14 @@ function restorePendingPosition() {
     }
 }
 
+// Pass resume position into Media3's initial load rather than opening the
+// stream at byte zero and immediately reopening it for a seek.
+function prepareNativeResumePosition() {
+    if (!NATIVE_MEDIA3_ACTIVE || pendingResumeTime <= 0) return;
+    mainAudio.currentTime = pendingResumeTime;
+    pendingResumeTime = 0;
+}
+
 let streamRecoveryInFlight = false;
 
 function bufferedSecondsAhead() {
@@ -4168,6 +4176,7 @@ async function recoverCurrentStreamInternal(reason, track) {
             mainAudio.pause();
             mainAudio.src = NATIVE_MEDIA3_ACTIVE ? (cached.nativeUrl || cached.url) : cached.url;
             mainAudio.load();
+            prepareNativeResumePosition();
 
             try {
                 armPlaybackWatchdog(currentPlaybackToken, 'cache-recovery-timeout');
@@ -4257,6 +4266,7 @@ async function recoverCurrentStreamInternal(reason, track) {
     prioritizePlaybackNetwork();
     mainAudio.src = retryUrl;
     mainAudio.load();
+    prepareNativeResumePosition();
 
     try {
         armPlaybackWatchdog(currentPlaybackToken, 'retry-timeout');
@@ -4831,6 +4841,7 @@ async function playTrack(index, options = {}) {
         mainAudio.loop = false;
         mainAudio.preload = 'auto';
         mainAudio.load();
+        prepareNativeResumePosition();
 
         armPlaybackWatchdog(token, 'startup-timeout');
         await requestAudioPlay();

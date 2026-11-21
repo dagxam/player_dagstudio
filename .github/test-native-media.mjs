@@ -141,3 +141,11 @@ for (const url of ['https://pl.dagstudio.ru/uploads/a.mp3','https://pl.dagstudio
 }
 assert.equal(transitions,2,'each new track must emit playing even after a previously playing track');
 console.log('MEDIA3_TRACK_TRANSITIONS_OK');
+
+const resumed=new window.DAGNativeAudioAdapter();
+resumed.src='https://pl.dagstudio.ru/uploads/resume.mp3';
+resumed.currentTime=42.5;
+await resumed.play();
+assert.equal(sent[sent.length-1].positionMs,42500,'Media3 begins at saved position, not byte zero');
+assert.match(script,/mainAudio\.load\(\);\s+prepareNativeResumePosition\(\);/);
+console.log('MEDIA3_RESUME_INITIAL_POSITION_OK');
