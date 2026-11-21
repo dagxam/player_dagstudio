@@ -125,9 +125,25 @@ const audioCache = {
           (!official.port || official.port === '443') &&
           (official.pathname === '/proxy.php' || official.pathname.startsWith('/uploads/'));
         if (nativeAudio) {
-          await DAGCarMode.downloadOwnAudio({
-            url, key, extension: safeExtension(options?.extension)
-          });
+          let promoted = false;
+          if (options?.preferMedia3Cache && typeof options.cacheIdentity === 'string') {
+            try {
+              const result = await DAGCarMode.promoteCachedAudio({
+                key, cacheKey: options.cacheIdentity,
+                extension: safeExtension(options?.extension)
+              });
+              promoted = result?.promoted === true;
+            } catch (error) {
+              // Old APKs do not support promotion; network fallback is allowed
+              // only when playback has enough bandwidth.
+            }
+          }
+          if (!promoted) {
+            if (options?.deferNetwork) throw new Error('DAG_PLAYBACK_PRIORITY');
+            await DAGCarMode.downloadOwnAudio({
+              url, key, extension: safeExtension(options?.extension)
+            });
+          }
         } else {
         progressListener = await FileTransfer.addListener('progress', data => {
           const total = Number(data?.contentLength || 0);

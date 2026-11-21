@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
+import androidx.media3.datasource.cache.CacheSpan;
+import androidx.media3.datasource.cache.ContentMetadata;
 import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -25,6 +27,10 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import com.getcapacitor.JSObject;
 import org.json.JSONArray;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.SortedSet;
 
 /**
  * Android-only audio engine. The website still uses HTML5 Audio.
@@ -34,6 +40,11 @@ public final class DAGAudioEngine {
     private static final long DISK_CACHE_BYTES = 256L * 1024L * 1024L;
     private static JSObject lastStatus = new JSObject();
     private static volatile boolean streamNeedsBandwidth;
+    private static volatile DAGAudioEngine activeEngine;
+    private boolean trackBeganAtStart;
+    private long heardMs;
+    private long lastHeardPositionMs = -1;
+    private boolean fullListenVerified;
     private final ExoPlayer player;
     private final SimpleCache cache;
     private Equalizer equalizer;
@@ -95,12 +106,62 @@ public final class DAGAudioEngine {
                 publish();
             }
         });
+        activeEngine = this;
         publish();
     }
 
     public static boolean playbackNeedsBandwidth() { return streamNeedsBandwidth; }
 
+    // Reuse the actual bytes Media3 already fetched. This method never accesses
+    // the network; no competing HTTP download is started after a full listen.
+    public static boolean copyFullyCachedAudio(String key, File destination) throws IOException {
+        DAGAudioEngine engine = activeEngine;
+        if (engine == null || key == null || key.isEmpty()) return false;
+        long length = ContentMetadata.getContentLength(engine.cache.getContentMetadata(key));
+        if (length < 4096 || length > 100L * 1024L * 1024L ||
+            engine.cache.getCachedBytes(key, 0, length) < length) return false;
+        SortedSet<CacheSpan> spans = engine.cache.getCachedSpans(key);
+        if (spans == null || spans.isEmpty()) return false;
+        long next = 0;
+        for (CacheSpan span : spans) {
+            if (span.position != next || span.file == null || span.length <= 0) return false;
+            next += span.length;
+            if (next >= length) break;
+        }
+        if (next < length) return false;
+        long copied = 0;
+        try (FileOutputStream output = new FileOutputStream(destination, false)) {
+            byte[] buffer = new byte[32768];
+            for (CacheSpan span : spans) {
+                long remaining = Math.min(span.length, length - copied);
+                if (remaining <= 0) break;
+                try (FileInputStream input = new FileInputStream(span.file)) {
+                    while (remaining > 0) {
+                        int count = input.read(buffer, 0, (int)Math.min(buffer.length, remaining));
+                        if (count < 0) throw new IOException("Media3 cache span is incomplete");
+                        output.write(buffer, 0, count);
+                        remaining -= count;
+                        copied += count;
+                    }
+                }
+            }
+            output.getFD().sync();
+        } catch (IOException error) {
+            destination.delete();
+            throw error;
+        }
+        if (copied != length) {
+            destination.delete();
+            throw new IOException("Media3 audio cache length mismatch");
+        }
+        return true;
+    }
+
     public void load(String url, String cacheKey, long startMs, String requestId) {
+        trackBeganAtStart = startMs <= 2000;
+        heardMs = 0;
+        lastHeardPositionMs = -1;
+        fullListenVerified = false;
         streamNeedsBandwidth = url.startsWith("https://") || url.startsWith("http://");
         if (streamNeedsBandwidth) DAGCarModePlugin.cancelBackgroundAudioTransfer();
         lastError = "";
@@ -128,12 +189,16 @@ public final class DAGAudioEngine {
         player.stop();
         player.clearMediaItems();
         hasSource = false;
+        heardMs = 0;
+        fullListenVerified = false;
+        lastHeardPositionMs = -1;
         lastError = "";
         playbackRequestId = "";
         publish();
     }
 
     public void seek(long ms) {
+        lastHeardPositionMs = -1;
         if (hasSource) player.seekTo(Math.max(0L, ms));
         publish();
     }
@@ -195,6 +260,7 @@ public final class DAGAudioEngine {
         state.put("positionMs", Math.max(0L, player.getCurrentPosition()));
         state.put("durationMs", Math.max(0L, player.getDuration()));
         state.put("bufferedPositionMs", Math.max(0L, player.getBufferedPosition()));
+        state.put("fullyHeard", fullListenVerified);
         state.put("error", lastError);
         return state;
     }
@@ -203,6 +269,16 @@ public final class DAGAudioEngine {
     // Publish a lightweight position snapshot regularly while the service lives,
     // otherwise the WebView progress bar and seeking UI stay frozen.
     public void publishProgress() {
+        long position = Math.max(0L, player.getCurrentPosition());
+        long knownDuration = player.getDuration();
+        if (hasSource && player.isPlaying() && lastHeardPositionMs >= 0) {
+            long advance = position - lastHeardPositionMs;
+            if (advance > 0 && advance <= 2500) heardMs += advance;
+        }
+        lastHeardPositionMs = position;
+        if (trackBeganAtStart && knownDuration > 4000 &&
+            position >= knownDuration - 3000 &&
+            heardMs >= knownDuration * .90) fullListenVerified = true;
         JSObject status = status();
         long duration = player.getDuration();
         streamNeedsBandwidth = hasSource && player.getPlayWhenReady() &&
@@ -222,6 +298,7 @@ public final class DAGAudioEngine {
 
     public void release() {
         streamNeedsBandwidth = false;
+        if (activeEngine == this) activeEngine = null;
         if (equalizer != null) {
             try { equalizer.release(); } catch (Exception ignored) {}
             equalizer = null;

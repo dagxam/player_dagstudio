@@ -149,3 +149,17 @@ await resumed.play();
 assert.equal(sent[sent.length-1].positionMs,42500,'Media3 begins at saved position, not byte zero');
 assert.match(script,/mainAudio\.load\(\);\s+prepareNativeResumePosition\(\);/);
 console.log('MEDIA3_RESUME_INITIAL_POSITION_OK');
+
+// Native status must carry verified listening completion across WebView throttling.
+const cacheReady=new window.DAGNativeAudioAdapter();
+cacheReady.src='https://pl.dagstudio.ru/uploads/finished.mp3';
+await cacheReady.play();
+const fullStatus=new Event('dag-native-audio-status');
+fullStatus.detail={hasSource:true,requestId:cacheReady._requestId,state:'ready',
+  playing:true,durationMs:240000,positionMs:239000,bufferedPositionMs:240000,fullyHeard:true,error:''};
+window.dispatchEvent(fullStatus);
+assert.equal(cacheReady.fullyHeard,true);
+cacheReady.src='https://pl.dagstudio.ru/uploads/fresh.mp3';
+assert.equal(cacheReady.fullyHeard,false,'new song must not inherit prior listen status');
+assert.match(javaEngine,/copyFullyCachedAudio\(/);
+console.log('MEDIA3_COMPLETE_AUDIO_OFFLINE_REUSE_OK');

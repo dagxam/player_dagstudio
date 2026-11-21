@@ -191,6 +191,35 @@ public class DAGCarModePlugin extends Plugin {
         if (transfer != null) transfer.cancel();
     }
 
+    // Publish a fully cached Media3 stream as a complete offline file.
+    @PluginMethod
+    public void promoteCachedAudio(PluginCall call) {
+        String key = call.getString("key", "");
+        String cacheKey = call.getString("cacheKey", "");
+        String extension = call.getString("extension", "mp3");
+        if (!key.matches("(?i)[a-f0-9]{8,128}") ||
+            cacheKey.length() < 8 || cacheKey.length() > 4096 ||
+            !extension.matches("(?i)mp3|m4a|aac|ogg|opus|wav|flac|mp4|webm")) {
+            call.reject("Invalid completed audio cache identity");
+            return;
+        }
+        new Thread(() -> {
+            File dir = new File(getContext().getFilesDir(), "audio-cache");
+            File destination = new File(dir, key.toLowerCase(java.util.Locale.ROOT) +
+                "." + extension.toLowerCase(java.util.Locale.ROOT) + ".downloading");
+            try {
+                if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cache directory unavailable");
+                boolean copied = DAGAudioEngine.copyFullyCachedAudio(cacheKey, destination);
+                JSObject result = new JSObject();
+                result.put("promoted", copied);
+                call.resolve(result);
+            } catch (Exception error) {
+                destination.delete();
+                call.reject("Cached Media3 audio could not be copied", error);
+            }
+        }, "dag-completed-audio-offline").start();
+    }
+
     @PluginMethod
     public void cancelAudioCacheDownload(PluginCall call) {
         cancelBackgroundAudioTransfer();

@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2370';
+const WEB_BUILD_LABEL = '2371';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2387', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2388', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -1853,6 +1853,9 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
         key,
         extension: guessAudioExtension(resolved),
         forceRedownload: true,
+        cacheIdentity: resolved,
+        preferMedia3Cache: reason === 'completed',
+        deferNetwork: playbackNeedsNetworkPriority(),
         // Native FileTransfer receives no browser Network Information API on
         // many head units. Use the inferred weak-network state as well.
         weak: getNetworkProfile().weak
@@ -1980,7 +1983,7 @@ async function processNativeCacheQueue() {
         scheduleNativeCacheWorker(90000 - (Date.now() - lastManualPauseAt));
         return;
     }
-    if (playbackNeedsNetworkPriority()) {
+    if (playbackNeedsNetworkPriority() && nativeCacheQueue[0]?.reason !== 'completed') {
         scheduleNativeCacheWorker(15000);
         return;
     }
@@ -1989,14 +1992,14 @@ async function processNativeCacheQueue() {
     try {
         while (nativeCacheQueue.length > 0 && navigator.onLine !== false &&
             window.DAG_CAR_APP_ACTIVE !== false) {
-            if (playbackNeedsNetworkPriority()) {
+            if (playbackNeedsNetworkPriority() && nativeCacheQueue[0]?.reason !== 'completed') {
                 scheduleNativeCacheWorker(15000);
                 break;
             }
 
             const job = nativeCacheQueue.shift();
             if (!job) break;
-            if (playbackNeedsNetworkPriority()) {
+            if (playbackNeedsNetworkPriority() && job.reason !== 'completed') {
                 nativeCacheQueue.unshift(job);
                 scheduleNativeCacheWorker(15000);
                 break;
@@ -2286,7 +2289,10 @@ async function getDeviceCachedAudio(trackOrUrl) {
 async function getStartupCachedAudio(track, timeoutMs = 280) {
     // Media3 owns its streaming cache; a slow Android filesystem/Capacitor IPC
     // query must not delay play. Offline still receives the full cache lookup.
-    if (navigator.onLine === false || (IS_NATIVE_APP && !NATIVE_MEDIA3_ACTIVE) ||
+    const nativeIndexed = IS_NATIVE_APP && NATIVE_MEDIA3_ACTIVE &&
+        !!readNativeAudioIndex()[canonicalTrackUrl(track)]?.path;
+    if (nativeIndexed || navigator.onLine === false ||
+        (IS_NATIVE_APP && !NATIVE_MEDIA3_ACTIVE) ||
         (!IS_NATIVE_APP && !('caches' in window))) {
         return getDeviceCachedAudio(track);
     }
@@ -4343,7 +4349,9 @@ function countTrackListening(track, currentTime) {
 }
 
 function wasTrackFullyHeard(track) {
-    if (!track || !track._listenedWasAtStart) return false;
+    if (!track) return false;
+    if (NATIVE_MEDIA3_ACTIVE) return mainAudio.fullyHeard === true;
+    if (!track._listenedWasAtStart) return false;
     const duration = Number(mainAudio.duration);
     const heard = Number(track._listenedSeconds) || 0;
     const end = Number(mainAudio.currentTime) || 0;
@@ -4410,7 +4418,8 @@ mainAudio.addEventListener('ended', function() {
     const finishedTrack = playbackPlaylist[currentIndex];
     if(finishedTrack)tasteRecord('finish',finishedTrack);
     if (finishedTrack && navigator.onLine !== false &&
-        isRemoteMediaUrl(finishedTrack.url) && wasTrackFullyHeard(finishedTrack)) {
+        isRemoteMediaUrl(finishedTrack.url) && wasTrackFullyHeard(finishedTrack) &&
+        canSaveTrackOffline(finishedTrack)) {
         cacheTrackSilently(finishedTrack, { reason: 'completed', priority: true });
     }
 

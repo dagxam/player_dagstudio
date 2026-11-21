@@ -27,6 +27,7 @@
       this._loadedAt = 0;
       this._requestId = '';
       this._lastReportedError = '';
+      this.fullyHeard = false;
       this._lastPushAt = 0;
       this._pollInFlight = false;
       window.addEventListener('dag-native-audio-status', e => {
@@ -56,6 +57,7 @@
       this._position = 0;
       this._duration = 0;
       this._buffered = 0;
+      this.fullyHeard = false;
       this._loaded = '';
       this._playing = false;
       this._lastSeek = 0;
@@ -145,6 +147,7 @@
       const wasPlaying = this._playing;
       const state = String(data.state || 'idle');
       this._state = state;
+      if (data.fullyHeard === true) this.fullyHeard = true;
       if (Number.isFinite(Number(data.durationMs)) && Number(data.durationMs) > 0) {
         const oldDuration = this._duration;
         this._duration = Number(data.durationMs) / 1000;
