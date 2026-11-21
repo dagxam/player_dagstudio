@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2371';
+const WEB_BUILD_LABEL = '2372';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2388', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2389', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -1774,14 +1774,32 @@ function offlineDownloadUrl(trackOrUrl) {
     return buildProxyUrl(track, { norange: true, retry: 0 });
 }
 
+function findNativeOfflineEntry(trackOrUrl) {
+    const track = normalizeCacheTrack(trackOrUrl);
+    const resolved = canonicalTrackUrl(track);
+    if (!resolved) return null;
+    const index = readNativeAudioIndex(),owner = currentCacheOwner();
+    const allowed = entry => entry?.path && Array.isArray(entry.owners) &&
+        entry.owners.includes(owner);
+    if (allowed(index[resolved])) return {key:resolved,entry:index[resolved]};
+    // Search, playlist and radio can resolve the same recording to a different
+    // URL. Match a unique exact artist/title, never only a title or another account.
+    const artist = normalizeTrackIdentity(track.artist);
+    const title = normalizeTrackIdentity(track.title);
+    if (!artist || !title) return null;
+    const matches = Object.entries(index).filter(([key,entry])=>allowed(entry) &&
+        normalizeTrackIdentity(entry.artist) === artist &&
+        normalizeTrackIdentity(entry.title) === title);
+    return matches.length === 1 ? {key:matches[0][0],entry:matches[0][1]} : null;
+}
+
 async function getNativeCachedAudio(trackOrUrl) {
     const bridge = nativeAudioCacheBridge();
-    const resolved = canonicalTrackUrl(trackOrUrl);
-    if (!bridge || !resolved) return null;
+    const candidate = findNativeOfflineEntry(trackOrUrl);
+    if (!bridge || !candidate) return null;
 
+    const {key,entry} = candidate;
     const index = readNativeAudioIndex();
-    const entry = index[resolved];
-    if (!entry || !entry.path) return null;
 
     try {
         const file = await bridge.get({ path: entry.path });
@@ -1795,7 +1813,7 @@ async function getNativeCachedAudio(trackOrUrl) {
                 throw new Error('Native audio cache size mismatch');
             }
             entry.lastAccessAt = Date.now();
-            index[resolved] = entry;
+            index[key] = entry;
             writeNativeAudioIndex(index);
             return {
                 url: file.webUrl,
@@ -1809,7 +1827,7 @@ async function getNativeCachedAudio(trackOrUrl) {
         }
     } catch (error) {}
 
-    delete index[resolved];
+    delete index[key];
     writeNativeAudioIndex(index);
     return null;
 }
@@ -1923,7 +1941,11 @@ function maybePrecacheNextTrack() {
 // Playback owns the network even during the gap before the new song starts.
 let webCacheAbortController = null;
 function playbackNeedsNetworkPriority() {
-    return playbackWanted && !isCurrentTrackFullyReady();
+    if (!playbackWanted || isCurrentTrackFullyReady()) return false;
+    // Allow a completed track to be archived in the background only after
+    // playback has a substantial head start; rebuffering immediately wins.
+    const ahead = bufferedSecondsAhead();
+    return ahead < (getNetworkProfile().weak ? 110 : 90);
 }
 function prioritizePlaybackNetwork() {
     if (webCacheAbortController) webCacheAbortController.abort();
@@ -2290,7 +2312,7 @@ async function getStartupCachedAudio(track, timeoutMs = 280) {
     // Media3 owns its streaming cache; a slow Android filesystem/Capacitor IPC
     // query must not delay play. Offline still receives the full cache lookup.
     const nativeIndexed = IS_NATIVE_APP && NATIVE_MEDIA3_ACTIVE &&
-        !!readNativeAudioIndex()[canonicalTrackUrl(track)]?.path;
+        !!findNativeOfflineEntry(track)?.entry?.path;
     if (nativeIndexed || navigator.onLine === false ||
         (IS_NATIVE_APP && !NATIVE_MEDIA3_ACTIVE) ||
         (!IS_NATIVE_APP && !('caches' in window))) {
@@ -2299,8 +2321,8 @@ async function getStartupCachedAudio(track, timeoutMs = 280) {
     if (IS_NATIVE_APP && NATIVE_MEDIA3_ACTIVE) {
         // A verified, fully downloaded offline song is usually faster than
         // any remote server. Allow its indexed file a little more lookup time.
-        const cachedEntry = readNativeAudioIndex()[canonicalTrackUrl(track)];
-        timeoutMs = cachedEntry?.path ? 800 : Math.min(timeoutMs, 220);
+        const cachedEntry = findNativeOfflineEntry(track);
+        timeoutMs = cachedEntry?.entry?.path ? 800 : Math.min(timeoutMs, 220);
     }
     let expired = false;
     let timeoutId;

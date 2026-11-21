@@ -31,3 +31,25 @@ assert.equal(context.complete(full),false);
 assert.match(js,/preferMedia3Cache: reason === 'completed'/);
 assert.match(js,/nativeCacheQueue\[0\]\?\.reason !== 'completed'/);
 console.log('NATIVE_FULL_LISTEN_OFFLINE_PROMOTION_OK');
+
+assert.match(js,/function findNativeOfflineEntry\(trackOrUrl\)/);
+assert.match(js,/matches.length === 1/);
+const findStart=js.indexOf('function findNativeOfflineEntry(trackOrUrl)');
+const findEnd=js.indexOf('\nasync function getNativeCachedAudio(',findStart);
+const offlineMap={
+ 'https://a.test/one.mp3':{url:'https://a.test/one.mp3',path:'cache/one.mp3',artist:'Алан',title:'Песня',owners:['owner']},
+ 'https://a.test/other.mp3':{url:'https://a.test/other.mp3',path:'cache/two.mp3',artist:'Алан',title:'Другая',owners:['owner']},
+ 'https://a.test/private.mp3':{url:'https://a.test/private.mp3',path:'cache/private.mp3',artist:'Скрытый',title:'Трек',owners:['other']}
+};
+const lookupContext={
+ readNativeAudioIndex:()=>offlineMap,currentCacheOwner:()=> 'owner',
+ normalizeCacheTrack:track=>track,
+ canonicalTrackUrl:track=>track.url,
+ normalizeTrackIdentity:v=>String(v||'').toLowerCase().trim()
+};
+runInNewContext(js.slice(findStart,findEnd)+'\nglobalThis.lookup=findNativeOfflineEntry;',lookupContext);
+assert.equal(lookupContext.lookup({url:'https://a.test/new.mp3',artist:'Алан',title:'Песня'}).entry.path,'cache/one.mp3');
+assert.equal(lookupContext.lookup({url:'https://a.test/private.mp3',artist:'Скрытый',title:'Трек'}),null);
+offlineMap['https://a.test/duplicate.mp3']={url:'https://a.test/duplicate.mp3',path:'cache/duplicate.mp3',artist:'Алан',title:'Песня',owners:['owner']};
+assert.equal(lookupContext.lookup({url:'https://a.test/new.mp3',artist:'Алан',title:'Песня'}),null);
+console.log('UNIQUE_SONG_OFFLINE_MATCH_ACROSS_SCREENS_OK');
