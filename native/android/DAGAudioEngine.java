@@ -283,7 +283,8 @@ public final class DAGAudioEngine {
         long duration = player.getDuration();
         streamNeedsBandwidth = hasSource && player.getPlayWhenReady() &&
             player.getPlaybackState() != Player.STATE_ENDED &&
-            (duration == C.TIME_UNSET || duration <= 0 || player.getBufferedPosition() < duration - 1000);
+            (duration == C.TIME_UNSET || duration <= 0 ||
+             player.getBufferedPosition() - player.getCurrentPosition() < 90000L);
         if (streamNeedsBandwidth) DAGCarModePlugin.cancelBackgroundAudioTransfer();
         synchronized (DAGAudioEngine.class) { lastStatus = status; }
         DAGCarModePlugin.notifyAudioStatus(status);

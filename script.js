@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2372';
+const WEB_BUILD_LABEL = '2373';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2389', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2390', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -1821,6 +1821,7 @@ async function getNativeCachedAudio(trackOrUrl) {
                 isBlob: false,
                 inCache: true,
                 isNativeFile: true,
+                cachedKey: key,
                 path: entry.path,
                 size: Number(file.size || entry.size || 0)
             };
@@ -1843,12 +1844,18 @@ async function storeNativeTrackNow(trackOrUrl, reason = 'played') {
     const owner = currentCacheOwner();
 
     if (existing) {
-        const old = index[resolved] || {};
+        // Another search result may refer to the same saved recording using
+        // another URL. Refresh the original entry; never invent a second
+        // index entry without a file path or double-count its disk usage.
+        const storedKey = existing.cachedKey || resolved;
+        const old = index[storedKey] || {};
         const owners = Array.isArray(old.owners) ? old.owners : [];
         if (!owners.includes(owner)) owners.push(owner);
-        index[resolved] = {
+        index[storedKey] = {
             ...old,
-            url: resolved,
+            path: existing.path,
+            size: existing.size,
+            url: old.url || resolved,
             title: track.title || old.title || '',
             artist: track.artist || old.artist || '',
             thumb: track.thumb || old.thumb || '',

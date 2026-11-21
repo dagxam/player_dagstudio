@@ -53,3 +53,7 @@ assert.equal(lookupContext.lookup({url:'https://a.test/private.mp3',artist:'Ск
 offlineMap['https://a.test/duplicate.mp3']={url:'https://a.test/duplicate.mp3',path:'cache/duplicate.mp3',artist:'Алан',title:'Песня',owners:['owner']};
 assert.equal(lookupContext.lookup({url:'https://a.test/new.mp3',artist:'Алан',title:'Песня'}),null);
 console.log('UNIQUE_SONG_OFFLINE_MATCH_ACROSS_SCREENS_OK');
+
+assert.match(js,/const storedKey = existing.cachedKey \|\| resolved/);
+assert.match(js,/path: existing.path/);
+console.log('OFFLINE_ALIAS_REUSES_EXISTING_FILE_INDEX_OK');
