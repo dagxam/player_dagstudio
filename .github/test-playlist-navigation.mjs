@@ -88,8 +88,8 @@ assert.equal(nav.playlist.length,0,'Empty playlist must also be selectable');
 
 assert.match(engine,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 280\)/);
-assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
-assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
+assert.match(src,/const cachedEntry = findNativeOfflineEntry\(track\)/);
+assert.match(src,/timeoutMs = cachedEntry\?\.entry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
 assert.match(src,/if \(!NATIVE_MEDIA3_ACTIVE\) \{\s*\/\/ Avoid loading an empty source/);
 const playStart=src.indexOf('async function playTrack(');
 const playAssign=src.indexOf('        mainAudio.src = finalUrl;',playStart);
