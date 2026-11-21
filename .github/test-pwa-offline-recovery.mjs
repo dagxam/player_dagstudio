@@ -72,4 +72,17 @@ ctx.fetch = async () => { throw new Error('DNS'); };
 response = await navigate();
 assert.equal(response.status, 503, 'No saved shell and offline remains an actual error');
 assert.match(await response.text(), /Повторить/);
+// Downloads and their manifests must bypass the PWA shell and stale caches.
+for (const path of ['/apk-download.php','/apk/DAGSTUDIO-PLAYER-Preview.apk',
+    '/apk/DAGSTUDIO-PLAYER-native-version.json']) {
+  for (const mode of ['navigate','cors']) {
+    let intercepted = false;
+    listeners.fetch({
+      request:{url:origin+path+'?fresh=1',method:'GET',mode,
+        destination:'document',headers:{has:()=>false}},
+      respondWith:()=>{intercepted=true;},waitUntil:()=>{}
+    });
+    assert.equal(intercepted,false,'APK must go directly to network: '+path);
+  }
+}
 console.log('PWA_OFFLINE_SHELL_PRESERVATION_DNS_RECOVERY_AND_NEXT_RELEASE_OK');

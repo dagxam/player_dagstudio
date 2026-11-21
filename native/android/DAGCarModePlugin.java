@@ -1,5 +1,14 @@
 package ru.dagstudio.player;
 
+import android.content.ContentValues;
+import android.provider.MediaStore;
+import android.provider.DocumentsContract;
+import android.os.Environment;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.annotation.ActivityCallback;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -269,6 +278,133 @@ public class DAGCarModePlugin extends Plugin {
     @PluginMethod
     public void installApkUpdate(PluginCall call) {
         new DAGApkUpdater(this).install(call);
+    }
+
+    private static final String APK_MIME = "application/vnd.android.package-archive";
+    private final AtomicBoolean apkSaveBusy = new AtomicBoolean(false);
+    private File apkToSave;
+    private String apkVersionToSave;
+
+    @PluginMethod
+    public void downloadLatestApk(PluginCall call) {
+        if (!apkSaveBusy.compareAndSet(false, true)) {
+            call.reject("Скачивание APK уже выполняется");
+            return;
+        }
+        new DAGApkUpdater(this).saveLatest(call);
+    }
+
+    private void copyVerifiedApk(File file, Uri target) throws IOException {
+        long written = 0;
+        try (InputStream input = new FileInputStream(file);
+             OutputStream output = getContext().getContentResolver().openOutputStream(target, "w")) {
+            if (output == null) throw new IOException("Не удалось открыть файл назначения");
+            byte[] buffer = new byte[65536];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                output.write(buffer, 0, count);
+                written += count;
+            }
+            output.flush();
+        }
+        if (written != file.length()) throw new IOException("APK сохранён не полностью");
+    }
+
+    private String apkName(String version) {
+        return "DAGSTUDIO-PLAYER-" + version + ".apk";
+    }
+
+    private void finishApkSave(PluginCall call, String status, String version, String location) {
+        apkToSave = null;
+        apkVersionToSave = null;
+        apkSaveBusy.set(false);
+        JSObject result = new JSObject();
+        result.put("status", status);
+        result.put("version", version);
+        result.put("location", location);
+        call.resolve(result);
+    }
+
+    void failApkSave(PluginCall call, String message, Exception error) {
+        apkToSave = null;
+        apkVersionToSave = null;
+        apkSaveBusy.set(false);
+        call.reject(message, error);
+    }
+
+    void exportVerifiedApk(PluginCall call, File file, String version) {
+        // Android 10+ can write public Downloads without storage permissions.
+        if (Build.VERSION.SDK_INT >= 29) {
+            Uri target = null;
+            try {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, apkName(version));
+                values.put(MediaStore.MediaColumns.MIME_TYPE, APK_MIME);
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                target = getContext().getContentResolver().insert(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (target == null) throw new IOException("Каталог загрузок недоступен");
+                copyVerifiedApk(file, target);
+                ContentValues ready = new ContentValues();
+                ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                if (getContext().getContentResolver().update(target, ready, null, null) != 1)
+                    throw new IOException("Не удалось завершить сохранение APK");
+                finishApkSave(call, "saved", version, "Загрузки / " + apkName(version));
+                return;
+            } catch (Exception error) {
+                if (target != null) try {
+                    getContext().getContentResolver().delete(target, null, null);
+                } catch (Exception ignored) {}
+                // Some car firmwares omit MediaStore Downloads: use SAF.
+            }
+        }
+        Activity activity = getActivity();
+        if (activity == null) {
+            failApkSave(call, "Окно сохранения Android недоступно", new IOException("No activity"));
+            return;
+        }
+        apkToSave = file;
+        apkVersionToSave = version;
+        activity.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType(APK_MIME);
+                intent.putExtra(Intent.EXTRA_TITLE, apkName(version));
+                startActivityForResult(call, intent, "saveApkResult");
+            } catch (Exception error) {
+                failApkSave(call, "На устройстве нет системного окна сохранения APK", error);
+            }
+        });
+    }
+
+    @ActivityCallback
+    private void saveApkResult(PluginCall call, ActivityResult result) {
+        if (call == null) {
+            apkSaveBusy.set(false);
+            apkToSave = null;
+            apkVersionToSave = null;
+            return;
+        }
+        File source = apkToSave;
+        String version = apkVersionToSave;
+        Uri target = result.getData() == null ? null : result.getData().getData();
+        if (result.getResultCode() != Activity.RESULT_OK || target == null) {
+            finishApkSave(call, "cancelled", version, "");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                if (source == null) throw new IOException("Скачанный APK больше недоступен");
+                copyVerifiedApk(source, target);
+                finishApkSave(call, "saved", version, apkName(version));
+            } catch (Exception error) {
+                try { DocumentsContract.deleteDocument(getContext().getContentResolver(), target); }
+                catch (Exception ignored) {}
+                failApkSave(call, "Не удалось сохранить APK", error);
+            }
+        }, "dag-apk-export").start();
     }
 
     /** Open the first-party APK mirror in Android's download-capable browser.

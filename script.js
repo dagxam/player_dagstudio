@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2368';
+const WEB_BUILD_LABEL = '2369';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -288,17 +288,15 @@ function compareOtaVersions(installed, available) {
 function configureAndroidDownloadLink() {
     const link = document.getElementById('android-apk-download-btn');
     if (!link) return;
-    // The signed GitHub Preview release works even when the site's FTP APK
-    // mirror has not been refreshed; do not send users to an outdated copy.
+    // A normal same-origin attachment is not a new document or a popup.
     link.href = ANDROID_APK_DOWNLOAD_URL;
-    link.setAttribute('target', '_blank');
-    link.setAttribute('rel', 'noopener noreferrer');
-    link.removeAttribute('download');
+    link.removeAttribute('target');
+    link.setAttribute('download', 'DAGSTUDIO-PLAYER-Preview.apk');
     link.onclick = function(event) {
-        if (!IS_NATIVE_APP || NATIVE_PLATFORM !== 'android') return;
+        if (!IS_NATIVE_APP) return;
         event.preventDefault();
-        // Do not navigate the Capacitor WebView to a binary download.
-        openAndroidApkDownload();
+        if (NATIVE_PLATFORM === 'android') downloadLatestAndroidApk();
+        else showNotification('APK предназначен для Android.');
     };
 }
 if (document.readyState === 'loading') {
@@ -629,6 +627,66 @@ async function recoverAndroidSigningMismatch() {
         ' Не удаляйте приложение до сохранения локальных данных. Для замены APK нужна исходная подпись.');
 }
 
+let explicitApkDownloadBusy = false;
+function setApkDownloadLabel(label, busy) {
+    const link = document.getElementById('android-apk-download-btn');
+    if (!link) return;
+    link.setAttribute('aria-disabled', String(busy));
+    const icon = document.createElement('i');
+    icon.className = 'fab fa-android';
+    link.replaceChildren(icon, document.createTextNode(' ' + label));
+}
+// The explicit download is distinct from installing an update: it works
+// even when the same APK version is already installed.
+async function downloadLatestAndroidApk() {
+    if (explicitApkDownloadBusy) return;
+    explicitApkDownloadBusy = true;
+    setApkDownloadLabel('Проверяем последнюю версию…', true);
+    try {
+        const bridge = window.DAG_NATIVE_BRIDGE;
+        const download = bridge?.apkInstaller?.download;
+        if (typeof download === 'function') {
+            try {
+                const result = await download();
+                if (result?.status === 'saved') {
+                    showNotification('APK ' + (result.version || '') + ' сохранён: ' +
+                        (result.location || 'Загрузки') + '.');
+                    return;
+                }
+                if (result?.status === 'cancelled') return;
+                throw new Error('Загрузчик не подтвердил сохранение файла');
+            } catch (error) {
+                // An older native APK can receive OTA JS before its new
+                // Android plugin is installed. Keep a compatible fallback.
+                if (!/not implemented|unimplemented|not available|not found|does not exist|not a function/i.test(String(error?.message || error))) {
+                    showConfirm('Не удалось сохранить APK: ' +
+                        String(error?.message || error).slice(0,180) +
+                        '. Открыть резервную загрузку в браузере?', () => openApkBrowserFallback());
+                    return;
+                }
+            }
+        }
+        await openApkBrowserFallback();
+    } catch (error) {
+        showNotification('Не удалось открыть загрузку APK. Адрес: ' + ANDROID_APK_DOWNLOAD_URL);
+    } finally {
+        explicitApkDownloadBusy = false;
+        setApkDownloadLabel('Скачать APK для Android', false);
+    }
+}
+async function openApkBrowserFallback() {
+    const open = window.DAG_NATIVE_BRIDGE?.openExternal;
+    if (typeof open !== 'function') {
+        showNotification('Откройте ' + ANDROID_APK_DOWNLOAD_URL + ' в браузере Android.');
+        return;
+    }
+    try { await open({url: ANDROID_APK_DOWNLOAD_URL}); }
+    catch (error) {
+        try { await open({url: ANDROID_APK_FALLBACK_URL}); }
+        catch (_) { showNotification('Не удалось открыть браузер. Адрес APK: ' + ANDROID_APK_DOWNLOAD_URL); }
+    }
+}
+
 async function openAndroidApkDownload() {
     if (androidApkSigningConflict) {
         showNotification('Этот APK не обновит установленную версию: подписи различаются. Сначала сохраните локальные данные.');
@@ -869,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2385', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2386', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -8008,6 +8066,10 @@ window.addEventListener('dag-apk-update-progress', function(event) {
     };
     const label = states[String(update.state || '')];
     if (!label) return;
+    if (explicitApkDownloadBusy) {
+        setApkDownloadLabel(label + (update.state === 'downloading' ? suffix : ''), true);
+        return;
+    }
     setManualUpdateButtonState('is-checking', label + (update.state === 'downloading' ? suffix : ''));
     const apply = document.getElementById('app-update-apply-btn');
     if (apply && updateActionInProgress) apply.textContent = label + (update.state === 'downloading' ? suffix : '');

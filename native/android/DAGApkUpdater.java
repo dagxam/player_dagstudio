@@ -343,6 +343,56 @@ final class DAGApkUpdater {
         return actual.toString().equals(expected);
     }
 
+    /** Download the published Preview APK without attempting installation.
+     * Unlike install(), this also works on the latest installed version.
+     * Metadata, package, version, certificate and SHA-256 must all agree. */
+    void saveLatest(PluginCall call) {
+        new Thread(() -> {
+            try {
+                JSONObject data = manifest();
+                File dir = new File(plugin.getContext().getCacheDir(), "dag-apk-download");
+                if (!dir.isDirectory() && !dir.mkdirs())
+                    throw new IOException("Нет каталога для APK");
+                File part;
+                try {
+                    part = download(data, dir);
+                } catch (IOException networkError) {
+                    // Never downgrade or mix bytes from different releases.
+                    boolean fromGitHub = GITHUB_APK.equals(data.getString("url"));
+                    JSONObject alternate = readManifest(fromGitHub ? META : GITHUB_META, !fromGitHub);
+                    if (alternate.getLong("version_code") != data.getLong("version_code") ||
+                        !alternate.getString("sha256").equalsIgnoreCase(data.getString("sha256")))
+                        throw networkError;
+                    part = download(alternate, dir);
+                }
+                verifyPublishedApk(part, data);
+                plugin.exportVerifiedApk(call, part, data.getString("version"));
+            } catch (Exception e) {
+                plugin.failApkSave(call, "Ошибка скачивания APK: " + e.getMessage(), e);
+            }
+        }, "dag-apk-save").start();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void verifyPublishedApk(File apk, JSONObject data) throws Exception {
+        PackageManager pm = plugin.getContext().getPackageManager();
+        int flags = Build.VERSION.SDK_INT >= 28 ?
+            PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
+        PackageInfo candidate = pm.getPackageArchiveInfo(apk.getAbsolutePath(), flags);
+        if (candidate == null || !PREVIEW_PACKAGE.equals(candidate.packageName) ||
+            version(candidate) != data.getLong("version_code"))
+            throw new SecurityException("Неверный пакет или версия скачанного APK");
+        Signature[] signer = signatures(candidate);
+        if (signer == null || signer.length != 1)
+            throw new SecurityException("Не удалось проверить сертификат APK");
+        String expected = data.getString("signer_sha256").toLowerCase(Locale.ROOT);
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(signer[0].toByteArray());
+        StringBuilder fingerprint = new StringBuilder(64);
+        for (byte b : hash) fingerprint.append(String.format(Locale.ROOT, "%02x", b & 255));
+        if (!expected.equals(fingerprint.toString()))
+            throw new SecurityException("Сертификат скачанного APK не совпадает с манифестом");
+    }
+
     void install(PluginCall call) {
         new Thread(() -> {
             try {

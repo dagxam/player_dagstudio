@@ -324,6 +324,9 @@ window.DAG_NATIVE_BRIDGE = {
       : Promise.reject(new Error('Android only')),
     install: () => hasAndroidMedia3
       ? DAGCarMode.installApkUpdate()
+      : Promise.reject(new Error('Android only')),
+    download: () => hasAndroidMedia3
+      ? DAGCarMode.downloadLatestApk()
       : Promise.reject(new Error('Android only'))
   },
   screen: {

@@ -82,4 +82,13 @@ assert.match(apkPhp,/HTTP_RANGE/);
 assert.match(apkPhp,/Content-Range/);
 assert.match(apkPhp,/Accept-Ranges: bytes/);
 
+assert.match(script,/function downloadLatestAndroidApk\(/);
+assert.match(script,/link\.setAttribute\('download', 'DAGSTUDIO-PLAYER-Preview\.apk'\)/);
+assert.match(script,/downloadLatestAndroidApk\(\)/);
+assert.match(bridge,/DAGCarMode\.downloadLatestApk\(\)/);
+assert.match(plugin,/public void downloadLatestApk\(PluginCall call\)/);
+assert.match(plugin,/MediaStore\.Downloads\.EXTERNAL_CONTENT_URI/);
+assert.match(plugin,/Intent\.ACTION_CREATE_DOCUMENT/);
+assert.match(java,/verifyPublishedApk\(part, data\)/);
+assert.match(java,/plugin\.exportVerifiedApk\(call, part,/);
 console.log('IN_APP_APK_UPDATE_CERT_SHA256_VERSION_PACKAGE_DNS_MIRROR_OK');
