@@ -21,7 +21,7 @@ assert.match(js,/radioSearchPage\(direction\.query,direction\.page,net,'fast'\)/
 assert.match(js,/radioSearchPage\(direction\.query,direction\.page,net,'full'\)/);
 assert.match(js,/async function getStartupCachedAudio\(track, timeoutMs = 280\)/);
 assert.match(js,/Avoid loading an empty source before loading the selected one/);
-assert.match(engine,/setBufferDurationsMsForStreaming\(35000, 180000, 1000, 4500\)/);
+assert.match(engine,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(php,/\$fast_search = \(\$data\['mode'\] \?\? ''\) === 'fast';/);
 assert.match(php,/\$provider_timeout = \$fast_search \? 3/);
 assert.match(php,/\$muzca_detail_limit = \$fast_search \? 0/);

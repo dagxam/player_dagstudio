@@ -86,7 +86,7 @@ assert.equal(tabElements['active-tab-name'].innerText,'ДОРОГА');
 nav.switchTab('52');
 assert.equal(nav.playlist.length,0,'Empty playlist must also be selectable');
 
-assert.match(engine,/setBufferDurationsMsForStreaming\(35000, 180000, 1000, 4500\)/);
+assert.match(engine,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(src,/async function getStartupCachedAudio\(track, timeoutMs = 280\)/);
 assert.match(src,/const cachedEntry = readNativeAudioIndex\(\)\[canonicalTrackUrl\(track\)\]/);
 assert.match(src,/timeoutMs = cachedEntry\?\.path \? 800 : Math\.min\(timeoutMs, 220\)/);
