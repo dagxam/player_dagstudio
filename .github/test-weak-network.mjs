@@ -70,6 +70,7 @@ const priorityEnd=js.indexOf('function scheduleNativeCacheWorker',priorityStart)
 let aborts=0, cancels=0;
 const priorityContext={playbackWanted:true, mainAudio:{paused:true}, IS_NATIVE_APP:true,
  nativeCacheWorkerRunning:true,isCurrentTrackFullyReady:()=>false,
+ bufferedSecondsAhead:()=>0,getNetworkProfile:()=>({weak:false}),
  nativeAudioCacheBridge:()=>({cancel:()=>{cancels++;return Promise.resolve();}})};
 runInNewContext(js.slice(priorityStart,priorityEnd)+
  '\nglobalThis.test={playbackNeedsNetworkPriority,prioritizePlaybackNetwork,offlineDownloadDeferred,setAbort(c){webCacheAbortController=c;}}',priorityContext);
