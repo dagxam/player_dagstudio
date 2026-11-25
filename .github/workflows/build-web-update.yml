@@ -64,12 +64,10 @@ jobs:
       - name: Test fast startup and OTA-only update actions
         run: |
           node .github/test-fast-start.mjs
-          node .github/test-hitmos-provider.mjs
           node .github/test-listen-cache.mjs
           node .github/test-profile-theme.mjs
           node .github/test-catalog-2026.mjs
-          node .github/test-partner-api.mjs
-          node .github/test-extra-audio.mjs
+          node .github/test-two-search-sources.mjs
           node .github/test-cloud-profile.mjs
           node .github/test-favorite-hearts.mjs
           node .github/test-wave-themes.mjs
@@ -85,10 +83,8 @@ jobs:
           node .github/test-pwa-offline-recovery.mjs
           node .github/test-playlist-source-recovery.mjs
           node .github/test-local-icons.mjs
-          node .github/test-source-health.mjs
           node .github/test-fresh-mixes.mjs
           node .github/test-caucasus-catalogs.mjs
-          node .github/test-official-music.mjs
 
       # Includes verified-IP search and remote theme synchronization changes.
       - name: Test manual OTA and backup delivery
