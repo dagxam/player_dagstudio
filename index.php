@@ -247,8 +247,9 @@
         <div id="user-section" style="display:none;">
             <div class="user-card"><div class="user-avatar"><i class="fas fa-user"></i></div><div class="user-details"><div class="user-name" id="user-name-disp">USER</div><div class="user-status">DAGSTUDIO MEMBER</div></div></div>
             <button class="menu-list-btn" onclick="openManagePlaylists()"><i class="fas fa-list"></i> Управление плейлистами</button>
-            <button id="playlist-sync-btn" class="menu-list-btn" onclick="manualSyncPlaylists()" type="button"><i class="fas fa-arrows-rotate"></i><span>Синхронизировать плейлисты</span></button>
+            <button id="playlist-sync-btn" class="menu-list-btn" onclick="manualSyncPlaylists()" type="button"><i class="fas fa-arrows-rotate"></i><span>Синхронизировать профиль и плейлисты</span></button>
             <div id="playlist-sync-status" class="playlist-sync-status" role="status" aria-live="polite">Плейлисты сохранены на устройстве</div>
+            <div id="profile-sync-status" class="playlist-sync-status" role="status" aria-live="polite">Настройки профиля доступны после входа в аккаунт</div>
             <button class="modal-btn btn-dark" onclick="handleLogout()" style="margin-top:25px;">ВЫЙТИ ИЗ АККАУНТА</button>
         </div>
                 <div class="menu-playback-group" aria-label="Музыкальные предпочтения">
@@ -511,11 +512,12 @@
     </div>
 </div>
 
-<script src="script.js?v=2373" defer></script>
+<script src="profile-sync.js?v=1" defer></script>
+<script src="script.js?v=2374" defer></script>
 <script src="studio.js?v=7" defer></script>
 <script src="studio-next.js?v=20" defer></script>
 <script src="studio-center.js?v=8" defer></script>
-<script src="studio-vision.js?v=8" defer></script>
+<script src="studio-vision.js?v=9" defer></script>
 
 </body>
 </html>

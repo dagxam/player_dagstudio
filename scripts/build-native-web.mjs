@@ -88,6 +88,7 @@ if (!html.includes('href="vendor/fontawesome/css/all.min.css?v=6722"') ||
   throw new Error('Native HTML must use the local Font Awesome stylesheet, never CDN.');
 }
 await writeFile(join(out, 'index.html'), html, 'utf8');
+await copyFile(join(root, 'profile-sync.js'), join(out, 'profile-sync.js'));
 await copyFile(join(root, 'script.js'), join(out, 'script.js'));
 await copyFile(join(root, 'native', 'native-audio-adapter.js'), join(out, 'native-audio-adapter.js'));
 await copyFile(join(root, 'style.css'), join(out, 'style.css'));

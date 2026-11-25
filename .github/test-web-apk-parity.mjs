@@ -9,7 +9,7 @@ const read = p => readFileSync(resolve(root, p), 'utf8');
 const digest = p => createHash('sha256').update(readFileSync(resolve(root,p))).digest('hex');
 
 assert.ok(existsSync(resolve(root, 'www/index.html')), 'Build www/ with npm run native:web first');
-for (const resource of ['script.js','studio.js','studio-next.js','studio-center.js',
+for (const resource of ['profile-sync.js','script.js','studio.js','studio-next.js','studio-center.js',
   'style.css','modern.css','studio.css','studio-next.css','studio-touch.css',
   'studio-vision.js','studio-vision.css','studio-sidebar-modern.css']) {
   assert.equal(digest(resource), digest('www/'+resource), 'APK/OTA differs from website: '+resource);

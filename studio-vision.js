@@ -357,6 +357,7 @@
   const updateVizSettings=patch=>{
     visualizerSettings=normalizeVisualizerSettings({...visualizerSettings,...patch});
     try{localStorage.setItem(VISUALIZER_KEY,JSON.stringify(visualizerSettings));}catch(_){}
+    window.DAG_PROFILE_SYNC?.change('visualizer',visualizerSettings);
     syncVisualizerControls();
     refreshVisualizer();
   };
@@ -372,6 +373,11 @@
   }
   vizCustomColor?.addEventListener('input',()=>{
     updateVizSettings({color:'custom',customColor:vizCustomColor.value});
+  });
+  window.addEventListener('dag-profile-visualizer',event=>{
+    visualizerSettings=normalizeVisualizerSettings(event.detail?.value);
+    syncVisualizerControls();
+    refreshVisualizer();
   });
   syncVisualizerControls();
   document.addEventListener('visibilitychange',refreshVisualizer,{passive:true});
