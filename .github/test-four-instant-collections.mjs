@@ -50,7 +50,7 @@ const calls=[];
 const play={playbackTab:'mix:caucasus',playbackQueue:[],playbackPlaylist:[accepted],
  currentIndex:0,navigator:{onLine:true},isShuffle:false,playbackWanted:true,
  recordManualPlaybackTransition:()=>{},waveSameArtist:()=>false,
- playInstantMixNext:key=>calls.push('next '+key),playSmartRadioNext:()=>calls.push('wrong genre'),
+ playInstantMixNext:key=>{calls.push('next '+key);return Promise.resolve();},playSmartRadioNext:()=>calls.push('wrong genre'),
  playTrack:i=>calls.push('play '+i)};
 runInNewContext(code.slice(begin,after),play);
 play.playNext();
