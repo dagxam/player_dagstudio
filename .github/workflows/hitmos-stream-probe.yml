@@ -58,5 +58,20 @@ jobs:
                             'type',e.headers.get('Content-Type',''))
                   except Exception as e:
                       print('HITMOS_DIRECT_AUDIO',method,'error',type(e).__name__,str(e)[:160])
+              proxy='https://pl.dagstudio.ru/proxy.php?'+urllib.parse.urlencode({'url':url,'source':'hitmos'})
+              try:
+                  req=urllib.request.Request(proxy,method='GET',
+                      headers={'Range':'bytes=0-2047','Accept':'audio/*;q=0.9,*/*;q=0.1'})
+                  with urllib.request.urlopen(req,timeout=18) as r:
+                      sample=r.read(2048)
+                      print('HITMOS_PROXY_AUDIO','http',r.status,
+                          'content_type',r.headers.get('Content-Type',''),
+                          'content_range',r.headers.get('Content-Range',''),
+                          'sample_bytes',len(sample))
+              except urllib.error.HTTPError as e:
+                  print('HITMOS_PROXY_AUDIO','http',e.code,
+                      'content_type',e.headers.get('Content-Type',''))
+              except Exception as e:
+                  print('HITMOS_PROXY_AUDIO','error',type(e).__name__,str(e)[:160])
               break
           PY

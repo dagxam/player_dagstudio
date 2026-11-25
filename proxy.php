@@ -79,8 +79,13 @@ if (!$isAllowed && $source === 'archive' && $scheme === 'https' &&
     preg_match('~^/download/[A-Za-z0-9_.-]{3,111}/[^?#]+\.(mp3|ogg|oga|opus|flac|m4a)$~iD',
         (string)($parts['path'] ?? '')))
     $isAllowed = true;
+// Separate direct Hitmos.site music URLs from unrestricted remote URLs.
+// The caller must identify the source, use HTTPS, and provide an audio file path.
 if (!$isAllowed && $source === 'hitmos' && $scheme === 'https' &&
-    in_array($host, dagHitmosAudioHosts(), true)) $isAllowed = true;
+    !isset($parts['user']) && !isset($parts['pass']) && !isset($parts['port']) &&
+    preg_match('/\.(?:mp3|m4a|aac|ogg|opus|wav)$/iD', (string)($parts['path'] ?? '')) &&
+    ($host === 'ru.hitmos.site' || in_array($host, dagHitmosAudioHosts(), true)))
+    $isAllowed = true;
 $partner = dagPartnerConfig();
 if (!$isAllowed && $source === 'partner' && $partner['enabled'] &&
     $scheme === 'https' && !isset($parts['user']) && !isset($parts['pass']) &&
@@ -116,6 +121,7 @@ $profiles = [
     'storage.jamendo.com' => ['referer' => 'https://www.jamendo.com/', 'origin' => 'https://www.jamendo.com'],
     'slider.kz'       => ['referer' => 'https://slider.kz/',       'origin' => 'https://slider.kz'],
     'ru.hitmoz.org'   => ['referer' => 'https://ru.hitmoz.org/',   'origin' => 'https://ru.hitmoz.org'],
+    'ru.hitmos.site'  => ['referer' => 'https://ru.hitmos.site/',  'origin' => 'https://ru.hitmos.site'],
     'hitmoz.org'      => ['referer' => 'https://hitmoz.org/',      'origin' => 'https://hitmoz.org'],
     'muzofond.fm'     => ['referer' => 'https://muzofond.fm/',     'origin' => 'https://muzofond.fm'],
     'zvooq.net'       => ['referer' => 'https://zvooq.net/',       'origin' => 'https://zvooq.net'],
