@@ -73,10 +73,7 @@ if (!file_exists('db.php')) {
     exit;
 }
 require 'db.php';
-require_once __DIR__ . '/hitmos-config.php';
-require_once __DIR__ . '/partner-config.php';
-// Commons/Openverse/Archive are removed from live music search; legacy adapters
-// remain in the repository but are not loaded on requests.
+// Unified search uses only Muzofond and Hitmoz. Other integrations are not loaded.
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
 $input = file_get_contents('php://input');
@@ -652,15 +649,13 @@ elseif ($action === 'search_global') {
     if ($page < 1) $page = 1;
 
     $weak_client = (($data['network'] ?? '') === 'weak') || !empty($data['save_data']);
-    // Fast first paint: still fan out to every configured provider, but cap
-    // the initial waiting budget. A second full pass fills in slow sources.
+    // Fast initial results and a retry at full budget for slow responses.
+    // Both sources are always queried independently, even when one fails.
     $fast_search = ($data['mode'] ?? '') === 'fast';
     // Slow user connectivity does not imply a fast connection from PHP to providers.
     // Give the upstream services time to answer instead of discarding viable results.
     $provider_connect_timeout = $fast_search ? 2 : ($weak_client ? 3 : 4);
     $provider_timeout = $fast_search ? 3 : ($weak_client ? 7 : 8);
-    // Muzca detail pages cost an additional 3–5s: defer to the full pass.
-    $muzca_detail_limit = $fast_search ? 0 : ($weak_client ? 5 : 12);
     $result_limit = $fast_search ? 25 : ($weak_client ? 30 : 50);
 
     if (empty($query_encode)) {
@@ -668,74 +663,12 @@ elseif ($action === 'search_global') {
         exit;
     }
 
-    // ВЕРНУЛИ КАЗАХСКИЙ САЙТ (VK) ПО ПРОСЬБЕ ПОЛЬЗОВАТЕЛЯ
-    $audius_offset = max(0, ($page - 1) * ($weak_client ? 12 : 20));
-    $audius_limit = $weak_client ? 12 : 20;
-
-    // Default provider is Muzofond: last confirmed to return matching songs
-    // and an audio/mpeg stream. Unverified HTML scrapers and Wikimedia sources
-    // are not sent network requests on every search.
+    // Only the two selected search providers are queried. This also applies
+    // when optional API keys or environment settings exist on the server.
     $urls = [
-        'muzo' => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page
+        'muzo' => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page,
+        'hitmoz' => "https://ru.hitmoz.org/search?q=" . $query_encode
     ];
-
-    // Jamendo API requires a project-specific client_id. Never use a public
-    // test credential or invent an authorization: keep other 7 sources working.
-    $jamendo_client = trim((string)(getenv('JAMENDO_CLIENT_ID') ?: ''));
-    $jamendo_enabled = (bool)preg_match('/^[A-Za-z0-9_-]{6,128}$/', $jamendo_client);
-    if ($jamendo_enabled) {
-        $urls['jamendo'] = "https://api.jamendo.com/v3.0/tracks/?" . http_build_query([
-            'client_id' => $jamendo_client, 'format' => 'json',
-            'search' => trim(strip_tags((string)$query_raw)),
-            'limit' => $weak_client ? 12 : 20,
-            'offset' => ($page-1) * ($weak_client ? 12 : 20),
-            'type' => 'single albumtrack', 'audioformat' => 'mp32'
-        ], '', '&', PHP_QUERY_RFC3986);
-    }
-
-    // Hitmos.fm is an independent service from Hitmoz.org. Enable its
-    // search only when an authorized HTTPS JSON API endpoint is supplied by
-    // the site operator. Never scrape protected pages or fabricate results.
-    // Expected JSON: {"tracks":[{"title":"...","artist":"...","audio_url":"https://..."}]}.
-    // Configure HITMOS_SEARCH_API_URL as a fixed HTTPS endpoint with no
-    // query string; we append q and page. The endpoint is server-side only.
-    $hitmos_api = trim((string)(getenv('HITMOS_SEARCH_API_URL') ?: ''));
-    $hitmos_url = parse_url($hitmos_api);
-    $hitmos_audio_hosts = dagHitmosAudioHosts();
-    $hitmos_enabled = count($hitmos_audio_hosts) > 0 && is_array($hitmos_url) &&
-        ($hitmos_url['scheme'] ?? '') === 'https' &&
-        !empty($hitmos_url['host']) && !isset($hitmos_url['port']) &&
-        !isset($hitmos_url['user']) && !isset($hitmos_url['pass']) &&
-        !isset($hitmos_url['query']) && !isset($hitmos_url['fragment']) &&
-        strlen($hitmos_api) <= 512 &&
-        !filter_var($hitmos_url['host'], FILTER_VALIDATE_IP) &&
-        strtolower((string)$hitmos_url['host']) !== 'localhost';
-    if ($hitmos_enabled) {
-        $urls['hitmos'] = $hitmos_api . '?' . http_build_query([
-            'q' => trim(strip_tags((string)$query_raw)),
-            'page' => $page
-        ], '', '&', PHP_QUERY_RFC3986);
-    }
-
-    // Optional partner integration after explicit operator permission.
-    $partner = dagPartnerConfig();
-    if ($partner['enabled']) {
-        $urls['partner'] = $partner['url'].'?'.http_build_query([
-            'q'=>trim(strip_tags((string)$query_raw)),'page'=>$page,
-            'year'=>2026
-        ],'', '&',PHP_QUERY_RFC3986);
-    }
-
-    // An Audius API key is required before enabling this optional provider.
-    // Read-only public calls previously returned HTTP 403 on this server.
-    $audius_api_key = trim((string)(getenv('AUDIUS_API_KEY') ?: ''));
-    $valid_audius_key = (bool)preg_match('/^[A-Za-z0-9_-]{16,220}$/D', $audius_api_key);
-    if ($valid_audius_key) {
-        $audius_offset = max(0, ($page - 1) * ($weak_client ? 12 : 20));
-        $audius_limit = $weak_client ? 12 : 20;
-        $urls['audius'] = "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset;
-        $urls['audius_secondary'] = "https://discoveryprovider.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset;
-    }
 
     $multi = curl_multi_init();
     $channels = [];
@@ -743,9 +676,9 @@ elseif ($action === 'search_global') {
     foreach ($urls as $key => $url) {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        // Do not redirect API credentials to another host.
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION,
-            !in_array($key,['jamendo','hitmos','partner'],true));
+        // No API credentials are sent to these sources. Limit redirects.
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 2);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
@@ -761,8 +694,6 @@ elseif ($action === 'search_global') {
             'Accept-Language: ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
             'Cache-Control: no-cache'
         ];
-        if ($valid_audius_key && in_array($key,['audius','audius_secondary'],true))
-            $headers[]='x-api-key: '.$audius_api_key;
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         
         curl_multi_add_handle($multi, $ch);
@@ -801,140 +732,8 @@ elseif ($action === 'search_global') {
     }
     curl_multi_close($multi);
 
-    // Diagnostics only include sources actually participating in this query.
-    if ($hitmos_enabled) $source_status['hitmos']['configured'] = true;
-    if ($jamendo_enabled) $source_status['jamendo']['configured'] = true;
-    if ($partner['enabled']) $source_status['partner']['configured'] = true;
-
-    // Use the public documented discovery provider when the primary API
-    // returned an error or an empty/unparseable JSON response.
-    $mainAudius = json_decode((string)($responses['audius'] ?? ''), true);
-    if (empty($mainAudius['data']) && !empty($responses['audius_secondary'])) {
-        $alt = json_decode((string)$responses['audius_secondary'], true);
-        if (!empty($alt['data'])) {
-            $responses['audius'] = $responses['audius_secondary'];
-            $source_status['audius'] = $source_status['audius_secondary'];
-            $source_status['audius']['used_fallback'] = true;
-        }
-    }
-    unset($source_status['audius_secondary']);
-    $audius_stream_host = !empty($source_status['audius']['used_fallback'])
-        ? 'discoveryprovider.audius.co' : 'api.audius.co';
+    // Both sources receive the same query; their results enter one list.
     $raw_results = [];
-    // Audius: first-party API, not a third-party scraper.
-    if (!empty($responses['audius'])) {
-        $audius = json_decode($responses['audius'], true);
-        if (!empty($audius['data']) && is_array($audius['data'])) {
-            foreach ($audius['data'] as $track) {
-                $id = trim((string)($track['id'] ?? ''));
-                $title = trim((string)($track['title'] ?? ''));
-                if ($id === '' || $title === '') continue;
-
-                $artist = 'Неизвестен';
-                if (!empty($track['user']['name'])) {
-                    $artist = trim((string)$track['user']['name']);
-                } elseif (!empty($track['user']['handle'])) {
-                    $artist = trim((string)$track['user']['handle']);
-                }
-
-                $thumb = 'images/cover.png';
-                if (!empty($track['artwork']) && is_array($track['artwork'])) {
-                    foreach (['480x480', '1000x1000', '150x150'] as $size) {
-                        if (!empty($track['artwork'][$size])) {
-                            $thumb = (string)$track['artwork'][$size];
-                            break;
-                        }
-                    }
-                }
-
-                $raw_results[] = [
-                    'title' => $title,
-                    'artist' => $artist,
-                    'url' => 'https://' . $audius_stream_host . '/v1/tracks/' . rawurlencode($id) .
-                        '/stream?app_name=dagstudio-player',
-                    'type' => 'audio',
-                    'thumb' => $thumb,
-                    'source' => '[AUDIUS]',
-                    // Genres are official Audius metadata, not guessed from titles.
-                    'genre' => mb_substr(trim(strip_tags((string)($track['genre'] ?? ''))), 0, 55),
-                    'play_count' => max(0, (int)($track['play_count'] ?? 0)),
-                    'favorite_count' => max(0, (int)($track['favorite_count'] ?? 0)),
-                    'release_date' => is_string($track['release_date'] ?? null)
-                        ? mb_substr($track['release_date'], 0, 30) : ''
-                ];
-            }
-        }
-    }
-
-    // Парсер: Slider.kz (VK)
-    if (!empty($responses['vk_mail'])) {
-        $data_decoded = json_decode($responses['vk_mail'], true);
-        if (!empty($data_decoded['audios'])) {
-            foreach ($data_decoded['audios'] as $tracks) {
-                if (is_array($tracks)) {
-                    foreach ($tracks as $track) {
-                        if (!empty($track['url'])) {
-                            $full_title = $track['tit_art'] ?? 'Неизвестный трек';
-                            $parts = explode(' - ', $full_title, 2);
-                            $raw_results[] = [
-                                'title' => trim($parts[1] ?? $parts[0]),
-                                'artist' => trim(isset($parts[1]) ? $parts[0] : 'Неизвестен'),
-                                'url' => $track['url'],
-                                'type' => 'audio',
-                                'thumb' => 'images/cover.png',
-                                'source' => '[VK]'
-                            ];
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Hitmos.fm: only an explicitly configured JSON search API. No HTML
-    // scraping or website-page links passed off as playable audio.
-    if ($hitmos_enabled && !empty($responses['hitmos'])) {
-        $hitmos_data = json_decode((string)$responses['hitmos'], true);
-        $hitmos_tracks = $hitmos_data['tracks'] ?? null;
-        if (is_array($hitmos_tracks)) {
-            foreach (array_slice($hitmos_tracks, 0, 40) as $track) {
-                if (!is_array($track)) continue;
-                $title = mb_substr(trim(strip_tags((string)($track['title'] ?? ''))), 0, 180);
-                $artist = mb_substr(trim(strip_tags((string)($track['artist'] ?? 'Неизвестен'))), 0, 180);
-                $audio = trim((string)($track['audio_url'] ?? ''));
-                $audio_url = parse_url($audio);
-                $audio_host = strtolower((string)($audio_url['host'] ?? ''));
-                if ($title === '' || ($audio_url['scheme'] ?? '') !== 'https' ||
-                    !$audio_host || !preg_match('/^[a-z0-9.-]+$/', $audio_host) ||
-                    !str_contains($audio_host, '.') ||
-                    filter_var($audio_host, FILTER_VALIDATE_IP) ||
-                    isset($audio_url['user']) || isset($audio_url['pass']) ||
-                    isset($audio_url['port']) || strlen($audio) > 2048 ||
-                    !in_array($audio_host, $hitmos_audio_hosts, true)) continue;
-                $raw_results[] = [
-                    'title' => $title,
-                    'artist' => $artist,
-                    'url' => $audio,
-                    'type' => 'audio',
-                    'thumb' => 'images/cover.png',
-                    'source' => '[HITMOS]',
-                    'release_date' => is_string($track['release_date'] ?? null)
-                        ? mb_substr($track['release_date'], 0, 30) : ''
-                ];
-            }
-        } else {
-            $source_status['hitmos']['ok'] = false;
-            $source_status['hitmos']['error'] = 'Invalid authorized JSON response';
-        }
-    }
-
-    // Authorized JSON adapter. A news article cannot masquerade as audio.
-    if ($partner['enabled'] && !empty($responses['partner'])) {
-        $partnerTracks = dagPartnerParse((string)$responses['partner'],$partner['audio_hosts']);
-        foreach ($partnerTracks as $track) $raw_results[] = $track;
-        if (!$partnerTracks)
-            $source_status['partner']['error'] = 'No permitted playable tracks';
-    }
 
     // Парсер: Hitmoz
     if (!empty($responses['hitmoz']) && strpos($responses['hitmoz'], 'tracks__item') !== false) {
@@ -1000,219 +799,11 @@ elseif ($action === 'search_global') {
         libxml_clear_errors();
     }
 
-    // Парсер: Zvooq.net
-    if (!empty($responses['zvooq'])) {
-        libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $responses['zvooq']);
-        $xpath = new DOMXPath($dom);
-        $track_nodes = $xpath->query("//*[contains(@class, 'track') or contains(@class, 'item')]");
-        if ($track_nodes) {
-            foreach ($track_nodes as $node) {
-                $title_node = $xpath->query(".//*[contains(@class, 'title') or contains(@class, 'name')]", $node)->item(0);
-                $artist_node = $xpath->query(".//*[contains(@class, 'artist')]", $node)->item(0);
-                $link_node = $xpath->query(".//*[@data-url] | .//a[contains(@href, '.mp3')]", $node)->item(0);
-                
-                if ($title_node && $link_node) {
-                    $url = $link_node->hasAttribute('data-url') ? $link_node->getAttribute('data-url') : $link_node->getAttribute('href');
-                    if (!empty($url) && strpos($url, 'http') !== 0) {
-                        $url = 'https://zvooq.net' . (strpos($url, '/') === 0 ? '' : '/') . $url;
-                    }
-                    if (!empty($url) && strpos($url, 'javascript') === false) {
-                        $raw_results[] = [
-                            'title' => trim($title_node->textContent),
-                            'artist' => $artist_node ? trim($artist_node->textContent) : 'Неизвестен',
-                            'url' => $url,
-                            'type' => 'audio',
-                            'thumb' => 'images/cover.png',
-                            'source' => '[ZVOOQ]'
-                        ];
-                    }
-                }
-            }
-        }
-        libxml_clear_errors();
-    }
-
-
-    // Парсер: MuzVox. Обрабатываем как прямые MP3-ссылки, так и ссылки
-    // на страницу скачивания/прослушивания. Это дополнительный источник и
-    // не влияет на четыре старых парсера.
-    if (!empty($responses['muzvox'])) {
-        libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $responses['muzvox']);
-        $xpath = new DOMXPath($dom);
-        $nodes = $xpath->query("//a[@href]");
-        if ($nodes) {
-            foreach ($nodes as $a) {
-                $href = trim($a->getAttribute('href'));
-                if ($href === '') continue;
-                $hrefLower = mb_strtolower($href, 'UTF-8');
-                if (strpos($hrefLower, '.mp3') === false && strpos($hrefLower, 'download') === false) continue;
-
-                $url = $href;
-                if (strpos($url, '//') === 0) $url = 'https:' . $url;
-                elseif (strpos($url, 'http') !== 0) $url = 'https://muzvox.org' . (strpos($url, '/') === 0 ? '' : '/') . $url;
-
-                $container = $xpath->query("ancestor::*[self::li or self::article or self::div][1]", $a)->item(0);
-                $text = $container ? trim(preg_replace('/\\s+/u', ' ', $container->textContent)) : trim($a->textContent);
-                $title = trim($a->textContent);
-                $artist = 'Неизвестен';
-
-                if ($text !== '' && preg_match('/^(.+?)\\s+[-–—]\\s+(.+?)(?:\\s+(?:слушать|скачать)\\b.*)?$/iu', $text, $m)) {
-                    $artist = trim($m[1]);
-                    $title = trim($m[2]);
-                }
-                if ($title === '' || mb_strlen($title) > 250) continue;
-
-                $raw_results[] = [
-                    'title' => $title,
-                    'artist' => $artist,
-                    'url' => $url,
-                    'type' => 'audio',
-                    'thumb' => 'images/cover.png',
-                    'source' => '[MUZVOX]'
-                ];
-            }
-        }
-        libxml_clear_errors();
-    }
-
-    // Парсер: Muzca. DLE-поиск возвращает ссылки на страницы треков.
-    // Сначала собираем карточки, затем параллельно открываем только найденные
-    // страницы и извлекаем реальный MP3. При проблемах Muzca остальные источники
-    // продолжают работать независимо.
-    if (!empty($responses['muzca'])) {
-        libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $responses['muzca']);
-        $xpath = new DOMXPath($dom);
-        $detailUrls = [];
-        foreach ($xpath->query("//a[@href]") as $a) {
-            $href = trim($a->getAttribute('href'));
-            if ($href === '') continue;
-            $abs = $href;
-            if (strpos($abs, '//') === 0) $abs = 'https:' . $abs;
-            elseif (strpos($abs, 'http') !== 0) $abs = 'https://muzca.net' . (strpos($abs, '/') === 0 ? '' : '/') . $abs;
-            if (preg_match('~/[0-9]+-[^/?#]+\\.html(?:\\?.*)?$~iu', $abs)) {
-                $detailUrls[$abs] = trim(preg_replace('/\\s+/u', ' ', $a->textContent));
-            }
-        }
-        libxml_clear_errors();
-
-        $detailUrls = array_slice($detailUrls, 0, $muzca_detail_limit, true);
-        if ($detailUrls) {
-            $m2 = curl_multi_init();
-            $detailChannels = [];
-            foreach ($detailUrls as $du => $anchorText) {
-                $ch = curl_init($du);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $weak_client ? 2 : 3);
-                curl_setopt($ch, CURLOPT_TIMEOUT, $weak_client ? 3 : 5);
-                curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, $weak_client ? 64 : 128);
-                curl_setopt($ch, CURLOPT_LOW_SPEED_TIME, $weak_client ? 2 : 4);
-                curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-                curl_setopt($ch, CURLOPT_ENCODING, '');
-                curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36');
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: text/html,application/xhtml+xml', 'Accept-Language: ru-RU,ru;q=0.9']);
-                curl_multi_add_handle($m2, $ch);
-                $detailChannels[$du] = $ch;
-            }
-            $active2 = null;
-            do {
-                curl_multi_exec($m2, $active2);
-                if ($active2) curl_multi_select($m2, 0.25);
-            } while ($active2 > 0);
-
-            foreach ($detailChannels as $du => $ch) {
-                $html = curl_multi_getcontent($ch);
-                curl_multi_remove_handle($m2, $ch);
-                curl_close($ch);
-                if (!$html) continue;
-
-                libxml_use_internal_errors(true);
-                $d = new DOMDocument();
-                @$d->loadHTML('<?xml encoding="utf-8" ?>' . $html);
-                $xp = new DOMXPath($d);
-                $mp3 = $xp->query("//a[contains(translate(@href,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'), '.mp3')]")->item(0);
-                if (!$mp3) {
-                    $mp3 = $xp->query("//*[@data-url and contains(translate(@data-url,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'), '.mp3')]")->item(0);
-                }
-                if ($mp3) {
-                    $audioUrl = $mp3->hasAttribute('data-url') ? trim($mp3->getAttribute('data-url')) : trim($mp3->getAttribute('href'));
-                    if ($audioUrl !== '') {
-                        if (strpos($audioUrl, '//') === 0) $audioUrl = 'https:' . $audioUrl;
-                        elseif (strpos($audioUrl, 'http') !== 0) $audioUrl = 'https://muzca.net' . (strpos($audioUrl, '/') === 0 ? '' : '/') . $audioUrl;
-                        $h1 = $xp->query('//h1')->item(0);
-                        $heading = $h1 ? trim(preg_replace('/\\s+/u', ' ', $h1->textContent)) : ($detailUrls[$du] ?? '');
-                        $heading = preg_replace('/\\s+».*$/u', '', $heading);
-                        $artist = 'Неизвестен';
-                        $title = $heading;
-                        if (preg_match('/^(.+?)\\s+-\\s+(.+)$/u', $heading, $mm)) {
-                            $artist = trim($mm[1]);
-                            $title = trim($mm[2]);
-                        }
-                        if ($title !== '') {
-                            $raw_results[] = [
-                                'title' => $title,
-                                'artist' => $artist,
-                                'url' => $audioUrl,
-                                'type' => 'audio',
-                                'thumb' => 'images/cover.png',
-                                'source' => '[MUZCA]'
-                            ];
-                        }
-                    }
-                }
-                libxml_clear_errors();
-            }
-            curl_multi_close($m2);
-        }
-    }
-
-    // Jamendo artist-authorized streaming API, only with the operator's own
-    // credential. Stream URLs must point to Jamendo storage over HTTPS.
-    if ($jamendo_enabled && !empty($responses['jamendo'])) {
-        $catalog = json_decode($responses['jamendo'], true);
-        if (($catalog['headers']['status'] ?? '') === 'success' &&
-            is_array($catalog['results'] ?? null)) {
-            foreach ($catalog['results'] as $track) {
-                if (!is_array($track)) continue;
-                $title = trim((string)($track['name'] ?? ''));
-                $audio = trim((string)($track['audio'] ?? ''));
-                $info = parse_url($audio);
-                $host = strtolower((string)($info['host'] ?? ''));
-                if ($title === '' || ($info['scheme'] ?? '') !== 'https' ||
-                    empty($host) || !($host === 'storage.jamendo.com' ||
-                        str_ends_with($host, '.storage.jamendo.com')) ||
-                    isset($info['user']) || isset($info['pass']) || isset($info['port'])) continue;
-                $raw_results[] = [
-                    'title' => $title,
-                    'artist' => trim((string)($track['artist_name'] ?? 'Неизвестен')),
-                    'url' => $audio, 'type' => 'audio',
-                    'thumb' => trim((string)($track['image'] ?? 'images/cover.png')),
-                    'source' => '[JAMENDO]',
-                    'release_date' => trim((string)($track['releasedate'] ?? '')),
-                    'license_url' => trim((string)($track['license_ccurl'] ?? '')),
-                    'source_url' => trim((string)($track['shareurl'] ?? ''))
-                ];
-            }
-        }
-    }
-
     // --- ФИЛЬТРАЦИЯ И ДЕДУПЛИКАЦИЯ ПО КАЖДОМУ ИСТОЧНИКУ ---
     // Один и тот же трек на разных сайтах НЕ удаляется.
     $by_source = [
         '[MUZOFOND]' => [],
-        '[PARTNER]' => [],
-        '[HITMOS]' => [],
-        '[JAMENDO]' => [],
-        '[AUDIUS]' => []
+        '[HITMOZ]' => []
     ];
 
     foreach ($raw_results as $r) {
@@ -1267,7 +858,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[MUZOFOND]', '[PARTNER]', '[HITMOS]', '[JAMENDO]', '[AUDIUS]'];
+    $order = ['[MUZOFOND]', '[HITMOZ]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -1294,9 +885,8 @@ elseif ($action === 'search_global') {
     // Keep the old ok/http fields for compatibility; add candidate diagnostics
     // without claiming that the audio stream was verified.
     $provider_source_keys = [
-        'muzo' => '[MUZOFOND]', 'partner' => '[PARTNER]',
-        'hitmos' => '[HITMOS]', 'jamendo' => '[JAMENDO]',
-        'audius' => '[AUDIUS]'
+        'muzo' => '[MUZOFOND]',
+        'hitmoz' => '[HITMOZ]'
     ];
     foreach ($provider_source_keys as $key => $label) {
         if (!isset($source_status[$key])) continue;
@@ -1310,8 +900,11 @@ elseif ($action === 'search_global') {
         'success' => true,
         'data' => $final_output,
         'network_mode' => $weak_client ? 'weak' : 'normal',
-        // One active source means fast results are already complete.
-        'search_complete' => count($urls) === 1,
+        // Search again with a longer timeout only if one source had no
+        // matched results in the fast pass. Full pass is always final.
+        'search_complete' => !$fast_search ||
+            (($source_status['muzo']['has_results'] ?? false) &&
+             ($source_status['hitmoz']['has_results'] ?? false)),
         'sources' => $source_status,
         'source_counts' => $source_counts
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
