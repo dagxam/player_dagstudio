@@ -14,7 +14,7 @@ assert.match(dns,/candidates\.add\(trusted\)/);
 assert.match(dns,/Dns\.SYSTEM\.lookup\(hostname\)/);
 assert.match(plugin,/new DAGServerDns\(\)/);
 assert.match(plugin,/DAGServerDns\.HOST\.equalsIgnoreCase\(uri\.getHost\(\)\)/);
-assert.match(plugin,/"search_global", "official_audius_feed", "check_auth", "get_data"/);
+assert.match(plugin,/"search_global", "official_audius_feed", "catalog_2026", "check_auth", "get_data"/);
 assert.match(plugin,/builder\.header\("X-DAG-Session", sessionToken\)/);
 assert.match(plugin,/sessionToken\.matches/);
 assert.match(plugin,/followRedirects\(false\)/);
