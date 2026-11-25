@@ -73,7 +73,9 @@ if (!file_exists('db.php')) {
     exit;
 }
 require 'db.php';
-// Unified search uses only Muzofond and Hitmoz. Other integrations are not loaded.
+// Legacy host validation remains for existing saved tracks; it does NOT add a search provider.
+require_once __DIR__ . '/hitmos-config.php';
+// Unified search itself uses only Muzofond and Hitmoz.
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
 $input = file_get_contents('php://input');
