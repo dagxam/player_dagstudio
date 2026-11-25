@@ -286,7 +286,7 @@ jobs:
           protocol=os.environ.get('FTP_PROTOCOL','ftp').lower()
           port=int(os.environ.get('FTP_PORT') or 21)
           version=os.environ['GITHUB_SHA']
-          essential=['api.php','hitmos-api.php','hitmos-adapter.php','script.js','search-polish.css','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
+          essential=['api.php','hitmos-api.php','hitmos-adapter.php','script.js','search-polish.css','studio-center.js','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
                      'deploy-'+version+'.txt']
           if protocol not in ('ftp','ftps'):
               raise SystemExit('FTP fallback supports ftp and explicit ftps only')
