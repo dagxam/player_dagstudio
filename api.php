@@ -1310,6 +1310,8 @@ elseif ($action === 'search_global') {
         'success' => true,
         'data' => $final_output,
         'network_mode' => $weak_client ? 'weak' : 'normal',
+        // One active source means fast results are already complete.
+        'search_complete' => count($urls) === 1,
         'sources' => $source_status,
         'source_counts' => $source_counts
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
