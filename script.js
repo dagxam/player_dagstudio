@@ -51,7 +51,9 @@ function shouldProxyMedia(trackOrUrl) {
             'muzvox.org', 'storage.muzvox.org',
             'static.muzvox.org', 'muzca.net'
         ];
-        return domains.some(domain => host === domain || host.endsWith('.' + domain));
+        return domains.some(domain => host === domain || host.endsWith('.' + domain)) ||
+            host === 's.muzrecord.com' || host === 'cdn.muzpace.net' ||
+            /^plc[0-9]{1,3}\.hitmos\.fm$/.test(host);
     } catch (_) { return false; }
 }
 
