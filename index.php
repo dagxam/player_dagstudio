@@ -162,19 +162,6 @@
   </div>
 </div>
 <!-- Подборки собраны в одну кнопку около эквалайзера: без длинной полосы над поиском. -->
-<div id="caucasus-radio-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true" aria-labelledby="caucasus-radio-title">
-    <div class="modal-box quick-mixes-modal-box caucasus-radio-box">
-        <button type="button" class="modal-close" onclick="closeModal('caucasus-radio-modal')" aria-label="Закрыть">&times;</button>
-        <div class="quick-mixes-heading">
-            <div class="quick-mixes-logo"><i class="fas fa-mountain"></i></div>
-            <div><span class="quick-mixes-eyebrow">DAGSTUDIO RADIO</span>
-                <h3 class="modal-title" id="caucasus-radio-title">Кавказское радио</h3>
-                <p class="quick-mixes-intro">Выбери республику или язык поиска</p></div>
-        </div>
-        <div id="caucasus-regions" class="caucasus-radio-grid"></div>
-        <p class="quick-mixes-footer">Язык песен не определяется автоматически: разделы задают направление поиска.</p>
-    </div>
-</div>
 <div id="quick-mixes-modal" class="modal-overlay studio-side-dialog" role="dialog" aria-modal="true" aria-labelledby="quick-mixes-title">
     <div class="modal-box quick-mixes-modal-box">
         <button type="button" class="modal-close" onclick="closeModal('quick-mixes-modal')" aria-label="Закрыть подборки">&times;</button>
@@ -183,28 +170,28 @@
             <div>
                 <div class="quick-mixes-eyebrow">DAGSTUDIO RADIO</div>
                 <h3 class="modal-title" id="quick-mixes-title">ПОДБОРКИ</h3>
-                <p class="quick-mixes-intro">Выбери настроение — музыка включится автоматически.</p>
+                <p class="quick-mixes-intro">Выбери подборку — сразу включим музыку, без дополнительных экранов.</p>
             </div>
         </div>
         <div class="quick-mixes-grid" id="quick-mixes">
-            <button type="button" class="quick-mix-btn wave-mix-btn" data-mix="wave" onclick="startQuickMix('wave')">
-                <span class="mix-icon"><i class="fas fa-wave-square"></i></span><span class="mix-copy"><strong>Моя волна</strong><small>Русские и кавказские · подборка 2026</small></span><i class="fas fa-chevron-right mix-arrow"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="startQuickMix('caucasus')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-mountain"></i></span>
+                <span class="mix-copy"><strong>Кавказские</strong><small>Свежие песни Кавказа</small></span>
+                <i class="fas fa-play mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span><span class="mix-copy"><strong>Русские</strong><small>Хиты и новинки</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
-            <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="openCaucasusRadio()">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-mountain"></i></span><span class="mix-copy"><strong>Кавказские</strong><small>Дагестан и республики Кавказа</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span>
+                <span class="mix-copy"><strong>Русские</strong><small>Русские новинки</small></span>
+                <i class="fas fa-play mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="foreign" onclick="startQuickMix('foreign')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-globe"></i></span><span class="mix-copy"><strong>Зарубежные</strong><small>Мировые хиты</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
-            <button type="button" class="quick-mix-btn" data-mix="hits" onclick="startQuickMix('hits')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-star"></i></span><span class="mix-copy"><strong>Лучшее</strong><small>Популярное сейчас</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
-            <button type="button" class="quick-mix-btn" data-mix="road" onclick="startQuickMix('road')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-car-side"></i></span><span class="mix-copy"><strong>В дорогу</strong><small>Для поездок</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
-            <button type="button" class="quick-mix-btn" data-mix="rock" onclick="startQuickMix('rock')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-guitar"></i></span><span class="mix-copy"><strong>Рок</strong><small>Гитары и драйв</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
-            <button type="button" class="quick-mix-btn" data-mix="retro" onclick="startQuickMix('retro')">
-                <span class="mix-icon" aria-hidden="true"><i class="fas fa-compact-disc"></i></span><span class="mix-copy"><strong>Ретро</strong><small>Знакомая классика</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
+                <span class="mix-copy"><strong>Зарубежные</strong><small>Свежие мировые песни</small></span>
+                <i class="fas fa-play mix-arrow" aria-hidden="true"></i></button>
+            <button type="button" class="quick-mix-btn" data-mix="charts" onclick="startQuickMix('charts')">
+                <span class="mix-icon" aria-hidden="true"><i class="fas fa-bolt"></i></span>
+                <span class="mix-copy"><strong>Новые релизы</strong><small>Сначала самые свежие</small></span>
+                <i class="fas fa-play mix-arrow" aria-hidden="true"></i></button>
         </div>
-        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Поиск по Muzofond и Hitmoz. Если один сервер недоступен, используются результаты второго. Подборки не подтверждают язык исполнения автоматически.</div>
+        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Новинки с подтверждёнными датами идут первыми. Если источник не сообщает дату выпуска, она остаётся неизвестной.</div>
     </div>
 </div>
 

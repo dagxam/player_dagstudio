@@ -45,14 +45,10 @@ function openCaucasusCatalogue(link){
  }else window.open(link,'_blank','noopener,noreferrer');
 }
 const defs=[
- {key:'caucasus',title:'Кавказские',desc:'Республики и языки',icon:'mountain',art:'mountains'},
- {key:'russian',title:'Русские',desc:'Популярные песни',icon:'music',art:'folk'},
- {key:'foreign',title:'Зарубежные',desc:'Мировые новинки',icon:'globe',art:'artist'},
- {key:'hits',title:'Лучшее',desc:'Любимые хиты',icon:'star',art:'hits'},
- {key:'road',title:'В дорогу',desc:'В путь с музыкой',icon:'route',art:'road'},
- {key:'retro',title:'Ретро',desc:'Знакомые мелодии',icon:'compact-disc',art:'retro'},
- {key:'rock',title:'Рок',desc:'Легенды рока',icon:'guitar',art:'folk'},
- {key:'charts',title:'Новые релизы',desc:'Даты выпуска проверены',icon:'bolt',art:'hits'}
+  {key:'caucasus',title:'Кавказские',desc:'Новая музыка Кавказа',icon:'mountain',art:'mountains'},
+  {key:'russian',title:'Русские',desc:'Русские хиты и новинки',icon:'music',art:'folk'},
+  {key:'foreign',title:'Зарубежные',desc:'Мировая музыка сейчас',icon:'globe',art:'artist'},
+  {key:'charts',title:'Новые релизы',desc:'Свежие подтверждённые даты первыми',icon:'bolt',art:'hits'}
 ];
 function selectNav(key){
  document.querySelectorAll('#studio-navigation .showcase-nav-btn').forEach(btn=>{
@@ -91,7 +87,7 @@ function galleryHead(mode){
 function card(info,action,edit){
  const shell=make('div','showcase-curation-card showcase-center-card');
  const button=make('button','showcase-center-card-open');button.type='button';
- button.setAttribute('aria-label','Открыть '+info.title);
+ button.setAttribute('aria-label','Включить '+info.title);
  const art=make('span','showcase-card-art art-'+(info.art||'hits'));
  const image=info.cover&&typeof playlistCoverUrl==='function'?playlistCoverUrl(info.cover):'';
  if(image){const img=make('img','showcase-card-cover');img.src=image;img.alt='';art.appendChild(img);}
@@ -246,66 +242,13 @@ function render(mode='home'){
    grid.appendChild(empty);
   }
   gallery.appendChild(grid);
- }else if(mode==='regions'){
-  selectNav('collections');
-  const caucasus=typeof QUICK_MIXES!=='undefined'?QUICK_MIXES.caucasus:null;
-  const regions=caucasus?[{id:'all',label:'Весь Кавказ'},...caucasus.regions]:[];
-  regions.forEach(r=>grid.appendChild(card({
-    title:r.label,desc:r.id==='all'?'Все республики':'Поиск песен направления',
-    icon:r.id==='all'?'mountain':'music',art:'mountains'
-  },()=>region(r.id,r.label))));
-  gallery.appendChild(grid);
-  const sourcesHead=make('div','showcase-section-head');
-  sourcesHead.appendChild(make('span','showcase-kicker','ОФИЦИАЛЬНЫЕ КАТАЛОГИ'));
-  sourcesHead.appendChild(make('h2','','Новинки и архивы'));
-  sourcesHead.appendChild(make('p','showcase-center-empty',
-   'Прослушивание на сайтах правообладателей. Встроенный поиск музыки работает отдельно.'));
-  gallery.appendChild(sourcesHead);
-  const sourcesGrid=make('div','showcase-curation-list');
-  caucasusCatalogues.forEach(item=>sourcesGrid.appendChild(card({
-   title:item.title,desc:item.desc,icon:item.icon,art:'mountains'
-  },()=>openCaucasusCatalogue(item.url))));
-  gallery.appendChild(sourcesGrid);
-  const worldHead=make('div','showcase-section-head');
-  worldHead.appendChild(make('span','showcase-kicker','ДОПОЛНИТЕЛЬНЫЕ КАТАЛОГИ'));
-  worldHead.appendChild(make('h2','','Мировая музыка'));
-  gallery.appendChild(worldHead);
-  const worldGrid=make('div','showcase-curation-list');
-  worldCatalogues.forEach(item=>worldGrid.appendChild(card({
-   title:item.title,desc:item.desc,icon:item.icon,art:'artist'
-  },()=>openCaucasusCatalogue(item.url))));
-  gallery.appendChild(worldGrid);
-  const audiusGrid=make('div','showcase-curation-list');
-  officialAudiusCards.forEach(item=>audiusGrid.appendChild(card({
-   title:item.title,desc:item.desc,icon:item.icon,art:'hits'
-  },()=>browseAudius(item.mode,item.title,'regions'))));
-  gallery.appendChild(audiusGrid);
  }else{
-  selectNav(mode==='collections'?'collections':'wave');
-  (mode==='collections'?defs:defs.slice(0,6)).forEach(d=>{
-   grid.appendChild(card(d,()=>d.key==='caucasus'?render('regions'):
-    showMix(d.key,d.title,d.key==='charts'?'collections':'collections')));
-  });
+  selectNav('collections');
+  defs.forEach(d=>grid.appendChild(card(d,()=>showMix(d.key,d.title))));
   gallery.appendChild(grid);
-  const exploreHead=make('div','showcase-section-head');
-  exploreHead.appendChild(make('span','showcase-kicker','ОФИЦИАЛЬНОЕ АУДИО'));
-  exploreHead.appendChild(make('h2','','Новые песни и тренды'));
-  gallery.appendChild(exploreHead);
-  const audiusGrid=make('div','showcase-curation-list');
-  officialAudiusCards.forEach(item=>audiusGrid.appendChild(card({
-   title:item.title,desc:item.desc,icon:item.icon,art:'hits'
-  },()=>browseAudius(item.mode,item.title,mode))));
-  gallery.appendChild(audiusGrid);
-  const catalogHead=make('div','showcase-section-head');
-  catalogHead.appendChild(make('span','showcase-kicker','МИРОВЫЕ КАТАЛОГИ'));
-  catalogHead.appendChild(make('h2','','Больше музыки'));
-  gallery.appendChild(catalogHead);
-  const catalogGrid=make('div','showcase-curation-list');
-  worldCatalogues.forEach(item=>catalogGrid.appendChild(card({
-   title:item.title,desc:item.desc,icon:item.icon,art:'artist'
-  },()=>openCaucasusCatalogue(item.url))));
-  gallery.appendChild(catalogGrid);
+  if(mode==='collections')window.warmInstantMixSelections?.();
  }
+
  gallery.scrollTop=0;
 }
 window.studioCenterRender=render;

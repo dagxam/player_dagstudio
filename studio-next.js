@@ -119,33 +119,17 @@ const home=node('section','showcase-curations');home.id='studio-curations';
 const heading=node('div','showcase-section-head');heading.appendChild(node('div','showcase-kicker','ПОДОБРАНО ДЛЯ ТЕБЯ'));heading.appendChild(node('h2','', 'Для тебя'));
 home.appendChild(heading);
 const choices=[
- {key:'caucasus',title:'Кавказское настроение',caption:'Музыка наших гор',icon:'mountain',art:'mountains'},
- {key:'wave',title:'В стиле артистов',caption:'Похожие песни и новые имена',icon:'star',art:'artist'},
- {key:'road',title:'В дорогу',caption:'Музыка долгого пути',icon:'route',art:'road'},
- {key:'russian',title:'Народные мотивы',caption:'Тёплое, близкое звучание',icon:'guitar',art:'folk'},
- {key:'retro',title:'Чувства и мысли',caption:'Знакомые мелодии и истории',icon:'heart',art:'retro'},
- {key:'hits',title:'Лучшие композиции',caption:'Хиты и новые открытия',icon:'bolt',art:'hits'}
+  {key:'caucasus',title:'Кавказские',caption:'Новые песни Кавказа',icon:'mountain',art:'mountains'},
+  {key:'russian',title:'Русские',caption:'Хиты и новинки',icon:'music',art:'folk'},
+  {key:'foreign',title:'Зарубежные',caption:'Мировые новинки',icon:'globe',art:'artist'},
+  {key:'charts',title:'Новые релизы',caption:'Свежие даты первыми',icon:'bolt',art:'hits'}
 ];
 const grid=node('div','showcase-curation-list');
 function selectMix(key){
- // Caucasus first asks which republic to play; reveal its list only after selection.
- if(key==='caucasus'){
-  document.querySelector('#quick-mixes [data-mix="caucasus"]')?.click();
-  return;
- }
- showList(key==='wave'?'wave':'collections');
- if(key==='wave'){window.studioWaveScreen?.();return;}
- if(typeof startQuickMix==='function')startQuickMix(key);
+  // Category cards play directly; no region dialog or intermediate song list.
+  if(typeof window.studioCenterMix==='function')window.studioCenterMix(key);
+  else if(typeof startQuickMix==='function')startQuickMix(key);
 }
-// Covers the selections made inside the original mix and republic dialogs as well
-// as cards in the central collection. Both use the same playlists and audio engine.
-document.addEventListener('click',event=>{
- const source=event.target.closest?.('#quick-mixes .quick-mix-btn[data-mix]');
- if(source&&source.dataset.mix!=='caucasus')
-  showList(source.dataset.mix==='wave'?'wave':'collections');
- if(event.target.closest?.('#caucasus-regions .caucasus-region-btn'))
-  showList('collections');
-},true);
 choices.forEach((entry,i)=>{
  const card=node('button','showcase-curation-card');card.type='button';
  card.setAttribute('aria-label','Включить: '+entry.title);
