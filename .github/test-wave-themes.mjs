@@ -92,7 +92,8 @@ assert.equal(picked.artist,'Другой исполнитель',
 assert.equal(picked.title,'Новая русская песня',
     'Verified current-year Russian release wins against dated old version');
 assert.equal(picked._waveRadio,true);
-assert.ok(calls.some(q=>/русск/i.test(q)));
+assert.ok(calls.some(q=>/Мари Краймбрери|JONY|Zivert|Miyagi|Баста|Ислам Итляшев|Султан Лагучев/i.test(q)),
+    'Fast Wave lookup uses a concrete Russian or Caucasus performer before slow year text queries');
 ctx.radioRememberPlayed('wave',picked);
 assert.ok(ctx.waveRecentArtists().includes('другой исполнитель'));
 
