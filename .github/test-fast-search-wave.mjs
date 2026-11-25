@@ -24,6 +24,8 @@ assert.match(js,/Avoid loading an empty source before loading the selected one/)
 assert.match(engine,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(php,/\$fast_search = \(\$data\['mode'\] \?\? ''\) === 'fast';/);
 assert.match(php,/\$provider_timeout = \$fast_search \? 3/);
+assert.match(php,/CURLOPT_TIMEOUT_MS, 900/);
+assert.match(php,/\$fast_search && \$key === 'hitmoz'/);
 assert.match(php,/'hitmoz' => "https:\/\/ru\.hitmoz\.org\/search\?q="/);
 assert.match(php,/foreach \(\$urls as \$key => \$url\)/);
 const start=js.indexOf('function scheduleSearchEnrichment(');
