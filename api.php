@@ -639,6 +639,15 @@ elseif ($action === 'catalog_2026') {
     require __DIR__ . '/catalog-2026.php';
 }
 
+// Additional, verified playable search sources; kept separate from the
+// existing fast Muzofond request so a slow catalog cannot block first audio.
+elseif ($action === 'search_playable_catalog') {
+    require_once __DIR__ . '/catalog-sources.php';
+    $q = $data['query'] ?? '';
+    if (!is_string($q)) $q = '';
+    echo json_encode(dagSearchPlayableCatalogs($q), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
 // --- Поиск песен в дополнительных каталогах (ссылки на первоисточник). ---
 // This endpoint never advertises unverified catalog entries as playable audio.
 elseif ($action === 'search_catalog') {
