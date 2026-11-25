@@ -179,3 +179,217 @@ function dagCatalogSearch(string $rawQuery): array {
     return ['success' => true, 'data' => $data, 'sources' => $statuses,
         'note' => 'Catalog results link to original sources. Audio is not verified.'];
 }
+
+
+/**
+ * Dedicated playback integration. Unlike discovery-only metadata, every track
+ * contains an explicit HTTPS MP3 URL from an exact approved audio host and
+ * must pass a byte-Range response probe before being sent to the player.
+ */
+function dagPlayableAudioUrl(string $candidate, string $source): string {
+    $candidate = html_entity_decode(trim($candidate), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if (strlen($candidate) > 1100) return '';
+    $p = parse_url($candidate);
+    if (!is_array($p) || strtolower((string)($p['scheme'] ?? '')) !== 'https' ||
+        isset($p['port']) || isset($p['user']) || isset($p['pass']) || isset($p['fragment'])) return '';
+    $host = strtolower((string)($p['host'] ?? ''));
+    $allowed = match ($source) {
+        'muzrecord' => $host === 's.muzrecord.com' &&
+            str_starts_with((string)($p['path'] ?? ''), '/mp3/'),
+        'muzpace' => $host === 'cdn.muzpace.net' &&
+            str_starts_with((string)($p['path'] ?? ''), '/dll/'),
+        'hitmos' => (bool)preg_match('/^plc[0-9]{1,3}\.hitmos\.fm$/D', $host),
+        default => false
+    };
+    if (!$allowed || !preg_match('/\.mp3$/iD', (string)($p['path'] ?? ''))) return '';
+    return $candidate;
+}
+function dagPlayableMake(string $title, string $artist, string $url, string $source, array $words): ?array {
+    $title = dagCatalogNormalize($title);
+    $artist = dagCatalogNormalize($artist);
+    $url = dagPlayableAudioUrl($url, $source);
+    if (!$url || $title === '' || $artist === '' ||
+        mb_strlen($title, 'UTF-8') > 180 || mb_strlen($artist, 'UTF-8') > 160 ||
+        !dagCatalogMatches($title . ' ' . $artist, $words)) return null;
+    return [
+        'title' => $title, 'artist' => $artist, 'url' => $url,
+        'type' => 'audio', 'thumb' => 'images/cover.png',
+        'source' => '[' . strtoupper($source) . ']'
+    ];
+}
+function dagPlayableParseHtml(string $body, string $source, array $words): array {
+    if ($body === '' || strlen($body) > 850000) return [];
+    $result = [];
+    $seen = [];
+    if ($source === 'hitmos') {
+        // Hitmos embeds track metadata and "play" MP3 in a serialized React
+        // response, not in the visible song anchors. No download or bypass API.
+        $normal = str_replace('\\"', '"', $body);
+        preg_match_all('~\{"id":\d+,"title":"((?:\\\\.|[^"\\\\])*)","artist":"((?:\\\\.|[^"\\\\])*)","duration":\d+,"play":"(https://plc[0-9]+\.hitmos\.fm/[^"]+\.mp3)"~u',
+            $normal, $matches, PREG_SET_ORDER);
+        foreach ($matches as $m) {
+            $title = json_decode('"' . $m[1] . '"') ?: $m[1];
+            $artist = json_decode('"' . $m[2] . '"') ?: $m[2];
+            $row = dagPlayableMake((string)$title, (string)$artist, $m[3], $source, $words);
+            if (!$row || isset($seen[$row['url']])) continue;
+            $seen[$row['url']] = true;
+            $result[] = $row;
+            if (count($result) >= 14) break;
+        }
+        return $result;
+    }
+    if (!class_exists('DOMDocument')) return [];
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $dom = new DOMDocument();
+        if (!@$dom->loadHTML('<?xml encoding="utf-8" ?>' . $body,
+            LIBXML_NONET | LIBXML_NOWARNING | LIBXML_NOERROR)) return [];
+        $xp = new DOMXPath($dom);
+        // Both sites publish the audio URL and artist/title as data attributes.
+        $selector = $source === 'muzrecord' ? '//*[@data-track and @data-title and @data-artist]'
+            : '//*[@data-url and @data-title and @data-artist]';
+        foreach ($xp->query($selector) ?: [] as $element) {
+            $row = dagPlayableMake(
+                $element->getAttribute('data-title'),
+                $element->getAttribute('data-artist'),
+                $element->getAttribute($source === 'muzrecord' ? 'data-track' : 'data-url'),
+                $source, $words
+            );
+            if (!$row || isset($seen[$row['url']])) continue;
+            $seen[$row['url']] = true;
+            $result[] = $row;
+            if (count($result) >= 14) break;
+        }
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    return $result;
+}
+function dagVerifyPlayableRanges(array $candidates): array {
+    if (!function_exists('curl_multi_init') || !$candidates) return [];
+    $mh = curl_multi_init();
+    $handles = [];
+    foreach (array_slice($candidates, 0, 32) as $i => $candidate) {
+        $bytes = 0;
+        $ch = curl_init($candidate['url']);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => false, CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_TIMEOUT => 5,
+            CURLOPT_RANGE => '0-511', CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_USERAGENT => 'DAGSTUDIO-PLAYER-Range-Check/1.0',
+            CURLOPT_HTTPHEADER => ['Accept: audio/mpeg'],
+            CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$bytes): int {
+                $bytes += strlen($chunk);
+                return $bytes <= 1024 ? strlen($chunk) : 0;
+            }
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $handles[] = ['handle' => $ch, 'row' => $candidate, 'count' => &$bytes];
+        unset($bytes);
+    }
+    $active = 0;
+    do {
+        do { $state = curl_multi_exec($mh, $active); }
+        while ($state === CURLM_CALL_MULTI_PERFORM);
+        if ($active > 0 && curl_multi_select($mh, 0.12) === -1) usleep(20000);
+    } while ($active > 0 && $state === CURLM_OK);
+    $verified = [];
+    foreach ($handles as $entry) {
+        $ch = $entry['handle'];
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $type = strtolower((string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
+        $n = (int)$entry['count'];
+        if ($status === 206 && curl_errno($ch) === 0 && $n >= 128 &&
+            str_starts_with($type, 'audio/')) $verified[] = $entry['row'];
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+    return $verified;
+}
+function dagSearchPlayableCatalogs(string $rawQuery): array {
+    $query = dagCatalogNormalize($rawQuery);
+    if (mb_strlen($query, 'UTF-8') < 2 || mb_strlen($query, 'UTF-8') > 80) {
+        return ['success' => false, 'data' => [], 'sources' => [], 'error' => 'invalid_query'];
+    }
+    if (!function_exists('curl_multi_init'))
+        return ['success' => true, 'data' => [], 'sources' => [], 'error' => 'curl_unavailable'];
+    $words = preg_split('/\s+/u', mb_strtolower($query, 'UTF-8'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $encoded = rawurlencode($query);
+    $targets = [
+        'muzrecord' => 'https://muzrecord.com/index.php?do=search&subaction=search&story=' . $encoded,
+        'hitmos' => 'https://rus.hitmos.fm/search?q=' . $encoded,
+        'muzpace' => 'https://muzpace.net/playlists/kavkazskaya'
+    ];
+    $multi = curl_multi_init();
+    $requests = [];
+    foreach ($targets as $name => $url) {
+        $buf = '';
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => false, CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_TIMEOUT => 8,
+            CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_USERAGENT => 'DAGSTUDIO-PLAYER-SourceAvailabilityProbe/1.0',
+            CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml', 'Accept-Language: ru-RU,ru;q=0.9'],
+            CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$buf): int {
+                if (strlen($buf) + strlen($chunk) > 850000) return 0;
+                $buf .= $chunk;
+                return strlen($chunk);
+            }
+        ]);
+        curl_multi_add_handle($multi, $ch);
+        $requests[$name] = ['handle' => $ch, 'body' => &$buf];
+        unset($buf);
+    }
+    $active = 0;
+    do {
+        do { $state = curl_multi_exec($multi, $active); }
+        while ($state === CURLM_CALL_MULTI_PERFORM);
+        if ($active > 0 && curl_multi_select($multi, 0.15) === -1) usleep(20000);
+    } while ($active > 0 && $state === CURLM_OK);
+    $statuses = [];
+    $candidates = [];
+    foreach ($requests as $name => $entry) {
+        $ch = $entry['handle'];
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $valid = $status === 200 && curl_errno($ch) === 0;
+        $found = $valid ? dagPlayableParseHtml((string)$entry['body'], $name, $words) : [];
+        $statuses[$name] = [
+            'http' => $status,
+            'candidates' => count($found), 'verified' => 0
+        ];
+        // Limit work, especially when Hitmos returns hundreds of matches.
+        $candidates = array_merge($candidates, array_slice($found, 0, 10));
+        curl_multi_remove_handle($multi, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($multi);
+    // Avoid duplicate URLs if HTML / React data repeat the same candidate.
+    $urls = [];
+    $unique = [];
+    foreach ($candidates as $entry) {
+        if (isset($urls[$entry['url']])) continue;
+        $urls[$entry['url']] = true;
+        $unique[] = $entry;
+    }
+    $verified = dagVerifyPlayableRanges($unique);
+    $bySource = [];
+    foreach ($verified as $entry) {
+        $key = strtolower(trim((string)$entry['source'], '[]'));
+        $statuses[$key]['verified']++;
+        $bySource[$key][] = $entry;
+    }
+    $data = [];
+    for ($i = 0; $i < 10 && count($data) < 30; $i++) {
+        foreach (array_keys($targets) as $key) {
+            if (isset($bySource[$key][$i])) $data[] = $bySource[$key][$i];
+        }
+    }
+    return ['success' => true, 'data' => $data,
+        'sources' => $statuses, 'audio_verified' => true];
+}
