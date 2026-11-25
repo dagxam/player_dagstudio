@@ -42,8 +42,8 @@ jobs:
           node .github/test-listen-cache.mjs
           node .github/test-offline-batch.mjs
           node .github/test-source-switch.mjs
+          node .github/test-two-search-sources.mjs
           node .github/test-quick-mixes.mjs
-          node .github/test-hitmos-provider.mjs
           node .github/test-native-media.mjs
           node .github/test-ota-update.mjs
       - name: Native web bundle
