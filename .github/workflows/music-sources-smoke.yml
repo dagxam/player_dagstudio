@@ -31,45 +31,6 @@ jobs:
           node --check script.js
           node .github/test-two-search-sources.mjs
 
-      - name: Probe candidate Hitmos site and search markup
-        run: |
-          python - <<'PY'
-          import urllib.request,urllib.error,urllib.parse,re
-          q=urllib.parse.quote('Miyagi')
-          tests=[
-              'https://ru.hitmos.site/',
-              'https://ru.hitmos.site/search?q='+q,
-              'https://ru.hitmos.site/search/'+q,
-              'https://ru.hitmos.site/?do=search&subaction=search&story='+q,
-              'https://ru.hitmos.site/index.php?do=search&subaction=search&story='+q,
-          ]
-          for url in tests:
-              req=urllib.request.Request(url,headers={
-                  'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-                  'Accept':'text/html,application/xhtml+xml',
-                  'Accept-Language':'ru-RU,ru;q=0.9'})
-              try:
-                  with urllib.request.urlopen(req,timeout=12) as response:
-                      body=response.read(150000).decode('utf-8','replace')
-                      clean=re.sub(r'<script\\b[^>]*>[\\s\\S]*?</script>','',body,flags=re.I)
-                      markers={name:len(re.findall(pattern,clean,re.I)) for name,pattern in {
-                          'audio_tags':r'<audio\\b',
-                          'mp3_links':r'\\.mp3(?:\\?|[\\\"\\x27])',
-                          'track_cards':r'class=[\\\"\\x27][^\\\"\\x27]*(?:track|song|music)[^\\\"\\x27]*',
-                          'download_links':r'<a\\b[^>]*(?:download|play)',
-                          'html_forms':r'<form\\b',
-                          'search_mentions':r'(?:Miyagi|Мияги)',
-                      }.items()}
-                      print('HITMOS_CANDIDATE',url,'http',response.status,'final',response.url,
-                            'bytes',len(body),'title',re.findall(r'<title[^>]*>(.*?)</title>',body,re.I|re.S)[:1],
-                            'form_actions',re.findall(r'<form[^>]*action=[\\\"\\x27]([^\\\"\\x27]+)',clean,re.I)[:3],
-                            'markers',markers)
-              except urllib.error.HTTPError as err:
-                  print('HITMOS_CANDIDATE_HTTP',url,err.code,'location',err.headers.get('Location',''))
-              except Exception as err:
-                  print('HITMOS_CANDIDATE_ERROR',url,type(err).__name__,str(err)[:140])
-          PY
-
       - name: Check redirect targets of the two music sites
         run: |
           python - <<'PY'
