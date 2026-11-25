@@ -1,0 +1,189 @@
+/* DAGSTUDIO PLAYER — refined unified search results.
+   Only the search view is changed; playlists, queues and playback UI keep their layout. */
+.studio-showcase .playlist-area .track-row.dag-search-card{
+    display:grid!important;
+    grid-template-columns:52px minmax(0,1fr) auto;
+    align-items:center!important;
+    gap:11px!important;
+    min-height:76px;
+    margin:5px 0 8px!important;
+    padding:10px 11px!important;
+    border:1px solid rgba(255,255,255,.09)!important;
+    border-radius:16px!important;
+    background:linear-gradient(120deg,rgba(255,255,255,.035),rgba(255,255,255,.012))!important;
+    box-shadow:0 5px 18px rgba(0,0,0,.12);
+    transform:none!important;
+    cursor:pointer;
+    transition:background .16s ease,border-color .16s ease,box-shadow .16s ease!important;
+    min-width:0;
+}
+.studio-showcase .playlist-area .track-row.dag-search-card:hover,
+.studio-showcase .playlist-area .track-row.dag-search-card:focus-visible{
+    background:linear-gradient(120deg,rgba(var(--theme-rgb,192,108,66),.16),rgba(255,255,255,.025))!important;
+    border-color:rgba(var(--theme-rgb,192,108,66),.45)!important;
+    box-shadow:0 8px 20px rgba(0,0,0,.2)!important;
+    outline:none;
+}
+.studio-showcase .playlist-area .track-row.dag-search-card.active{
+    border-color:rgba(var(--theme-rgb,192,108,66),.7)!important;
+    background:linear-gradient(100deg,rgba(var(--theme-rgb,192,108,66),.23),rgba(var(--theme-rgb,192,108,66),.035))!important;
+    box-shadow:inset 3px 0 0 var(--showcase-accent,#f0a36a),0 5px 18px rgba(0,0,0,.17)!important;
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-artwork{
+    width:52px;
+    height:52px;
+    flex:0 0 52px;
+    display:grid;
+    place-items:center;
+    position:relative;
+    overflow:hidden;
+    border-radius:13px;
+    border:1px solid rgba(var(--theme-rgb,192,108,66),.3);
+    background:radial-gradient(circle at 33% 18%,rgba(var(--theme-rgb,192,108,66),.5),transparent 64%),linear-gradient(140deg,#302020,#101114 85%);
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-artwork img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    display:block;
+    object-fit:cover;
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-note{
+    color:rgba(255,224,203,.84);
+    font-size:1.2rem;
+    z-index:1;
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-artwork.has-artwork .dag-track-note{display:none}
+.studio-showcase .playlist-area .dag-search-card .dag-track-play-glyph{
+    display:grid;
+    position:absolute;
+    inset:0;
+    place-items:center;
+    font-size:.9rem;
+    color:#fff;
+    background:rgba(0,0,0,.52);
+    opacity:0;
+    z-index:2;
+    transition:opacity .16s ease;
+}
+.studio-showcase .playlist-area .dag-search-card:is(:hover,:focus-visible) .dag-track-play-glyph{opacity:1}
+.studio-showcase .playlist-area .dag-search-card .track-left{
+    display:flex!important;
+    flex-direction:column!important;
+    min-width:0;
+    gap:5px!important;
+    justify-content:center;
+    overflow:hidden;
+}
+.studio-showcase .playlist-area .dag-search-card .t-title{
+    display:block;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:#fff4ec;
+    font:750 .91rem/1.35 Inter,Arial,sans-serif;
+    letter-spacing:-.015em;
+}
+.studio-showcase .playlist-area .dag-search-card .t-artist{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:#c1b5b3;
+    font:500 .76rem/1.3 Inter,Arial,sans-serif;
+}
+.studio-showcase .playlist-area .dag-search-card.active .t-title{color:#ffe0ba}
+.studio-showcase .playlist-area .dag-search-card .dag-track-meta{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    flex-wrap:wrap;
+    font:650 .63rem/1.3 Inter,Arial,sans-serif;
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-meta .source-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    margin:0!important;
+    padding:3px 7px!important;
+    font:700 .62rem/1.2 Inter,Arial,sans-serif;
+    letter-spacing:.01em;
+    border:1px solid rgba(var(--theme-rgb,192,108,66),.38)!important;
+    border-radius:6px!important;
+    background:rgba(var(--theme-rgb,192,108,66),.13)!important;
+    color:#ffd3ad!important;
+    white-space:nowrap;
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-meta a{
+    display:inline-flex;
+    align-items:center;
+    color:#c9c2c1;
+    text-decoration:none;
+    font-size:.66rem;
+}
+.studio-showcase .playlist-area .dag-search-card .dag-track-meta a:hover{
+    color:#ffdcbd;
+    text-decoration:underline;
+}
+.studio-showcase .playlist-area .dag-search-card .track-actions{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    flex-wrap:nowrap;
+    gap:3px!important;
+    min-width:0;
+    max-width:100%;
+}
+.studio-showcase .playlist-area .dag-search-card .track-actions .btn-list-action{
+    display:grid!important;
+    place-items:center;
+    flex:0 0 31px;
+    width:31px!important;
+    height:31px!important;
+    min-width:31px!important;
+    padding:0!important;
+    border:1px solid transparent!important;
+    border-radius:9px!important;
+    color:#c2b3af;
+    background:transparent!important;
+    font-size:.88rem!important;
+}
+.studio-showcase .playlist-area .dag-search-card .track-actions .btn-list-action:hover{
+    background:rgba(var(--theme-rgb,192,108,66),.17)!important;
+    border-color:rgba(var(--theme-rgb,192,108,66),.28)!important;
+    color:#ffd5ae!important;
+}
+.studio-showcase .playlist-area .dag-search-card .track-actions .favorite-heart.liked{
+    color:#ff8b93!important;
+}
+@media(max-width:1000px){
+    .studio-showcase .playlist-area .track-row.dag-search-card{
+        grid-template-columns:46px minmax(0,1fr) auto;
+        gap:8px!important;
+        padding:9px!important;
+    }
+    .studio-showcase .playlist-area .dag-search-card .dag-track-artwork{
+        width:46px;
+        height:46px;
+    }
+}
+@media(max-width:360px){
+    .studio-showcase .playlist-area .track-row.dag-search-card{
+        grid-template-columns:44px minmax(0,1fr);
+        row-gap:2px!important;
+    }
+    .studio-showcase .playlist-area .dag-search-card .dag-track-artwork{
+        width:44px;
+        height:44px;
+        grid-row:span 2;
+    }
+    .studio-showcase .playlist-area .dag-search-card .track-actions{
+        grid-column:2;
+        justify-content:flex-start!important;
+    }
+}
+@media(prefers-reduced-motion:reduce){
+    .studio-showcase .playlist-area .track-row.dag-search-card,
+    .studio-showcase .playlist-area .dag-search-card .dag-track-play-glyph{transition:none!important}
+}
