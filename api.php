@@ -639,6 +639,15 @@ elseif ($action === 'catalog_2026') {
     require __DIR__ . '/catalog-2026.php';
 }
 
+// --- Поиск песен в дополнительных каталогах (ссылки на первоисточник). ---
+// This endpoint never advertises unverified catalog entries as playable audio.
+elseif ($action === 'search_catalog') {
+    require_once __DIR__ . '/catalog-sources.php';
+    $q = $data['query'] ?? '';
+    if (!is_string($q)) $q = '';
+    echo json_encode(dagCatalogSearch($q), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
 // --- ГЛОБАЛЬНЫЙ ПОИСК ПО ДОСТУПНЫМ ИСТОЧНИКАМ ---
 elseif ($action === 'search_global') {
     $query_raw = isset($data['query']) ? $data['query'] : ($_POST['query'] ?? '');
