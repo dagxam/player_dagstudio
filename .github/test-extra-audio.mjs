@@ -15,7 +15,7 @@ assert.match(js,/track\.source !== '\[ARCHIVE\]'/);
 assert.match(source,/creativecommons\\\.org/);
 assert.match(source,/CURLOPT_FOLLOWLOCATION=>false/);
 assert.match(proxy,/dagArchiveRedirectAllowed/);
-assert.match(proxy,/\\$source === 'archive'/);
+assert.match(proxy,/\$source === 'archive'/);
 const php=spawnSync('php',['.github/test-extra-audio.php'],{encoding:'utf8'});
 if(php.error?.code !== 'ENOENT'){
  assert.equal(php.status,0,php.stderr||php.stdout);

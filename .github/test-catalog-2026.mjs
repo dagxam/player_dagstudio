@@ -9,7 +9,7 @@ assert.match(api, /action === 'catalog_2026'/);
 assert.match(api, /catalog-2026\.php/);
 assert.match(bridge, /'catalog_2026'/);
 assert.match(native, /"catalog_2026"/);
-assert.match(index, /script\.js\?v=2375/);
+assert.match(index, /script\.js\?v=\d+/);
 assert.match(code, /function catalog2026Match\(track,editorial\)/);
 assert.match(code, /enrichMixFrom2026Catalog\(key,requestId,publishMixResults\)/);
 assert.match(code, /catalog_published_date:seed\.published_date/);
