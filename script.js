@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2373';
+const WEB_BUILD_LABEL = '2374';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2390', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2391', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -1237,9 +1237,8 @@ function loadEqualizerState() {
 loadEqualizerState();
 
 function saveEqualizerState() {
-    try {
-        localStorage.setItem(EQ_STORAGE_KEY, JSON.stringify(eqState));
-    } catch (error) {}
+    try { localStorage.setItem(EQ_STORAGE_KEY, JSON.stringify(eqState)); } catch (error) {}
+    window.DAG_PROFILE_SYNC?.change('equalizer',eqState);
 }
 
 function applyEqualizerState() {
@@ -1428,6 +1427,7 @@ window.openEqualizer = async function() {
 window.toggleSoftLeveling = async function(enabled) {
     if(NATIVE_MEDIA3_ACTIVE)return;
     localStorage.setItem(EQ_LIMITER_KEY,enabled?'on':'off');
+    window.DAG_PROFILE_SYNC?.change('soft_leveling',!!enabled);
     await ensureEqualizerGraph();
     applyEqualizerState();
 };
@@ -1590,6 +1590,7 @@ function offlineBatchProgress(url,failed=false){
 }
 function toggleTrafficSaver(value){
     localStorage.setItem(STREAM_ECONOMY_KEY,value?'on':'off');
+    window.DAG_PROFILE_SYNC?.change('traffic_saver',!!value);
     const input=document.getElementById('traffic-saver-switch');
     if(input)input.checked=!!value;
 }
@@ -2961,6 +2962,7 @@ async function checkAuth() {
 
     if (navigator.onLine === false && lastKnownUser) {
         currentUser = lastKnownUser;
+        window.DAG_PROFILE_SYNC?.start(currentUser).catch(()=>{});
         return;
     }
 
@@ -2973,6 +2975,7 @@ async function checkAuth() {
             localStorage.setItem(LAST_NATIVE_USER_KEY, currentUser);
         }
         if (res.theme) setTheme(res.theme, false);
+        window.DAG_PROFILE_SYNC?.start(currentUser).catch(()=>{});
         await loadUserData();
         restoreNativePlaybackSnapshot();
         return;
@@ -2986,6 +2989,7 @@ async function checkAuth() {
     }
 
     currentUser = null;
+    window.DAG_PROFILE_SYNC?.signOut();
     localStorage.removeItem(LAST_DEVICE_USER_KEY);
     if (IS_NATIVE_APP) {
         localStorage.removeItem(NATIVE_SESSION_KEY);
@@ -3047,9 +3051,12 @@ window.manualSyncPlaylists = async function() {
     const button = document.getElementById('playlist-sync-btn');
     if (button) button.disabled = true;
     try {
-        const ok = await loadUserData(true);
-        if (!ok && navigator.onLine !== false) {
-            showNotification('Сервер недоступен. Локальные плейлисты сохранены, повторим синхронизацию.');
+        const [ok, profileOk] = await Promise.all([
+            loadUserData(true),
+            window.DAG_PROFILE_SYNC?.refresh(true) ?? Promise.resolve(false)
+        ]);
+        if ((!ok || !profileOk) && navigator.onLine !== false) {
+            showNotification('Не все данные удалось синхронизировать. Локальные копии сохранены.');
         }
     } finally { if (button) button.disabled = false; }
 };
@@ -5033,10 +5040,12 @@ function tasteLoad() {
 function tasteSave(state) {
     const trim=(dict,limit)=>Object.fromEntries(Object.entries(dict||{})
         .sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,limit));
-    try {localStorage.setItem(TASTE_STORAGE_PREFIX+tasteOwnerKey(),JSON.stringify({
+    const summary={
         tracks:trim(state.tracks,350),artists:trim(state.artists,100),
         regions:trim(state.regions,30),genres:trim(state.genres,25)
-    }));}catch(e){}
+    };
+    try {localStorage.setItem(TASTE_STORAGE_PREFIX+tasteOwnerKey(),JSON.stringify(summary));}catch(e){}
+    window.DAG_PROFILE_SYNC?.change('taste',summary);
 }
 function tasteRecord(kind,track) {
     if(!track?.artist||!track?.title||!['listen','finish','skip','like','dislike'].includes(kind))return;
@@ -5490,6 +5499,7 @@ function setPlaylistExcludedFromLikes(id,excluded) {
     if(excluded)data[String(id)]=true;
     else delete data[String(id)];
     try{localStorage.setItem(LIKES_EXCLUSIONS_PREFIX+tasteOwnerKey(),JSON.stringify(data));}catch(e){}
+    window.DAG_PROFILE_SYNC?.change('likes_exclusions',data);
     window.dispatchEvent(new CustomEvent('dag-library-changed'));
 }
 // "Мне нравится" is the explicit, reversible heart collection.
@@ -5551,6 +5561,7 @@ function tasteCandidateScore(track,seedArtists=[]) {
 function tasteReset() {
     showConfirm('Очистить локальную историю предпочтений на этом устройстве?',()=>{
         localStorage.removeItem(TASTE_STORAGE_PREFIX+tasteOwnerKey());
+        window.DAG_PROFILE_SYNC?.change('taste',{tracks:{},artists:{},regions:{},genres:{}});
         const hint=document.getElementById('personal-radio-hint');
         if(hint)hint.textContent='Предпочтения сброшены';
     });
@@ -5646,6 +5657,7 @@ function renderSmartRadioState() {
 function toggleSmartRadio() {
     smartRadioEnabled = !smartRadioEnabled;
     localStorage.setItem(SMART_RADIO_KEY,smartRadioEnabled?'on':'off');
+    window.DAG_PROFILE_SYNC?.change('smart_radio',smartRadioEnabled);
     smartRadioRequestSerial++;
     smartRadioPrefetch = null;
     renderSmartRadioState();
@@ -6221,8 +6233,10 @@ function closeSearchHistory() {
     searchHistoryButton?.setAttribute('aria-expanded', 'false');
 }
 function writeSearchHistory(history) {
-    try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history.slice(0, SEARCH_HISTORY_MAX))); }
+    const values=history.slice(0,SEARCH_HISTORY_MAX);
+    try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(values)); }
     catch (_) { /* Private browsing and storage quota must never block search. */ }
+    window.DAG_PROFILE_SYNC?.change('search_history',values);
 }
 function saveSearchQuery(query) {
     const text = String(query || '').trim().replace(/\s+/g, ' ');
@@ -6250,8 +6264,7 @@ function showSearchHistory(force = false) {
     clear.setAttribute('aria-label', 'Очистить всю историю поиска');
     clear.addEventListener('click', event => {
         event.stopPropagation();
-        try { localStorage.removeItem(SEARCH_HISTORY_KEY); }
-        catch (_) { writeSearchHistory([]); }
+        writeSearchHistory([]);
         closeSearchHistory();
         mainSearchInput.focus();
     });
@@ -7862,6 +7875,7 @@ async function handleAuth() {
             closeModal('menu-modal');
 
             if (res.theme) setTheme(res.theme, false);
+            window.DAG_PROFILE_SYNC?.start(currentUser).catch(()=>{});
             await loadUserData();
             showNotification(action === 'register'
                 ? 'Аккаунт создан. Вы вошли в DAGSTUDIO PLAYER.'
@@ -7880,6 +7894,7 @@ async function handleAuth() {
 
 async function handleLogout() {
     await api('logout');
+    window.DAG_PROFILE_SYNC?.signOut();
     currentUser = null;
     localStorage.removeItem(LAST_DEVICE_USER_KEY);
     if (IS_NATIVE_APP) {
@@ -8032,6 +8047,7 @@ function setRainbowSpeed(value){
     const seconds=Number(value);
     if(!Number.isFinite(seconds)||seconds<4||seconds>60)return;
     localStorage.setItem(RAINBOW_SPEED_KEY,String(seconds));
+    window.DAG_PROFILE_SYNC?.change('rainbow_speed',seconds);
     syncRainbowSpeedControl();
     if(localStorage.getItem('dag_theme')==='rainbow')applyRainbowFrame();
 }
