@@ -6719,7 +6719,9 @@ function scheduleSearchEnrichment(query, requestId) {
                 seen.add(url);
                 return true;
             });
-            searchPlaylistCache = mergePlayableCatalogRows(original.concat(extra),query);
+            searchPlaylistCache = typeof mergePlayableCatalogRows === 'function'
+                ? mergePlayableCatalogRows(original.concat(extra),query)
+                : original.concat(extra);
             hasMoreSearchResults = result.data.length >= 15;
             if(currentTab === 'search') {
                 playlist = searchPlaylistCache;
