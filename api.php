@@ -74,6 +74,7 @@ if (!file_exists('db.php')) {
 }
 require 'db.php';
 require_once __DIR__ . '/hitmos-config.php';
+require_once __DIR__ . '/partner-config.php';
 require_once __DIR__ . '/openverse-provider.php';
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
@@ -731,6 +732,15 @@ elseif ($action === 'search_global') {
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
+    // Optional partner integration after explicit operator permission.
+    $partner = dagPartnerConfig();
+    if ($partner['enabled']) {
+        $urls['partner'] = $partner['url'].'?'.http_build_query([
+            'q'=>trim(strip_tags((string)$query_raw)),'page'=>$page,
+            'year'=>2026
+        ],'', '&',PHP_QUERY_RFC3986);
+    }
+
     $multi = curl_multi_init();
     $channels = [];
 
@@ -738,7 +748,8 @@ elseif ($action === 'search_global') {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         // Do not redirect API credentials to another host.
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $key !== 'jamendo' && $key !== 'hitmos');
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION,
+            !in_array($key,['jamendo','hitmos','partner'],true));
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
@@ -814,6 +825,10 @@ elseif ($action === 'search_global') {
     } else {
         $source_status['jamendo']['configured'] = true;
     }
+    if (!$partner['enabled'])
+        $source_status['partner'] = ['ok'=>false,'http'=>0,'error'=>'',
+            'configured'=>false,'needs_permission'=>true];
+    else $source_status['partner']['configured'] = true;
     // Use the public documented discovery provider when the primary API
     // returned an error or an empty/unparseable JSON response.
     $mainAudius = json_decode((string)($responses['audius'] ?? ''), true);
@@ -945,6 +960,14 @@ elseif ($action === 'search_global') {
             $source_status['hitmos']['ok'] = false;
             $source_status['hitmos']['error'] = 'Invalid authorized JSON response';
         }
+    }
+
+    // Authorized JSON adapter. A news article cannot masquerade as audio.
+    if ($partner['enabled'] && !empty($responses['partner'])) {
+        $partnerTracks = dagPartnerParse((string)$responses['partner'],$partner['audio_hosts']);
+        foreach ($partnerTracks as $track) $raw_results[] = $track;
+        if (!$partnerTracks)
+            $source_status['partner']['error'] = 'No permitted playable tracks';
     }
 
     // Парсер: Hitmoz
@@ -1219,6 +1242,7 @@ elseif ($action === 'search_global') {
     // --- ФИЛЬТРАЦИЯ И ДЕДУПЛИКАЦИЯ ПО КАЖДОМУ ИСТОЧНИКУ ---
     // Один и тот же трек на разных сайтах НЕ удаляется.
     $by_source = [
+        '[PARTNER]' => [],
         '[AUDIUS]' => [],
         '[VK]' => [],
         '[HITMOZ]' => [],
@@ -1283,7 +1307,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[AUDIUS]', '[JAMENDO]', '[OPENVERSE]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[PARTNER]', '[AUDIUS]', '[JAMENDO]', '[OPENVERSE]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -1310,7 +1334,7 @@ elseif ($action === 'search_global') {
     // Keep the old ok/http fields for compatibility; add candidate diagnostics
     // without claiming that the audio stream was verified.
     $provider_source_keys = [
-        'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
+        'partner' => '[PARTNER]', 'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
         'hitmoz' => '[HITMOZ]', 'hitmos' => '[HITMOS]', 'muzo' => '[MUZOFOND]',
         'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]',
         'jamendo' => '[JAMENDO]', 'openverse' => '[OPENVERSE]'

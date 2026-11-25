@@ -30,6 +30,7 @@ if (!in_array($requestMethod, ['GET', 'HEAD'], true)) {
 }
 $isHead = $requestMethod === 'HEAD';
 require_once __DIR__ . '/hitmos-config.php';
+require_once __DIR__ . '/partner-config.php';
 
 $url = trim($_GET['url'] ?? '');
 $source = strtolower(trim($_GET['source'] ?? ''));
@@ -74,6 +75,11 @@ if (!$isAllowed && $source === 'openverse' && $scheme === 'https' &&
 }
 if (!$isAllowed && $source === 'hitmos' && $scheme === 'https' &&
     in_array($host, dagHitmosAudioHosts(), true)) $isAllowed = true;
+$partner = dagPartnerConfig();
+if (!$isAllowed && $source === 'partner' && $partner['enabled'] &&
+    $scheme === 'https' && !isset($parts['user']) && !isset($parts['pass']) &&
+    !isset($parts['port']) && in_array($host, $partner['audio_hosts'], true))
+    $isAllowed = true;
 if (!$isAllowed) {
     http_response_code(403);
     exit;
