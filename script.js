@@ -2832,7 +2832,7 @@ async function api(action, data = {}) {
                 // Android primary HTTPS bridge uses verified-IP DNS and avoids
                 // the old 3 x sequential timeout chain for search/profile.
                 connectTimeout: action === 'search_global' ? 8000 : 8000,
-                readTimeout: action === 'search_global' ? 35000 : (isWeakConnection() ? 25000 : 16000)
+                readTimeout: ['search_global','search_playable_catalog'].includes(action) ? 35000 : (isWeakConnection() ? 25000 : 16000)
             });
 
             if (!response || response.status < 200 || response.status >= 300) {
@@ -2846,7 +2846,7 @@ async function api(action, data = {}) {
             const controller = new AbortController();
             const timeout = setTimeout(function() {
                 controller.abort();
-            }, action === 'search_global' ? 45000 : (isWeakConnection() ? 30000 : 15000));
+            }, ['search_global','search_playable_catalog'].includes(action) ? 45000 : (isWeakConnection() ? 30000 : 15000));
 
             try {
                 const res = await fetch(appServerUrl('/api.php?t=' + Date.now()), {
