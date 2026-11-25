@@ -323,6 +323,19 @@ jobs:
                       return (label,'AUDIO_HEAD_OK' if r.status in (200,206) and mime.startswith('audio/') else 'BAD_RESPONSE',
                           r.status,mime[:50])
               except Exception as err:return (label,'AUDIO_HEAD_FAILED',str(err)[:120])
+          # Diagnose upstream MIME/redirect without downloading full files.
+          for label in ['[COMMONS]','[ARCHIVE]']:
+              track=groups.get(label)
+              if not track:continue
+              try:
+                  request=urllib.request.Request(track['url'],method='HEAD',
+                      headers={'User-Agent':'DAGSTUDIO-PLAYER-source-health/1.0'})
+                  with urllib.request.urlopen(request,timeout=12) as upstream:
+                      print('OPEN_AUDIO_UPSTREAM',label,upstream.status,
+                            urllib.parse.urlsplit(upstream.url).hostname,
+                            upstream.headers.get('content-type','')[:80])
+              except Exception as error:
+                  print('OPEN_AUDIO_UPSTREAM_FAILED',label,type(error).__name__,str(error)[:100])
           with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
               statuses=list(ex.map(probe,labels))
           for item in statuses:print('LIVE_SOURCE_AUDIO',*item)
