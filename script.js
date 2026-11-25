@@ -6364,130 +6364,76 @@ searchClearButton?.addEventListener('click', () => {
 mainSearchInput?.addEventListener('input', syncSearchClearButton);
 syncSearchClearButton();
 
-// Additional catalogs are displayed in the SAME search results list.
-// Only existing verified playable entries reach the playback queue.
-let catalogSearchTimer=null;
-let catalogSearchSerial=0;
-let catalogSearchRows=[];
-const catalogSearchPanel=document.createElement('section');
-catalogSearchPanel.id='dag-catalog-search-results';
-catalogSearchPanel.className='dag-catalog-search-results';
-catalogSearchPanel.setAttribute('aria-label','Результаты из дополнительных музыкальных каталогов');
-const catalogHosts=Object.freeze({
-    MUZRECORD:'muzrecord.com',HITMOS:'rus.hitmos.fm',
-    MUZPACE:'muzpace.net',ZVUKM:'zvuk-m.com',KAVKAZ:'kavkazmusic.tv'
-});
-const catalogNames=Object.freeze({
-    MUZRECORD:'MuzRecord',HITMOS:'Hitmos.fm',MUZPACE:'MuzPace',
-    ZVUKM:'Звук-М',KAVKAZ:'Kavkaz Music'
-});
-(function installCatalogSearchStyles(){
-    if(document.getElementById('dag-catalog-search-styles'))return;
-    const style=document.createElement('style');
-    style.id='dag-catalog-search-styles';
-    style.textContent=[
-        '.dag-catalog-search-results{padding:15px 12px 22px;margin:14px 3px 0;border-top:1px solid rgba(220,195,171,.22);color:inherit}',
-        '.dag-catalog-title{font-weight:800;letter-spacing:.015em;font-size:.96rem;margin-bottom:5px}',
-        '.dag-catalog-explain{font-size:.76rem;line-height:1.5;opacity:.72;margin-bottom:13px}',
-        '.dag-catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,225px),1fr));gap:9px}',
-        '.dag-catalog-link{display:flex;flex-direction:column;gap:7px;padding:13px;border:1px solid rgba(200,172,144,.2);border-radius:13px;background:rgba(160,140,125,.07);color:inherit!important;text-decoration:none!important;min-width:0;transition:border-color .15s,background .15s}',
-        '.dag-catalog-link:hover,.dag-catalog-link:focus-visible{border-color:#c99870;background:rgba(201,152,112,.13);outline-offset:2px}',
-        '.dag-catalog-song{font-size:.89rem;line-height:1.35;font-weight:700;overflow-wrap:anywhere}',
-        '.dag-catalog-source{font-size:.72rem;opacity:.72}',
-        '.dag-catalog-action{color:#ddb087;font-size:.77rem;font-weight:700}',
-        '@media(max-width:600px){.dag-catalog-grid{grid-template-columns:1fr}.dag-catalog-search-results{padding:12px 6px 18px}}'
-    ].join('');
-    document.head.appendChild(style);
-})();
-function dagCatalogExternalUrl(row){
-    try {
-        const url=new URL(String(row?.url||''));
-        const domain=catalogHosts[String(row?.source||'')];
-        return domain&&url.protocol==='https:'&&url.hostname===domain&&
-            !url.username&&!url.password&&!url.port?url.href:'';
-    }catch(_){return '';}
+// Supplementary verified MP3 sources use the SAME playable search list.
+let playableCatalogSearchTimer=null;
+let playableCatalogSearchSerial=0;
+let playableCatalogRows=[];
+let playableCatalogQuery='';
+const playableCatalogSources=new Set(['[MUZRECORD]','[HITMOS]','[MUZPACE]']);
+function mergePlayableCatalogRows(rows,query){
+    const base=Array.isArray(rows)?rows.slice():[];
+    if(playableCatalogQuery!==query||!playableCatalogRows.length)return base;
+    const seen=new Set(base.map(t=>canonicalTrackUrl(t)).filter(Boolean));
+    for(const track of playableCatalogRows){
+        if(!track?.url||!playableCatalogSources.has(String(track.source)))continue;
+        const key=canonicalTrackUrl(track);
+        if(!key||seen.has(key))continue;
+        seen.add(key);
+        base.push(track);
+    }
+    return base;
 }
-function renderCatalogSearchRows(){
-    if(currentTab!=='search'||!catalogSearchRows.length){
-        catalogSearchPanel.remove();return;
-    }
-    const valid=catalogSearchRows.filter(item=>dagCatalogExternalUrl(item)&&item.playable===false);
-    if(!valid.length){catalogSearchPanel.remove();return;}
-    const header=document.createElement('div');
-    header.className='dag-catalog-title';
-    header.textContent='Также найдено в музыкальных каталогах · '+valid.length;
-    const desc=document.createElement('div');
-    desc.className='dag-catalog-explain';
-    desc.textContent='Ссылки на песни и публикации. Их воспроизведение внутри DAGSTUDIO ещё не подтверждено.';
-    const grid=document.createElement('div');
-    grid.className='dag-catalog-grid';
-    for(const item of valid.slice(0,40)){
-        const link=document.createElement('a');
-        link.className='dag-catalog-link';
-        link.href=dagCatalogExternalUrl(item);
-        link.target='_blank';
-        link.rel='noopener noreferrer';
-        link.setAttribute('aria-label','Открыть '+(catalogNames[item.source]||'сайт')+': '+item.title);
-        const title=document.createElement('span');
-        title.className='dag-catalog-song';
-        title.textContent=String(item.title||'Трек').slice(0,180);
-        const source=document.createElement('span');
-        source.className='dag-catalog-source';
-        source.textContent=(catalogNames[item.source]||item.source)+
-            (item.kind==='release'?' · публикация':' · найденная песня');
-        const action=document.createElement('span');
-        action.className='dag-catalog-action';
-        action.textContent='Открыть на источнике ↗';
-        link.append(title,source,action);
-        grid.appendChild(link);
-    }
-    catalogSearchPanel.replaceChildren(header,desc,grid);
-    if(!listEl.contains(catalogSearchPanel))listEl.appendChild(catalogSearchPanel);
-}
-// When renderPlaylist rebuilds cards, retain the extra catalog hits.
-new MutationObserver(()=>{
-    if(currentTab!=='search'){
-        if(catalogSearchPanel.isConnected)catalogSearchPanel.remove();
-        return;
-    }
-    if(catalogSearchRows.length&&!listEl.contains(catalogSearchPanel))
-        renderCatalogSearchRows();
-}).observe(listEl,{childList:true});
-async function requestCatalogSearch(query,serial){
+async function requestPlayableCatalogs(query,serial){
     try{
-        const result=await api('search_catalog',{query});
-        if(serial!==catalogSearchSerial||
-            String(mainSearchInput?.value||'').trim()!==query)return;
-        catalogSearchRows=result?.success&&Array.isArray(result.data)
-            ?result.data.filter(item=>item?.playable===false&&dagCatalogExternalUrl(item))
-            :[];
-        renderCatalogSearchRows();
-    }catch(e){
-        if(serial===catalogSearchSerial){
-            catalogSearchRows=[];
-            catalogSearchPanel.remove();
-        }
+        const response=await api('search_playable_catalog',{query});
+        if(serial!==playableCatalogSearchSerial||
+            playableCatalogQuery!==query||
+            String(mainSearchInput?.value||'').trim().replace(/\s+/g,' ')!==query)return;
+        const list=response?.success&&Array.isArray(response.data)?response.data:[];
+        playableCatalogRows=list.filter(t=>{
+            if(!playableCatalogSources.has(String(t?.source))||!t?.url||!t.title||!t.artist)return false;
+            try{
+                const url=new URL(t.url);
+                return url.protocol==='https:'&&
+                    ((t.source==='[MUZRECORD]'&&url.hostname==='s.muzrecord.com')||
+                     (t.source==='[MUZPACE]'&&url.hostname==='cdn.muzpace.net')||
+                     (t.source==='[HITMOS]'&&/^plc[0-9]{1,3}\.hitmos\.fm$/.test(url.hostname)));
+            }catch(_){return false;}
+        });
+        if(currentTab!=='search'||currentSearchQuery!==query||!playableCatalogRows.length)return;
+        const original=Array.isArray(searchPlaylistCache)?searchPlaylistCache:[];
+        const combined=mergePlayableCatalogRows(original,query);
+        if(combined.length===original.length)return;
+        searchPlaylistCache=combined;
+        playlist=combined;
+        renderPlaylist();
+        const sourceCount=new Set(combined.map(t=>t.source).filter(Boolean)).size;
+        searchStatus('Найдено: '+combined.length+' · источников: '+sourceCount);
+    }catch(error){
+        // New sources must never disrupt the working Muzofond search.
+        if(serial===playableCatalogSearchSerial)recordPlayerEvent('supplemental-search-failed');
     }
 }
-function queueCatalogSearch(){
-    clearTimeout(catalogSearchTimer);
-    const serial=++catalogSearchSerial;
-    const query=String(mainSearchInput?.value||'').trim().replace(/\s+/g,' ');
-    catalogSearchRows=[];
-    catalogSearchPanel.remove();
+function queuePlayableCatalogSearch(override){
+    clearTimeout(playableCatalogSearchTimer);
+    const query=String(override??mainSearchInput?.value??'').trim().replace(/\s+/g,' ');
+    if(query===playableCatalogQuery&&
+       (playableCatalogRows.length||playableCatalogSearchTimer))return;
+    const serial=++playableCatalogSearchSerial;
+    playableCatalogRows=[];
+    playableCatalogQuery=query;
     if(query.length<2||query.length>80||query.toLowerCase()==='dagxam')return;
-    catalogSearchTimer=setTimeout(()=>requestCatalogSearch(query,serial),700);
+    playableCatalogSearchTimer=setTimeout(()=>{
+        playableCatalogSearchTimer=null;
+        requestPlayableCatalogs(query,serial);
+    },720);
 }
-mainSearchInput?.addEventListener('input',queueCatalogSearch);
-searchClearButton?.addEventListener('click',queueCatalogSearch);
+mainSearchInput?.addEventListener('input',()=>queuePlayableCatalogSearch());
 mainSearchInput?.addEventListener('keydown',event=>{
-    if(event.key==='Enter')queueCatalogSearch();
-});
-document.getElementById('search-history')?.addEventListener('click',()=>{
-    setTimeout(queueCatalogSearch,0);
+    if(event.key==='Enter')queuePlayableCatalogSearch();
 });
 const catalogHeading=document.querySelector('.dag-search-heading small');
-if(catalogHeading)catalogHeading.textContent='Muzofond + дополнительные каталоги';
+if(catalogHeading)catalogHeading.textContent='Поиск по музыкальным источникам';
 
 
 const searchHistoryButton = document.getElementById('search-history-btn');
@@ -6667,10 +6613,10 @@ function searchStatus(message, retry = false) {
     }
 }
 function clearSearchResults() {
-    clearTimeout(catalogSearchTimer);
-    catalogSearchSerial++;
-    catalogSearchRows=[];
-    catalogSearchPanel.remove();
+    clearTimeout(playableCatalogSearchTimer);
+    playableCatalogSearchSerial++;
+    playableCatalogRows=[];
+    playableCatalogQuery='';
     clearTimeout(searchEnrichmentTimer);
     searchRequestSerial++;
     isSearchLoading = false;
@@ -6771,7 +6717,7 @@ function scheduleSearchEnrichment(query, requestId) {
                 seen.add(url);
                 return true;
             });
-            searchPlaylistCache = original.concat(extra);
+            searchPlaylistCache = mergePlayableCatalogRows(original.concat(extra),query);
             hasMoreSearchResults = result.data.length >= 15;
             if(currentTab === 'search') {
                 playlist = searchPlaylistCache;
@@ -6819,6 +6765,7 @@ async function performSearch(rawQuery, save = false) {
     closeSearchHistory();
     try { localStorage.setItem('dag_last_search', query); } catch(error) {}
     currentSearchQuery = query;
+    queuePlayableCatalogSearch(query);
     currentSearchPage = 1;
     hasMoreSearchResults = true;
     isSearchLoading = true;
@@ -6843,8 +6790,8 @@ async function performSearch(rawQuery, save = false) {
         }
         const tracks = result?.success && Array.isArray(result.data) ? result.data : null;
         if (!tracks) throw new Error('Сервер поиска вернул некорректный ответ.');
-        searchPlaylistCache = tracks;
-        playlist = tracks;
+        searchPlaylistCache = mergePlayableCatalogRows(tracks,query);
+        playlist = searchPlaylistCache;
         hasMoreSearchResults = false; // Full pass decides pagination.
         renderPlaylist();
         if (!result.search_complete) scheduleSearchEnrichment(query, requestId);
@@ -8008,7 +7955,8 @@ function renderPlaylist() {
         if(t.source && (currentTab==='search'||String(currentTab).startsWith('mix:'))) {
             const sourceBadge=document.createElement('span');
             sourceBadge.className='source-badge';
-            const labels={'[MUZOFOND]':'Muzofond','[HITMOZ]':'Hitmoz'};
+            const labels={'[MUZOFOND]':'Muzofond','[HITMOZ]':'Hitmoz',
+            '[MUZRECORD]':'MuzRecord','[HITMOS]':'Hitmos.fm','[MUZPACE]':'MuzPace'};
             sourceBadge.textContent=isSearchCard?(labels[t.source]||t.source):t.source;
             const target=isSearchCard?meta:artist;
             if(!isSearchCard) target.appendChild(document.createTextNode(' '));
