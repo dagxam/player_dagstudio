@@ -8,6 +8,7 @@ on:
       - 'native/android/**'
       # All shared player code is bundled into the downloadable APK.
       - 'script.js'
+      - '.github/test-wave-2026-start.mjs'
       - 'studio.js'
       - 'studio-next.js'
       - 'studio-center.js'
