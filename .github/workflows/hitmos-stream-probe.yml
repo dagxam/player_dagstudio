@@ -1,0 +1,62 @@
+name: Hitmos API Audio Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "hitmos-api.php"
+      - "hitmos-adapter.php"
+      - ".github/workflows/hitmos-stream-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check real Hitmos candidates and byte Range
+        run: |
+          python - <<'PY'
+          import json,urllib.request,urllib.error,urllib.parse
+          endpoint='https://pl.dagstudio.ru/hitmos-api.php?q=Miyagi&page=1'
+          req=urllib.request.Request(endpoint,headers={'Accept':'application/json','Cache-Control':'no-cache'},method='GET')
+          try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                  payload=json.load(r)
+          except Exception as e:
+              print('HITMOS_API_READ_ERROR',type(e).__name__,str(e)[:160]);raise
+          tracks=payload.get('data') or []
+          print('HITMOS_API_STATUS',{'status':payload.get('status'),
+            'upstream_http':payload.get('upstream_http'),'candidates':len(tracks),
+            'audio_verified':payload.get('audio_verified')})
+          hosts=sorted({urllib.parse.urlparse(x.get('url','')).hostname for x in tracks if x.get('url')})
+          print('HITMOS_AUDIO_HOSTS',hosts)
+          for x in tracks[:2]:
+              url=x.get('url','')
+              if not url:continue
+              parsed=urllib.parse.urlparse(url)
+              print('HITMOS_SAMPLE',{'title':str(x.get('title'))[:80],
+                'artist':str(x.get('artist'))[:80],'audio_host':parsed.hostname,
+                'file_ext':parsed.path.rsplit('.',1)[-1] if '.' in parsed.path else ''})
+              for method in ('HEAD','GET'):
+                  try:
+                      req=urllib.request.Request(url,method=method,headers={
+                        'Range':'bytes=0-2047',
+                        'Accept':'audio/*;q=0.9,*/*;q=0.1',
+                        'User-Agent':'DAGSTUDIO-PLAYER-Audio-Check/1.0'})
+                      with urllib.request.urlopen(req,timeout=10) as r:
+                          sample=r.read(2048) if method=='GET' else b''
+                          print('HITMOS_DIRECT_AUDIO',method,'http',r.status,
+                              'type',r.headers.get('Content-Type',''),
+                              'content-range',r.headers.get('Content-Range',''),
+                              'sample_bytes',len(sample))
+                  except urllib.error.HTTPError as e:
+                      print('HITMOS_DIRECT_AUDIO',method,'http',e.code,
+                            'type',e.headers.get('Content-Type',''))
+                  except Exception as e:
+                      print('HITMOS_DIRECT_AUDIO',method,'error',type(e).__name__,str(e)[:160])
+              break
+          PY
