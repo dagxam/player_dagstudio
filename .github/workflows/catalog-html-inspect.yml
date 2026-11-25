@@ -1,0 +1,47 @@
+name: Inspect public music result markup
+on:
+  push:
+    paths:
+      - ".github/workflows/catalog-html-inspect.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect publicly advertised search cards and audio URLs
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,re,html
+          urls={
+            'muzpace_caucasus':'https://muzpace.net/playlists/kavkazskaya',
+            'muzpace_song':'https://muzpace.net/mp3/37023',
+            'muzpace_search':'https://muzpace.net/search/Miyagi',
+            'muzrecord':'https://muzrecord.com/index.php?do=search&subaction=search&story=Miyagi',
+            'muzrecord_song':'https://muzrecord.com/129285-miyagi-na-dne.html',
+            'hitmos':'https://rus.hitmos.fm/search?q=Miyagi'
+          }
+          for key,url in urls.items():
+            try:
+              req=urllib.request.Request(url,headers={'User-Agent':'DAGSTUDIO-PLAYER-SourceAvailabilityProbe/1.0','Accept':'text/html','Accept-Language':'ru-RU,ru;q=0.9'})
+              with urllib.request.urlopen(req,timeout=14) as response:
+                page=response.read(680000).decode('utf-8','replace')
+                print('PAGE',key,'http',response.status,'size',len(page),'url',response.url,flush=True)
+              patterns={'muzpace_caucasus':[r'cdn\.muzpace\.net',r'/mp3/\d+',r'Итляшев'],
+                        'muzpace_song':[r'cdn\.muzpace\.net',r'\.mp3',r'<audio'],
+                        'muzpace_search':[r'/mp3/\d+',r'cdn\.muzpace\.net'],
+                        'muzrecord':[r'/\d+-[a-z0-9-]+\.html',r'data-url',r'<audio'],
+                        'muzrecord_song':[r'\.mp3',r'player',r'data-url'],
+                        'hitmos':[r'/song/\d+',r'data-url',r'\.mp3']}
+              for p in patterns.get(key,[]):
+                m=re.search(p,page,re.I)
+                if m:
+                  snippet=page[max(0,m.start()-390):m.end()+450]
+                  snippet=re.sub(r'\s+',' ',snippet)
+                  snippet=re.sub(r'(token|authorization|cookie|signature|key)=([^&\s"\x27<>]+)',r'\1=[REDACTED]',snippet,flags=re.I)
+                  print('SAMPLE',key,p,html.unescape(snippet[:780]),flush=True)
+                else:print('MISSING',key,p,flush=True)
+            except Exception as e:print('ERROR',key,type(e).__name__,str(e)[:120],flush=True)
+          PY
