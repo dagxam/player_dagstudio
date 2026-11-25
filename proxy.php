@@ -67,12 +67,18 @@ foreach ($allowed as $domain) {
         break;
     }
 }
-if (!$isAllowed && $source === 'openverse' && $scheme === 'https' &&
+if (!$isAllowed && in_array($source,['openverse','commons'],true) && $scheme === 'https' &&
     $host === 'upload.wikimedia.org' &&
     str_starts_with((string)($parts['path'] ?? ''),'/wikipedia/commons/') &&
     preg_match('/\.(mp3|ogg|oga|opus|m4a|aac)$/iD',(string)($parts['path'] ?? ''))) {
     $isAllowed = true;
 }
+if (!$isAllowed && $source === 'archive' && $scheme === 'https' &&
+    $host === 'archive.org' && !isset($parts['user']) && !isset($parts['pass']) &&
+    !isset($parts['port']) &&
+    preg_match('~^/download/[A-Za-z0-9_.-]{3,111}/[^?#]+\.(mp3|ogg|oga|opus|flac|m4a)$~iD',
+        (string)($parts['path'] ?? '')))
+    $isAllowed = true;
 if (!$isAllowed && $source === 'hitmos' && $scheme === 'https' &&
     in_array($host, dagHitmosAudioHosts(), true)) $isAllowed = true;
 $partner = dagPartnerConfig();
@@ -235,6 +241,19 @@ $sendHeaders = static function(bool $useRange) use (
     return true;
 };
 
+// Internet Archive's media files may redirect to IA's own audio CDN.
+// Do not follow a redirect to an unrelated host or a private IP.
+function dagArchiveRedirectAllowed(string $location): bool {
+    if (str_starts_with($location,'/') && !str_starts_with($location,'//'))
+        return true;
+    $info=parse_url($location);
+    if (!is_array($info) || ($info['scheme']??'')!=='https' ||
+        isset($info['port']) || isset($info['user']) || isset($info['pass'])) return false;
+    $host=strtolower((string)($info['host']??''));
+    if ($host==='archive.org')return true;
+    return (bool)preg_match('/^ia[0-9]+(?:\.[a-z0-9-]+)*\.archive\.org$/D',$host);
+}
+
 $runAttempt = function(bool $useRange) use (
     $url, $forwardRange, $profile, $weakMode, $isHead, $source, &$responseHeaders, &$currentStatus,
     &$headersSent, &$bodyStarted, &$attemptError, $sendHeaders
@@ -255,7 +274,7 @@ $runAttempt = function(bool $useRange) use (
         CURLOPT_FOLLOWLOCATION => !in_array($source, ['hitmos','openverse','partner'], true),
         CURLOPT_MAXREDIRS => 5,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        CURLOPT_REDIR_PROTOCOLS => $source === 'archive' ? CURLPROTO_HTTPS : CURLPROTO_HTTP | CURLPROTO_HTTPS,
         // На слабой мобильной сети даём DNS/TCP/TLS и паузам радиосети больше времени.
         CURLOPT_CONNECTTIMEOUT => $weakMode ? 15 : 8,
         CURLOPT_TIMEOUT => 0,
@@ -274,7 +293,7 @@ $runAttempt = function(bool $useRange) use (
         // Larger chunks reduce callback overhead without buffering entire songs.
         CURLOPT_BUFFERSIZE => $weakMode ? 32768 : 65536,
         CURLOPT_HTTPHEADER => buildAudioHeaders($useRange, $forwardRange, $profile),
-        CURLOPT_HEADERFUNCTION => function($ch, $line) use (&$responseHeaders, &$currentStatus) {
+        CURLOPT_HEADERFUNCTION => function($ch, $line) use (&$responseHeaders, &$currentStatus, $source, &$attemptError) {
             $trim = trim($line);
             if ($trim === '') return strlen($line);
 
@@ -289,6 +308,11 @@ $runAttempt = function(bool $useRange) use (
                 [$name, $value] = explode(':', $line, 2);
                 $name = trim($name);
                 $value = trim($value);
+                if ($source === 'archive' && strtolower($name) === 'location' &&
+                    !dagArchiveRedirectAllowed($value)) {
+                    $attemptError = true;
+                    return 0;
+                }
                 if ($name !== '') $responseHeaders[$name] = $value;
             }
             return strlen($line);
