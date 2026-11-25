@@ -35,6 +35,11 @@ jobs:
                         'muzrecord':[r'/\d+-[a-z0-9-]+\.html',r'data-url',r'<audio'],
                         'muzrecord_song':[r'\.mp3',r'player',r'data-url'],
                         'hitmos':[r'/song/\d+',r'data-url',r'\.mp3']}
+              for term in (['data-track=', 'class="fplay-wr', 'class="track-row', r'\\"play\\":', 'plc1.hitmos.fm'] if key in ('muzrecord','muzrecord_song','hitmos','muzpace_caucasus') else []):
+                x=page.find(term)
+                if x>=0:
+                  part=re.sub(r'\s+',' ',page[max(0,x-120):x+460])
+                  print('STRUCT',key,term,html.unescape(part[:580]),flush=True)
               for p in patterns.get(key,[]):
                 m=re.search(p,page,re.I)
                 if m:
@@ -44,4 +49,22 @@ jobs:
                   print('SAMPLE',key,p,html.unescape(snippet[:780]),flush=True)
                 else:print('MISSING',key,p,flush=True)
             except Exception as e:print('ERROR',key,type(e).__name__,str(e)[:120],flush=True)
+          PY
+
+      - name: Check audio sample range for three public URLs
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error
+          items={
+            'muzpace':'https://cdn.muzpace.net/dll/islam_itlyashev_-_aziya_(feat._sakit_samedov)_128.mp3',
+            'muzrecord':'https://s.muzrecord.com/mp3/public_files/2026-11/miyagi-na-dne.mp3',
+            'hitmos':'https://plc1.hitmos.fm/L21wMy81NjA4Mjg3L3RyYWNrLm1wMw==.mp3'
+          }
+          for key,url in items.items():
+            try:
+              req=urllib.request.Request(url,headers={'Range':'bytes=0-511','User-Agent':'DAGSTUDIO-PLAYER-Audio-Check/1.0'})
+              with urllib.request.urlopen(req,timeout=15) as r:
+                blob=r.read(512)
+                print('AUDIO',key,'status',r.status,'type',r.headers.get('content-type'), 'range',r.headers.get('content-range'),'bytes',len(blob),'mp3_magic',blob[:4].hex(),flush=True)
+            except Exception as e:print('AUDIO_FAIL',key,type(e).__name__,str(e)[:120],flush=True)
           PY
