@@ -20,7 +20,7 @@ assert.match(api,/require_once __DIR__ \. '\/hitmos-config\.php'/);
 assert.match(api,/count\(\$hitmos_audio_hosts\) > 0/);
 assert.match(api,/in_array\(\$audio_host, \$hitmos_audio_hosts, true\)/);
 assert.match(proxy,/dagHitmosAudioHosts\(\)/);
-assert.match(proxy,/CURLOPT_FOLLOWLOCATION => \$source !== 'hitmos'/);
+assert.match(proxy,/CURLOPT_FOLLOWLOCATION => !in_array\(\$source, \['hitmos','openverse','partner'\], true\)/);
 assert.match(script,/key:'hitmos',label:'Hitmos\.fm',source:'\[HITMOS\]'/);
 assert.match(script,/Hitmos\/Jamendo по API/);
 assert.doesNotMatch(html, /hitmos-external-link/);
