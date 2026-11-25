@@ -75,8 +75,8 @@ if (!file_exists('db.php')) {
 require 'db.php';
 require_once __DIR__ . '/hitmos-config.php';
 require_once __DIR__ . '/partner-config.php';
-require_once __DIR__ . '/open-audio-providers.php';
-require_once __DIR__ . '/openverse-provider.php';
+// Commons/Openverse/Archive are removed from live music search; legacy adapters
+// remain in the repository but are not loaded on requests.
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
 $input = file_get_contents('php://input');
@@ -672,30 +672,12 @@ elseif ($action === 'search_global') {
     $audius_offset = max(0, ($page - 1) * ($weak_client ? 12 : 20));
     $audius_limit = $weak_client ? 12 : 20;
 
-    // Each search request fans out to ALL seven providers even on weak
-    // automotive internet. Timeouts and result limits adapt, not the list.
+    // Default provider is Muzofond: last confirmed to return matching songs
+    // and an audio/mpeg stream. Unverified HTML scrapers and Wikimedia sources
+    // are not sent network requests on every search.
     $urls = [
-        'commons' => dagExtraMusicCommonsApi(trim(strip_tags((string)$query_raw)), $page),
-        'archive' => dagExtraMusicArchiveApi(trim(strip_tags((string)$query_raw)), $page),
-        'audius'  => "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
-        'audius_secondary' => "https://discoveryprovider.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
-        'vk_mail' => "https://slider.kz/vk_auth.php?q=" . $query_encode . "&page=" . $page,
-        'hitmoz'  => "https://ru.hitmoz.org/search?q=" . $query_encode,
-        'muzo'    => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page,
-        'zvooq'   => "https://zvooq.net/search/" . $query_encode,
-        'muzvox'  => "https://muzvox.org/search/" . $query_encode,
-        'muzca'   => "https://muzca.net/index.php?do=search&subaction=search&story=" . $query_encode,
-        // Official keyless CC-music index; run alongside all other providers.
-        'openverse' => 'https://api.openverse.org/v1/audio/?' . http_build_query([
-            'q' => trim(strip_tags((string)$query_raw)),
-            'page' => min(20,$page), 'page_size' => $weak_client ? 12 : 20,
-            'category' => 'music', 'license' => 'cc0,pdm,by'
-        ], '', '&', PHP_QUERY_RFC3986)
+        'muzo' => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page
     ];
-    // Openverse is experimental: live probes returned no playable matches.
-    // Keep the existing search fast until the API is verified on this host.
-    $openverse_enabled = getenv('DAG_OPENVERSE_ENABLED') === '1';
-    if (!$openverse_enabled) unset($urls['openverse']);
 
     // Jamendo API requires a project-specific client_id. Never use a public
     // test credential or invent an authorization: keep other 7 sources working.
@@ -744,13 +726,15 @@ elseif ($action === 'search_global') {
         ],'', '&',PHP_QUERY_RFC3986);
     }
 
-    // Audius read-only requests can supply the optional project API key.
-    // A free key improves rate limits; never expose it to clients or logs.
+    // An Audius API key is required before enabling this optional provider.
+    // Read-only public calls previously returned HTTP 403 on this server.
     $audius_api_key = trim((string)(getenv('AUDIUS_API_KEY') ?: ''));
-    $valid_audius_key = preg_match('/^[A-Za-z0-9_-]{16,220}$/D', $audius_api_key);
-    if (!$valid_audius_key) {
-        $urls['audius'] .= '&app_name=dagstudio-player';
-        $urls['audius_secondary'] .= '&app_name=dagstudio-player';
+    $valid_audius_key = (bool)preg_match('/^[A-Za-z0-9_-]{16,220}$/D', $audius_api_key);
+    if ($valid_audius_key) {
+        $audius_offset = max(0, ($page - 1) * ($weak_client ? 12 : 20));
+        $audius_limit = $weak_client ? 12 : 20;
+        $urls['audius'] = "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset;
+        $urls['audius_secondary'] = "https://discoveryprovider.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset;
     }
 
     $multi = curl_multi_init();
@@ -817,33 +801,11 @@ elseif ($action === 'search_global') {
     }
     curl_multi_close($multi);
 
-    if (!$openverse_enabled) {
-        $source_status['openverse'] = [
-            'ok' => false, 'http' => 0, 'error' => '',
-            'configured' => false, 'experimental' => true
-        ];
-    } else {
-        $source_status['openverse']['configured'] = true;
-        $source_status['openverse']['experimental'] = true;
-    }
-    if (!$hitmos_enabled) {
-        $source_status['hitmos'] = [
-            'ok' => false, 'http' => 0, 'error' => '', 'configured' => false
-        ];
-    } else {
-        $source_status['hitmos']['configured'] = true;
-    }
-    if (!$jamendo_enabled) {
-        $source_status['jamendo'] = [
-            'ok' => false, 'http' => 0, 'error' => '', 'configured' => false
-        ];
-    } else {
-        $source_status['jamendo']['configured'] = true;
-    }
-    if (!$partner['enabled'])
-        $source_status['partner'] = ['ok'=>false,'http'=>0,'error'=>'',
-            'configured'=>false,'needs_permission'=>true];
-    else $source_status['partner']['configured'] = true;
+    // Diagnostics only include sources actually participating in this query.
+    if ($hitmos_enabled) $source_status['hitmos']['configured'] = true;
+    if ($jamendo_enabled) $source_status['jamendo']['configured'] = true;
+    if ($partner['enabled']) $source_status['partner']['configured'] = true;
+
     // Use the public documented discovery provider when the primary API
     // returned an error or an empty/unparseable JSON response.
     $mainAudius = json_decode((string)($responses['audius'] ?? ''), true);
@@ -859,21 +821,6 @@ elseif ($action === 'search_global') {
     $audius_stream_host = !empty($source_status['audius']['used_fallback'])
         ? 'discoveryprovider.audius.co' : 'api.audius.co';
     $raw_results = [];
-    // These are real audio files from open public licensed catalogs.
-    // The filename and license must be verified by their official APIs.
-    if (!empty($responses['commons'])) {
-        foreach (dagExtraMusicCommons(json_decode($responses['commons'],true) ?: []) as $entry)
-            $raw_results[]=$entry;
-    }
-    if (!empty($responses['archive'])) {
-        $archiveJson=json_decode($responses['archive'],true);
-        if (is_array($archiveJson)) {
-            foreach (dagExtraMusicArchiveTracks($archiveJson,
-                trim(strip_tags((string)$query_raw)), $fast_search) as $entry)
-                $raw_results[]=$entry;
-        }
-    }
-
     // Audius: first-party API, not a third-party scraper.
     if (!empty($responses['audius'])) {
         $audius = json_decode($responses['audius'], true);
@@ -916,17 +863,6 @@ elseif ($action === 'search_global') {
                         ? mb_substr($track['release_date'], 0, 30) : ''
                 ];
             }
-        }
-    }
-
-    // Openverse: licensed Wikimedia audio only. Never confuse indexed_on with release date.
-    if (!empty($responses['openverse'])) {
-        $openverseData=json_decode((string)$responses['openverse'],true);
-        if (is_array($openverseData) && is_array($openverseData['results'] ?? null)) {
-            foreach (dagOpenverseTracks($openverseData) as $item) $raw_results[]=$item;
-        } else {
-            $source_status['openverse']['ok']=false;
-            $source_status['openverse']['error']='Invalid Openverse JSON';
         }
     }
 
@@ -1272,19 +1208,11 @@ elseif ($action === 'search_global') {
     // --- ФИЛЬТРАЦИЯ И ДЕДУПЛИКАЦИЯ ПО КАЖДОМУ ИСТОЧНИКУ ---
     // Один и тот же трек на разных сайтах НЕ удаляется.
     $by_source = [
-        '[COMMONS]' => [],
-        '[ARCHIVE]' => [],
-        '[PARTNER]' => [],
-        '[AUDIUS]' => [],
-        '[VK]' => [],
-        '[HITMOZ]' => [],
-        '[HITMOS]' => [],
         '[MUZOFOND]' => [],
-        '[ZVOOQ]' => [],
-        '[MUZVOX]' => [],
-        '[MUZCA]' => [],
+        '[PARTNER]' => [],
+        '[HITMOS]' => [],
         '[JAMENDO]' => [],
-        '[OPENVERSE]' => []
+        '[AUDIUS]' => []
     ];
 
     foreach ($raw_results as $r) {
@@ -1339,7 +1267,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[PARTNER]', '[COMMONS]', '[ARCHIVE]', '[AUDIUS]', '[JAMENDO]', '[OPENVERSE]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[MUZOFOND]', '[PARTNER]', '[HITMOS]', '[JAMENDO]', '[AUDIUS]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -1366,13 +1294,12 @@ elseif ($action === 'search_global') {
     // Keep the old ok/http fields for compatibility; add candidate diagnostics
     // without claiming that the audio stream was verified.
     $provider_source_keys = [
-        'commons' => '[COMMONS]', 'archive' => '[ARCHIVE]',
-        'partner' => '[PARTNER]', 'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
-        'hitmoz' => '[HITMOZ]', 'hitmos' => '[HITMOS]', 'muzo' => '[MUZOFOND]',
-        'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]',
-        'jamendo' => '[JAMENDO]', 'openverse' => '[OPENVERSE]'
+        'muzo' => '[MUZOFOND]', 'partner' => '[PARTNER]',
+        'hitmos' => '[HITMOS]', 'jamendo' => '[JAMENDO]',
+        'audius' => '[AUDIUS]'
     ];
     foreach ($provider_source_keys as $key => $label) {
+        if (!isset($source_status[$key])) continue;
         $count = (int)($source_counts[$label] ?? 0);
         $source_status[$key]['matching_tracks'] = $count;
         $source_status[$key]['has_results'] = $count > 0;
