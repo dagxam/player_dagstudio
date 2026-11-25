@@ -75,6 +75,7 @@ if (!file_exists('db.php')) {
 require 'db.php';
 require_once __DIR__ . '/hitmos-config.php';
 require_once __DIR__ . '/partner-config.php';
+require_once __DIR__ . '/open-audio-providers.php';
 require_once __DIR__ . '/openverse-provider.php';
 
 // --- 3. ЧТЕНИЕ ДАННЫХ ---
@@ -674,6 +675,8 @@ elseif ($action === 'search_global') {
     // Each search request fans out to ALL seven providers even on weak
     // automotive internet. Timeouts and result limits adapt, not the list.
     $urls = [
+        'commons' => dagExtraMusicCommonsApi(trim(strip_tags((string)$query_raw)), $page),
+        'archive' => dagExtraMusicArchiveApi(trim(strip_tags((string)$query_raw)), $page),
         'audius'  => "https://api.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
         'audius_secondary' => "https://discoveryprovider.audius.co/v1/tracks/search?query=" . $query_encode . "&limit=" . $audius_limit . "&offset=" . $audius_offset,
         'vk_mail' => "https://slider.kz/vk_auth.php?q=" . $query_encode . "&page=" . $page,
@@ -741,6 +744,15 @@ elseif ($action === 'search_global') {
         ],'', '&',PHP_QUERY_RFC3986);
     }
 
+    // Audius read-only requests can supply the optional project API key.
+    // A free key improves rate limits; never expose it to clients or logs.
+    $audius_api_key = trim((string)(getenv('AUDIUS_API_KEY') ?: ''));
+    $valid_audius_key = preg_match('/^[A-Za-z0-9_-]{16,220}$/D', $audius_api_key);
+    if (!$valid_audius_key) {
+        $urls['audius'] .= '&app_name=dagstudio-player';
+        $urls['audius_secondary'] .= '&app_name=dagstudio-player';
+    }
+
     $multi = curl_multi_init();
     $channels = [];
 
@@ -760,11 +772,14 @@ elseif ($action === 'search_global') {
         curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
         curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        $headers = [
+            'Accept: application/json,text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
             'Accept-Language: ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Cache-Control: no-cache',
-        ]);
+            'Cache-Control: no-cache'
+        ];
+        if ($valid_audius_key && in_array($key,['audius','audius_secondary'],true))
+            $headers[]='x-api-key: '.$audius_api_key;
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         
         curl_multi_add_handle($multi, $ch);
         $channels[$key] = $ch;
@@ -844,6 +859,20 @@ elseif ($action === 'search_global') {
     $audius_stream_host = !empty($source_status['audius']['used_fallback'])
         ? 'discoveryprovider.audius.co' : 'api.audius.co';
     $raw_results = [];
+    // These are real audio files from open public licensed catalogs.
+    // The filename and license must be verified by their official APIs.
+    if (!empty($responses['commons'])) {
+        foreach (dagExtraMusicCommons(json_decode($responses['commons'],true) ?: []) as $entry)
+            $raw_results[]=$entry;
+    }
+    if (!empty($responses['archive'])) {
+        $archiveJson=json_decode($responses['archive'],true);
+        if (is_array($archiveJson)) {
+            foreach (dagExtraMusicArchiveTracks($archiveJson,
+                trim(strip_tags((string)$query_raw)), $fast_search) as $entry)
+                $raw_results[]=$entry;
+        }
+    }
 
     // Audius: first-party API, not a third-party scraper.
     if (!empty($responses['audius'])) {
@@ -1242,6 +1271,8 @@ elseif ($action === 'search_global') {
     // --- ФИЛЬТРАЦИЯ И ДЕДУПЛИКАЦИЯ ПО КАЖДОМУ ИСТОЧНИКУ ---
     // Один и тот же трек на разных сайтах НЕ удаляется.
     $by_source = [
+        '[COMMONS]' => [],
+        '[ARCHIVE]' => [],
         '[PARTNER]' => [],
         '[AUDIUS]' => [],
         '[VK]' => [],
@@ -1307,7 +1338,7 @@ elseif ($action === 'search_global') {
     }
     unset($items);
 
-    $order = ['[PARTNER]', '[AUDIUS]', '[JAMENDO]', '[OPENVERSE]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
+    $order = ['[PARTNER]', '[COMMONS]', '[ARCHIVE]', '[AUDIUS]', '[JAMENDO]', '[OPENVERSE]', '[VK]', '[HITMOZ]', '[HITMOS]', '[MUZOFOND]', '[ZVOOQ]', '[MUZVOX]', '[MUZCA]'];
     $positions = array_fill_keys($order, 0);
     $final_output = [];
     while (count($final_output) < $result_limit) {
@@ -1334,6 +1365,7 @@ elseif ($action === 'search_global') {
     // Keep the old ok/http fields for compatibility; add candidate diagnostics
     // without claiming that the audio stream was verified.
     $provider_source_keys = [
+        'commons' => '[COMMONS]', 'archive' => '[ARCHIVE]',
         'partner' => '[PARTNER]', 'audius' => '[AUDIUS]', 'vk_mail' => '[VK]',
         'hitmoz' => '[HITMOZ]', 'hitmos' => '[HITMOS]', 'muzo' => '[MUZOFOND]',
         'zvooq' => '[ZVOOQ]', 'muzvox' => '[MUZVOX]', 'muzca' => '[MUZCA]',
