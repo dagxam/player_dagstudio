@@ -77,6 +77,7 @@ jobs:
           node .github/test-fresh-mixes.mjs
           node .github/test-personal-radio.mjs
           node .github/test-wave-themes.mjs
+          node .github/test-wave-2026-start.mjs
           node .github/test-wave-caucasus-offline.mjs
           node .github/test-continuous-radio.mjs
           node .github/test-playlist-covers.mjs

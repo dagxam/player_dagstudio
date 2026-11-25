@@ -188,7 +188,7 @@
         </div>
         <div class="quick-mixes-grid" id="quick-mixes">
             <button type="button" class="quick-mix-btn wave-mix-btn" data-mix="wave" onclick="startQuickMix('wave')">
-                <span class="mix-icon"><i class="fas fa-wave-square"></i></span><span class="mix-copy"><strong>Моя волна</strong><small>На основе твоих прослушиваний</small></span><i class="fas fa-chevron-right mix-arrow"></i></button>
+                <span class="mix-icon"><i class="fas fa-wave-square"></i></span><span class="mix-copy"><strong>Моя волна</strong><small>Русские и кавказские · подборка 2026</small></span><i class="fas fa-chevron-right mix-arrow"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="russian" onclick="startQuickMix('russian')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-music"></i></span><span class="mix-copy"><strong>Русские</strong><small>Хиты и новинки</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
             <button type="button" class="quick-mix-btn" data-mix="caucasus" onclick="openCaucasusRadio()">

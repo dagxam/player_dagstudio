@@ -122,6 +122,7 @@ jobs:
       - name: Verify Wave themes, new releases and artist diversity
         run: |
           node .github/test-wave-themes.mjs
+          node .github/test-wave-2026-start.mjs
           node .github/test-wave-caucasus-offline.mjs
 
       - name: Test continuous Wave and Charts discovery

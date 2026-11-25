@@ -49,11 +49,13 @@ assert.ok(directions.some(d=>/русск/i.test(d.query)));
 assert.ok(directions.some(d=>d.query.includes(String(year))),
     'The wave should query for more recent releases every theme cycle');
 assert.equal(JSON.stringify(directions.slice(0,4).map(d=>d.theme)),
- JSON.stringify(['russian-pop','caucasus','foreign','avar']),
- 'Wave rotates Russian, Caucasus, foreign then national tracks');
+ JSON.stringify(['russian-pop','caucasus','russian-pop','caucasus']),
+ 'Wave starts Russian 2026 and Caucasus 2026 in alternating directions');
 assert.equal(JSON.stringify(directions.slice(4,8).map(d=>d.theme)),
- JSON.stringify(['russian-pop','caucasus','foreign','lezgin']),
- 'The next cycle keeps the priorities and rotates the national tradition');
+ JSON.stringify(['russian-pop','dagestan','russian-pop','caucasus']),
+ 'Wave continues with regional Caucasus 2026 and Russian 2026 artists');
+assert.ok(!directions.slice(0,24).some(d=>d.theme==='foreign'),
+ 'Wave must not start with foreign music');
 assert.ok(directions.slice(0,8).every(d=>d.query.includes(String(year))),
  'All opening Wave priority searches explicitly target the current year');
 assert.equal(ctx.waveSameArtist('JONY (feat. Баста)','Баста'),true,
@@ -88,7 +90,7 @@ let picked=await ctx.findWaveNextTrack();
 assert.equal(picked.artist,'Другой исполнитель',
     'Different Russian pop artists beat repeated seed performer');
 assert.equal(picked.title,'Новая русская песня',
-    'Verified recent Russian pop release wins against dated old version');
+    'Verified current-year Russian release wins against dated old version');
 assert.equal(picked._waveRadio,true);
 assert.ok(calls.some(q=>/русск/i.test(q)));
 ctx.radioRememberPlayed('wave',picked);
