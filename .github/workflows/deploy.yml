@@ -32,6 +32,7 @@ jobs:
         run: |
           set -e
           for file in ./*.php; do php -l "$file"; done
+          php tests/hitmos-adapter-test.php
           node --check profile-sync.js
           node --check script.js
           node --check studio.js
@@ -283,7 +284,7 @@ jobs:
           protocol=os.environ.get('FTP_PROTOCOL','ftp').lower()
           port=int(os.environ.get('FTP_PORT') or 21)
           version=os.environ['GITHUB_SHA']
-          essential=['api.php','script.js','search-polish.css','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
+          essential=['api.php','hitmos-api.php','hitmos-adapter.php','script.js','search-polish.css','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
                      'deploy-'+version+'.txt']
           if protocol not in ('ftp','ftps'):
               raise SystemExit('FTP fallback supports ftp and explicit ftps only')
@@ -363,6 +364,11 @@ jobs:
             echo "Unique probe is current, but deploy-version.txt is cached. Continuing because the uncached unique probe verified the deployment."
           fi
           echo "Production verified at commit $EXPECTED"
+          # Own adapter endpoint must be deployed and return structured JSON.
+          # External access may remain blocked; that must not invalidate Muzofond.
+          HITMOS_JSON="$(curl --fail --silent --show-error --location --max-time 20 \
+            "https://pl.dagstudio.ru/hitmos-api.php?q=Miyagi&page=1")"
+          printf '%s' "$HITMOS_JSON" | python -c 'import sys,json; d=json.load(sys.stdin); assert d.get("provider")=="Hitmos.site" and d.get("status") in ("blocked","unreachable","redirect_unsupported","no_playable_tracks","candidates_found","upstream_error"); assert isinstance(d.get("data"),list); print("HITMOS_OWN_API",{"status":d["status"],"http":d["upstream_http"],"tracks":d["count"],"audio_verified":d["audio_verified"]})'
 
           INDEX_HTML="$(curl --fail --silent --show-error --location --max-time 20 -H 'Cache-Control: no-cache' "https://pl.dagstudio.ru/?v=$EXPECTED")"
           EXPECTED_SCRIPT="$(sed -n 's/.*src="\(script\.js?v=[^"]*\)".*/\1/p' index.php | head -n 1)"
