@@ -112,6 +112,7 @@ await copyFile(join(root, 'studio-center.js'), join(out, 'studio-center.js'));
 await copyFile(join(root, 'studio-vision.js'), join(out, 'studio-vision.js'));
 await copyFile(join(root, 'studio-vision.css'), join(out, 'studio-vision.css'));
 await copyFile(join(root, 'studio-sidebar-modern.css'), join(out, 'studio-sidebar-modern.css'));
+await copyFile(join(root, 'search-polish.css'), join(out, 'search-polish.css'));
 
 await esbuild({
   entryPoints: [join(root, 'native', 'native-bridge.js')],
