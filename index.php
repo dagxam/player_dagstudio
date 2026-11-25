@@ -119,7 +119,7 @@
         </div>
         <div id="quick-mix-status" class="quick-mix-status" role="status" aria-live="polite" hidden></div>
         <div class="search-container-wrap" id="search-container-box" role="search" aria-label="Поиск музыки">
-            <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>Только Muzofond и Hitmoz</small></div>
+            <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>Muzofond · MuzRecord · Hitmos · MuzPace</small></div>
             <div class="dag-search-field">
                 <i class="fas fa-magnifying-glass dag-search-glass" aria-hidden="true"></i>
                 <input type="search" id="search-input" class="search-input" name="dag_music_query" placeholder="Песня, исполнитель или плейлист" value="" autocomplete="off" data-lpignore="true" data-1p-ignore="true" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Поиск трека или исполнителя" aria-controls="search-history">
@@ -501,7 +501,7 @@
 </div>
 
 <script src="profile-sync.js?v=1" defer></script>
-<script src="script.js?v=2378" defer></script>
+<script src="script.js?v=2379" defer></script>
 <script src="studio.js?v=7" defer></script>
 <script src="studio-next.js?v=20" defer></script>
 <script src="studio-center.js?v=8" defer></script>
