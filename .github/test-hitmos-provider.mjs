@@ -11,7 +11,7 @@ assert.match(api, /\$hitmos_data\['tracks'\]/);
 assert.match(api, /\$track\['audio_url'\]/);
 assert.match(api, /'source' => '\[HITMOS\]'/);
 assert.match(api, /'hitmos' => '\[HITMOS\]'/);
-assert.match(api, /CURLOPT_FOLLOWLOCATION, \$key !== 'jamendo' && \$key !== 'hitmos'/);
+assert.match(api, /CURLOPT_FOLLOWLOCATION,\s*!in_array\(\$key,\['jamendo','hitmos','partner'\],true\)\)/);
 const config=readFileSync(new URL('../hitmos-config.php',import.meta.url),'utf8');
 const proxy=readFileSync(new URL('../proxy.php',import.meta.url),'utf8');
 assert.match(config,/HITMOS_AUDIO_HOSTS/);

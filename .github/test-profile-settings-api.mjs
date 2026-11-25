@@ -8,7 +8,7 @@ import {createServer} from 'node:net';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const dir=mkdtempSync(join(tmpdir(),'dag-profile-settings-'));
-for(const file of ['api.php','db.php','hitmos-config.php','openverse-provider.php'])
+for(const file of ['api.php','db.php','hitmos-config.php','openverse-provider.php','partner-config.php','catalog-2026.php'])
   copyFileSync(join(root,file),join(dir,file));
 const socket=createServer();
 await new Promise(resolve=>socket.listen(0,'127.0.0.1',resolve));
