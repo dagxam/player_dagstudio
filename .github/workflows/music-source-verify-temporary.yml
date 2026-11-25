@@ -12,6 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Checkout source scripts
+        uses: actions/checkout@v4
+      - name: Probe source audio with Range (US runner, not the Russia-hosting test)
+        run: |
+          php music-source-probe-20261125.php | python -c 'import sys,json; d=json.load(sys.stdin); [print("AUDIO_RESULT",json.dumps({k:x.get(k) for k in ("id","http","explicit_audio_urls","media_hosts","sample_audio_probe")},ensure_ascii=False)) for x in d["results"]]; print("AUDIO_TOTAL",len(d["results"]))'
       - name: Fetch fixed-search probes executed by the DAGSTUDIO hosting server
         run: |
           set -e
