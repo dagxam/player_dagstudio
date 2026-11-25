@@ -1127,10 +1127,10 @@ function waveGestureSilence(){
     waveGestureSilentUrl='data:audio/wav;base64,'+btoa(binary);
     return waveGestureSilentUrl;
 }
-function primeWaveAudioFromClick(){
+function primeWaveAudioFromClick(forCollection=false){
     // Called synchronously by openStudioWave(), which is invoked by a real tap.
     if(NATIVE_MEDIA3_ACTIVE||navigator.onLine===false||playbackWanted||
-        playbackPlaylist[currentIndex]||!mainAudio?.paused)return;
+        (!forCollection&&playbackPlaylist[currentIndex])||!mainAudio?.paused)return;
     try{
         mainAudio.src=waveGestureSilence();
         mainAudio.loop=true;
@@ -4828,6 +4828,8 @@ async function playTrack(index, options = {}) {
     offlineCatalogRemember(track);
     if(playbackTab==='mix:wave'&&track?._waveRadio)radioRememberPlayed('wave',track);
     if(playbackTab==='mix:charts')radioRememberPlayed('charts',track);
+    if(Object.prototype.hasOwnProperty.call(INSTANT_MIX_ARTISTS,String(playbackTab).replace(/^mix:/,'')))
+        radioRememberPlayed(String(playbackTab),track);
     currentPlaybackToken++;
     const token = currentPlaybackToken;
 
@@ -6779,7 +6781,7 @@ if(mainSearchInput) {
 
 
 const QUICK_MIXES={
-    charts:{title:'Новые релизы · все источники',mode:'recent',autoPlayOnDiscover:false,
+    charts:{title:'Новые релизы',mode:'recent',autoPlayOnDiscover:true,
         queries:['новинки музыки','новинки '+new Date().getFullYear(),'new releases','new music'],
         artists:['Zivert','Баста','Miyagi','The Weeknd','Dua Lipa',
           'новинки '+new Date().getFullYear(),'new music releases',
@@ -6866,6 +6868,81 @@ const QUICK_MIXES={
     retro:{title:'Ретро',mode:'classic',
         artists:['Руки Вверх','Мираж','Комбинация','Наутилус Помпилиус','Ласковый май','Алла Пугачёва']}
 };
+// Fast direct playback for the four visible collections. Genre search hints
+// are not release-date evidence. Unknown dates remain unverified.
+const INSTANT_MIX_ARTISTS={
+    caucasus:['Ислам Итляшев','Султан Лагучев','Зульфия Чотчаева',
+        'Мика Рамазанова','Эльбрус Джанмирзоев','Ислам Мальсуйгенов',
+        'Мурат Тхагалов','Эльдар Далгатов','Зара Гамзатова'],
+    russian:['Zivert','JONY','Мари Краймбрери','Баста','Клава Кока',
+        'Егор Крид','МОТ','Полина Гагарина','Хабиб'],
+    foreign:['Dua Lipa','The Weeknd','Sabrina Carpenter','Billie Eilish',
+        'Ariana Grande','Taylor Swift','Bruno Mars','Lady Gaga'],
+    charts:['Zivert','Dua Lipa','Султан Лагучев','The Weeknd',
+        'Мари Краймбрери','Sabrina Carpenter','JONY','Баста']
+};
+const instantMixWarmCache=new Map();
+let instantMixWarmGeneration=0;
+function instantMixValidRelease(track,key){
+    const date=quickMixReleaseTimestamp(track);
+    if(!date)return true;
+    const year=new Date(date).getUTCFullYear();
+    const current=new Date().getUTCFullYear();
+    return key==='charts'?year>=current:year>=current-1;
+}
+function instantMixFreshCandidates(tracks,key,artist=''){
+    const identity=normalizeTrackIdentity(artist);
+    return quickMixUnique(tracks).filter(track=>{
+        if(!instantMixValidRelease(track,key))return false;
+        if(!identity)return true;
+        const singer=normalizeTrackIdentity(track.artist);
+        return singer.includes(identity)||(singer.length>5&&identity.includes(singer));
+    });
+}
+async function instantMixFastArtistSearch(key,artist){
+    const net=getNetworkProfile();
+    const result=await api('search_global',{query:artist,page:1,mode:'fast',
+        network:net.weak?'weak':'normal',save_data:net.saveData?1:0});
+    if(!result?.success||!Array.isArray(result.data))return [];
+    return instantMixFreshCandidates(result.data,key,artist);
+}
+function warmInstantMix(key){
+    if(!INSTANT_MIX_ARTISTS[key]||navigator.onLine===false||
+        playbackWanted||getNetworkProfile().weak||trafficSaverEnabled())
+        return Promise.resolve([]);
+    const old=instantMixWarmCache.get(key);
+    if(old&&Date.now()-old.at<90*1000)return old.promise||Promise.resolve(old.tracks);
+    const entry={at:Date.now(),tracks:[],promise:null};
+    instantMixWarmCache.set(key,entry);
+    entry.promise=instantMixFastArtistSearch(key,INSTANT_MIX_ARTISTS[key][0])
+        .then(tracks=>{
+            if(instantMixWarmCache.get(key)===entry)entry.tracks=tracks;
+            return tracks;
+        }).catch(()=>[]).finally(()=>{entry.promise=null;});
+    return entry.promise;
+}
+window.warmInstantMixSelections=function(){
+    if(navigator.onLine===false||getNetworkProfile().weak||
+        trafficSaverEnabled()||playbackWanted)return;
+    const generation=++instantMixWarmGeneration;
+    Object.keys(INSTANT_MIX_ARTISTS).forEach((key,i)=>{
+        setTimeout(()=>{
+            if(generation===instantMixWarmGeneration&&!document.hidden&&
+                !playbackWanted)warmInstantMix(key).catch(()=>{});
+        },i*300);
+    });
+};
+function instantMixStartOrder(tracks,key){
+    const result=quickMixRankTracks(tracks,QUICK_MIXES[key]);
+    if(result.length<2)return result;
+    const recent=new Set(radioRecentTracks('mix:'+key));
+    const latest=quickMixReleaseTimestamp(result[0]);
+    const ix=result.findIndex(track=>
+        quickMixReleaseTimestamp(track)===latest&&!recent.has(radioTrackIdentity(track)));
+    if(ix>0){const [fresh]=result.splice(ix,1);result.unshift(fresh);}
+    return result;
+}
+
 let quickMixRequestId=0;
 let quickMixCurrent=null;
 function quickMixUnique(tracks,known=[]) {
@@ -7284,6 +7361,8 @@ async function startQuickMix(key) {
     if(navigator.onLine===false&&!(key==='wave'&&waveTracks.length)) {
         setQuickMixStatus('Для подборок нужен интернет.');return;
     }
+    // Prime the existing audio element synchronously in the click.
+    if(INSTANT_MIX_ARTISTS[key])primeWaveAudioFromClick(true);
     closeModal('quick-mixes-modal');
     if(key!=='wave')window.studioMixScreen?.(key,config.title);
     const requestId=++quickMixRequestId;
@@ -7349,15 +7428,19 @@ async function startQuickMix(key) {
     // for every region/performer in the batch to complete.
     const batchSize=key==='charts'?4:(getNetworkProfile().weak?2:3);
     const allDirections=quickMixSearchPlan(config);
-    const initialLimit=config.regions?allDirections.length:key==='charts'?16:Math.min(20,allDirections.length);
+    const initialLimit=INSTANT_MIX_ARTISTS[key]?Math.min(8,allDirections.length):
+        config.regions?allDirections.length:key==='charts'?16:Math.min(20,allDirections.length);
     const plan=allDirections.slice(0,initialLimit);
     function publishMixResults(item,tracks) {
         if(requestId!==quickMixRequestId||!tracks?.length)return;
-        const fresh=quickMixUnique(tracks,quickMixCurrent.tracks);
-        const next=quickMixSpreadSources(fresh,config.regions?6:6);
+        const safe=INSTANT_MIX_ARTISTS[key]?instantMixFreshCandidates(tracks,key):tracks;
+        const fresh=quickMixUnique(safe,quickMixCurrent.tracks);
+        const next=quickMixSpreadSources(fresh,6);
         if(!next.length)return;
         quickMixCurrent.tracks.push(...next);
-        quickMixCurrent.tracks=quickMixRankTracks(quickMixCurrent.tracks,config);
+        quickMixCurrent.tracks=INSTANT_MIX_ARTISTS[key]?
+            instantMixStartOrder(quickMixCurrent.tracks,key):
+            quickMixRankTracks(quickMixCurrent.tracks,config);
         if(item.region)quickMixCurrent.searchedRegions.add(item.region);
         const first=!started;
         started=true;
@@ -7380,6 +7463,26 @@ async function startQuickMix(key) {
             (dates?' · с датой от источника: '+dates:' · даты выпуска не указаны')+
             (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
             quickMixSourcesCaption(quickMixCurrent));
+    }
+    if(INSTANT_MIX_ARTISTS[key]){
+        const warm=instantMixWarmCache.get(key);
+        if(warm?.tracks?.length&&Date.now()-warm.at<90*1000)
+            publishMixResults({kind:'artist',region:''},warm.tracks);
+        if(!started){
+            const promises=INSTANT_MIX_ARTISTS[key].slice(0,3)
+                .map(async artist=>{
+                    try{
+                        const found=await instantMixFastArtistSearch(key,artist);
+                        if(requestId===quickMixRequestId&&quickMixCurrent?.key===key&&found.length)
+                            publishMixResults({kind:'artist',region:''},found);
+                        return found;
+                    }catch(error){recordPlayerEvent('instant-mix-search-error');return [];}
+                });
+            // Do not wait for the second/third provider response after
+            // the first usable artist result starts audio.
+            await waveFirstNonempty(promises);
+            if(requestId!==quickMixRequestId)return;
+        }
     }
     if(['russian','caucasus','charts'].includes(key)) {
         setTimeout(()=>{
