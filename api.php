@@ -324,6 +324,18 @@ elseif ($action === 'update_track_url') {
         }
     }
 
+    // Also allow refreshed URLs on the three exact verified MP3 hosts.
+    if (!$allowed && $scheme === 'https' && !isset($parts['user']) &&
+        !isset($parts['pass']) && !isset($parts['port']) &&
+        preg_match('/\.mp3$/iD', (string)($parts['path'] ?? '')) &&
+        (($host === 's.muzrecord.com' &&
+          str_starts_with((string)($parts['path'] ?? ''), '/mp3/')) ||
+         ($host === 'cdn.muzpace.net' &&
+          str_starts_with((string)($parts['path'] ?? ''), '/dll/')) ||
+         preg_match('/^plc[0-9]{1,3}\.hitmos\.fm$/D', $host))) {
+        $allowed = true;
+    }
+
     if (!$allowed) {
         echo json_encode(['error' => 'Источник трека не разрешён']);
         exit;
