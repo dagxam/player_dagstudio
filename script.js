@@ -2938,6 +2938,8 @@ function renderCurrentPlaylistFromAccountData() {
 window.DAG_PROFILE_SYNC?.configure({
     api,
     getUser: () => currentUser,
+    canSendLarge: () => !playbackWanted || isCurrentTrackFullyReady() ||
+        bufferedSecondsAhead() >= (getNetworkProfile().weak ? 100 : 60),
     status: message => {
         const el=document.getElementById('profile-sync-status');
         if(el)el.textContent=message;
