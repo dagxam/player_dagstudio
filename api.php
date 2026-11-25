@@ -208,13 +208,14 @@ elseif ($action === 'save_profile_setting') {
     $valid = isset($limits[$key]) && is_int($expected) &&
         $expected >= 0 && $expected < 2147483647 &&
         ($simple ? is_bool($value) : ($object ? is_array($value) &&
-            !array_is_list($value) : ($array ? is_array($value) &&
+            (!array_is_list($value) || ($key === 'likes_exclusions' && $value === [])) : ($array ? is_array($value) &&
             array_is_list($value) : ($key === 'rainbow_speed' &&
             is_int($value) && $value >= 4 && $value <= 60))));
     if (!$valid) {
         http_response_code(400); echo json_encode(['error' => 'Invalid setting']); exit;
     }
-    $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $encoded = $key === 'likes_exclusions' && $value === [] ? '{}' :
+        json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if ($encoded === false || strlen($encoded) > $limits[$key]) {
         http_response_code(413); echo json_encode(['error' => 'Setting too large']); exit;
     }

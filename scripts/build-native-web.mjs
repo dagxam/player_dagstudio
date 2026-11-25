@@ -55,6 +55,7 @@ html = html.replace(/\s*<script src="studio\.js\?v=[^"]+" defer><\/script>/i, ''
 html = html.replace(/\s*<script src="studio-next\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(/\s*<script src="studio-center\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(/\s*<script src="studio-vision\.js\?v=[^"]+" defer><\/script>/i, '');
+html = html.replace(/\s*<script src="profile-sync\.js\?v=[^"]+" defer><\/script>/i, '');
 html = html.replace(
   'document.body.appendChild(script);',
   `script.addEventListener('load', () => {
@@ -78,6 +79,15 @@ html = html.replace(
   document.body.appendChild(ui);
 });
 document.body.appendChild(script);`
+);
+
+html = html.replace(
+  'document.body.appendChild(script);',
+  `const profileScript = document.createElement('script');
+profileScript.src = 'profile-sync.js';
+profileScript.addEventListener('load', () => document.body.appendChild(script), {once:true});
+profileScript.addEventListener('error', () => document.body.appendChild(script), {once:true});
+document.body.appendChild(profileScript);`
 );
 
 // Root-relative images should stay inside the APK web root.
