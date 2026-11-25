@@ -669,8 +669,7 @@ elseif ($action === 'search_global') {
     // when optional API keys or environment settings exist on the server.
     $urls = [
         'muzo' => "https://muzofond.fm/search/" . $query_encode . "?page=" . $page,
-        // Trial replacement: same second-provider slot, different host.
-        'hitmoz' => "https://ru.hitmos.site/search?q=" . $query_encode
+        'hitmoz' => "https://ru.hitmoz.org/search?q=" . $query_encode
     ];
 
     $multi = curl_multi_init();
@@ -753,7 +752,7 @@ elseif ($action === 'search_global') {
                 if ($title_node && $link_node) {
                     $url = trim($link_node->getAttribute('href'));
                     if (!empty($url) && strpos($url, 'http') !== 0) {
-                        $url = 'https://ru.hitmos.site' . (strpos($url, '/') === 0 ? '' : '/') . $url;
+                        $url = 'https://ru.hitmoz.org' . (strpos($url, '/') === 0 ? '' : '/') . $url;
                     }
                     $raw_results[] = [
                         'title' => trim($title_node->textContent),
