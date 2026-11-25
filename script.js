@@ -6941,9 +6941,24 @@ function instantMixFreshCandidates(tracks,key,artist=''){
     const identity=normalizeTrackIdentity(artist);
     return quickMixUnique(tracks).filter(track=>{
         if(!instantMixValidRelease(track,key))return false;
-        if(!identity)return true;
         const singer=normalizeTrackIdentity(track.artist);
-        return singer.includes(identity)||(singer.length>5&&identity.includes(singer));
+        if(identity)return singer.includes(identity)||
+            (singer.length>5&&identity.includes(singer));
+        if(key==='charts')return true;
+        // When the source has no genre metadata, do not inject an
+        // arbitrary performer into a category merely due to a broad query.
+        const known=(INSTANT_MIX_ARTISTS[key]||[]).some(name=>{
+            const normalized=normalizeTrackIdentity(name);
+            return singer.includes(normalized)||
+                (singer.length>5&&normalized.includes(singer));
+        });
+        if(known)return true;
+        const genre=normalizeTrackIdentity(track.genre);
+        if(key==='caucasus')return /кавказ|дагест|авар|лезгин|даргин|кумык|чечен|ингуш|осет|кабардин|балкар|карача|адыг|азербайджан/.test(genre);
+        if(key==='russian')return /русск|российск|russian/.test(genre)&&
+            !/кавказ|дагест|кавказск/.test(genre);
+        if(key==='foreign')return /зарубеж|international|foreign|english/.test(genre);
+        return false;
     });
 }
 async function instantMixFastArtistSearch(key,artist){
@@ -6968,7 +6983,7 @@ function warmInstantMix(key){
         }).catch(()=>[]).finally(()=>{entry.promise=null;});
     return entry.promise;
 }
-window.warmInstantMixSelections=function(){
+if(typeof window!=='undefined')window.warmInstantMixSelections=function(){
     if(navigator.onLine===false||getNetworkProfile().weak||
         trafficSaverEnabled()||playbackWanted)return;
     const generation=++instantMixWarmGeneration;
