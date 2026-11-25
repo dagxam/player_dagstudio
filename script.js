@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2377';
+const WEB_BUILD_LABEL = '2378';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2394', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2395', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -3404,14 +3404,11 @@ async function testMusicSourceHealth() {
         if (!response?.success || !response?.sources) throw new Error('Не получен ответ от поискового API.');
         const knownSources = {
             muzo:{label:'Muzofond',source:'[MUZOFOND]'},
-            audius:{label:'Audius',source:'[AUDIUS]'},
-            hitmos:{label:'Hitmos.fm',source:'[HITMOS]'},
-            partner:{label:'Партнёрский каталог',source:'[PARTNER]'},
-            jamendo:{label:'Jamendo',source:'[JAMENDO]'}
+            hitmoz:{label:'Hitmoz',source:'[HITMOZ]'}
         };
         // Never report removed or unconfigured sources as part of a live test.
-        const sources=Object.keys(response.sources)
-            .filter(key=>knownSources[key])
+        const sources=['muzo','hitmoz']
+            .filter(key=>Object.prototype.hasOwnProperty.call(response.sources,key))
             .map(key=>({key,...knownSources[key]}));
         const samples=Array.isArray(response.data)?response.data:[];
         const counts=response.source_counts||{};
