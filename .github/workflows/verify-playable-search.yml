@@ -1,0 +1,55 @@
+name: Verify Live Playable Multi-Source Search
+on:
+  workflow_run:
+    workflows: ["Deploy pl.dagstudio.ru"]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify playable music results from actual DAGSTUDIO server
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,json,time,urllib.parse
+          base='https://pl.dagstudio.ru/api.php'
+          for query in ('Miyagi','Ислам Итляшев'):
+              payload=json.dumps({'action':'search_playable_catalog','query':query},ensure_ascii=False).encode('utf-8')
+              data=None
+              for attempt in range(6):
+                  try:
+                      req=urllib.request.Request(base+'?live-playable='+str(int(time.time())),
+                        data=payload,method='POST',headers={'Content-Type':'application/json','Accept':'application/json','Cache-Control':'no-cache'})
+                      with urllib.request.urlopen(req,timeout=50) as response:
+                          data=json.load(response)
+                      if data.get('success') and isinstance(data.get('sources'),dict) and 'muzrecord' in data['sources']:
+                          break
+                      print('RETRY_NOT_READY',query,attempt+1,str(data)[:160],flush=True)
+                  except Exception as e:print('RETRY_ERROR',query,attempt+1,type(e).__name__,str(e)[:150],flush=True)
+                  time.sleep(8)
+              assert data and data.get('success') and 'muzrecord' in data.get('sources',{}), 'New playable API is not deployed'
+              songs=data.get('data') or []
+              print('LIVE_PLAYABLE_SEARCH',query,'tracks',len(songs),'sources',json.dumps(data.get('sources'),ensure_ascii=False),flush=True)
+              assert isinstance(songs,list)
+              expected={'[MUZRECORD]':'s.muzrecord.com','[MUZPACE]':'cdn.muzpace.net'}
+              for track in songs[:12]:
+                  host=urllib.parse.urlparse(track.get('url','')).hostname or ''
+                  source=track.get('source','')
+                  assert source in ['[MUZRECORD]','[MUZPACE]','[HITMOS]']
+                  assert host==expected.get(source,host) or (source=='[HITMOS]' and host.startswith('plc') and host.endswith('.hitmos.fm'))
+                  print('LIVE_SONG',source,str(track.get('artist'))[:55],str(track.get('title'))[:60],host,flush=True)
+              if songs:
+                  track=songs[0]
+                  proxy='https://pl.dagstudio.ru/proxy.php?'+urllib.parse.urlencode({
+                      'url':track['url'],'source':track['source'].strip('[]')})
+                  req=urllib.request.Request(proxy,method='GET',headers={'Range':'bytes=0-511','Accept':'audio/*'})
+                  with urllib.request.urlopen(req,timeout=28) as response:
+                      sample=response.read(512)
+                      print('LIVE_PROXY_AUDIO',query,response.status,response.headers.get('Content-Type'),
+                            response.headers.get('Content-Range'),len(sample),flush=True)
+                      assert response.status in (200,206) and len(sample)==512
+          PY
