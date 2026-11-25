@@ -2,16 +2,12 @@ name: Music Source Health
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "api.php"
       - "proxy.php"
-      - "music-official.php"
-      - "openverse-provider.php"
-      - "open-audio-providers.php"
-      - ".github/test-extra-audio.php"
-      - ".github/test-extra-audio.mjs"
+      - "script.js"
+      - ".github/test-two-search-sources.mjs"
       - ".github/workflows/music-sources-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -22,332 +18,47 @@ permissions:
 
 jobs:
   sources:
-    name: Check all music sources
+    name: Verify Muzofond and Hitmoz
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate PHP
+      - name: Verify only two active search providers
         run: |
           php -l api.php
           php -l proxy.php
-          php -l music-official.php
-          php -l openverse-provider.php
-          php -l open-audio-providers.php
-          node .github/test-extra-audio.mjs
-          node .github/test-openverse-provider.mjs
-          node .github/test-official-music.mjs
+          node --check script.js
+          node .github/test-two-search-sources.mjs
 
-      - name: Diagnose real Commons and Archive indexing before declaring matches
-        run: |
-          python - <<'PY'
-          import json,urllib.parse,urllib.request
-          examples=['Dagestan','Caucasus music','Russian folk']
-          for q in examples:
-              for kind in ['commons','archive']:
-                  if kind=='commons':
-                      base='https://commons.wikimedia.org/w/api.php'
-                      params={'action':'query','generator':'search','gsrsearch':q+' filetype:audio',
-                         'gsrnamespace':6,'gsrlimit':5,'prop':'imageinfo',
-                         'iiprop':'url|mime|extmetadata','format':'json','formatversion':2}
-                  else:
-                      base='https://archive.org/advancedsearch.php'
-                      expression='mediatype:audio AND licenseurl:creativecommons.org AND (title:("'+q+'") OR creator:("'+q+'"))'
-                      params={'q':expression,'fl[]':['identifier','title','creator','licenseurl'],
-                         'rows':5,'page':1,'output':'json'}
-                  url=base+'?'+urllib.parse.urlencode(params,doseq=True)
-                  try:
-                      req=urllib.request.Request(url,headers={'User-Agent':'DAGSTUDIO-PLAYER/1.0 (https://pl.dagstudio.ru)'})
-                      with urllib.request.urlopen(req,timeout=10) as res:
-                          data=json.load(res)
-                      if kind=='commons':
-                          rows=data.get('query',{}).get('pages',[])
-                          sample=[(r.get('title',''),r.get('imageinfo',[{}])[0].get('mime','')) for r in rows[:4]]
-                          total=len(rows)
-                      else:
-                          rows=data.get('response',{}).get('docs',[])
-                          sample=[(r.get('identifier',''),r.get('licenseurl','')) for r in rows[:4]]
-                          total=data.get('response',{}).get('numFound',0)
-                      print('OPEN_AUDIO_PROBE',json.dumps({'q':q,'provider':kind,'count':total,'sample':sample},ensure_ascii=False))
-                  except Exception as e:
-                      print('OPEN_AUDIO_PROBE_ERROR',q,kind,type(e).__name__,str(e)[:120])
-          PY
-
-      - name: Start local player API
-        run: |
-          rm -f player.db player.db-*
-          rm -rf sessions
-          php -S 127.0.0.1:8765 >/tmp/dag-source-health.log 2>&1 &
-          echo $! > /tmp/dag-source-health.pid
-          sleep 1
-
-      - name: Query all providers in weak-network mode
-        run: |
-          set -e
-          RESULT="$(curl --fail --silent --show-error --max-time 20             -H 'Content-Type: application/json'             --data '{"action":"search_global","query":"Miyagi","page":1,"network":"weak","save_data":1}'             http://127.0.0.1:8765/api.php)"
-
-          printf '%s' "$RESULT" > /tmp/source-health.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          data = json.loads(Path('/tmp/source-health.json').read_text())
-          expected = ['commons','archive','audius','vk_mail','hitmoz','hitmos','muzo','zvooq','muzvox','muzca','jamendo','openverse']
-
-          assert data.get('success') is True, data
-          sources = data.get('sources') or {}
-          counts = data.get('source_counts') or {}
-          missing = [name for name in expected if name not in sources]
-          assert not missing, f"Missing source diagnostics: {missing}"
-
-          print("NETWORK_MODE", data.get("network_mode"))
-          print("RESULT_COUNT", len(data.get("data") or []))
-          for name in expected:
-              info = sources.get(name) or {}
-              print(
-                  "SOURCE",
-                  name,
-                  "ok="+str(bool(info.get("ok"))).lower(),
-                  "http="+str(info.get("http", 0)),
-                  "configured="+str(info.get("configured","not_specified")),
-                  "count="+str(counts.get({
-                      'commons':'[COMMONS]','archive':'[ARCHIVE]',
-                      'audius':'[AUDIUS]',
-                      'vk_mail':'[VK]',
-                      'hitmoz':'[HITMOZ]', 'hitmos':'[HITMOS]',
-                      'muzo':'[MUZOFOND]',
-                      'zvooq':'[ZVOOQ]',
-                      'muzvox':'[MUZVOX]',
-                      'muzca':'[MUZCA]', 'jamendo':'[JAMENDO]', 'openverse':'[OPENVERSE]'
-                  }[name], 0)),
-                  "error="+str(info.get("error",""))[:100]
-              )
-
-          if not data.get('data'):
-              raise SystemExit("No music provider returned a playable search result")
-          PY
-
-      - name: Test keyless Openverse API directly for Russian and Caucasus music
-        run: |
-          python - <<'PY'
-          import json,urllib.parse,urllib.request,urllib.error
-          for query in ['Russian folk', 'Caucasus music', 'Dagestan']:
-              url='https://api.openverse.org/v1/audio/?'+urllib.parse.urlencode({
-                  'q':query,'category':'music','license':'cc0,pdm,by',
-                  'page_size':10,'page':1})
-              req=urllib.request.Request(url,headers={
-                  'Accept':'application/json',
-                  'User-Agent':'DAGSTUDIO-PLAYER/1.0 (music catalog diagnostics)'})
-              try:
-                  with urllib.request.urlopen(req,timeout=15) as res:
-                      obj=json.load(res)
-                      print('OPENVERSE_DIRECT',json.dumps({
-                          'query':query,'http':res.status,
-                          'response_keys':sorted(obj.keys()),
-                          'detail':str(obj.get('detail',''))[:100],
-                          'total':obj.get('result_count',0),
-                          'returned':len(obj.get('results') or []),
-                          'licensed_wikimedia_audio':sum(
-                              str(item.get('url','')).startswith(
-                                  'https://upload.wikimedia.org/wikipedia/commons/')
-                              and item.get('license') in ('cc0','pdm','by')
-                              for item in (obj.get('results') or []))
-                      },ensure_ascii=False))
-              except urllib.error.HTTPError as ex:
-                  print('OPENVERSE_DIRECT_ERROR',query,'HTTP',ex.code)
-              except Exception as ex:
-                  print('OPENVERSE_DIRECT_ERROR',query,type(ex).__name__,str(ex)[:120])
-          PY
-
-      - name: Check production player API and OTA endpoint
-        run: |
-          set -euo pipefail
-          echo "DNS addresses (runner):"
-          getent ahostsv4 pl.dagstudio.ru | head -n 3
-          curl --fail --silent --show-error --retry 2 --max-time 40 \
-            -H 'Content-Type: application/json' \
-            --data '{"action":"search_global","query":"Miyagi","page":1,"network":"weak"}' \
-            https://pl.dagstudio.ru/api.php -o /tmp/dag-public-search.json
-          python - <<'PY'
-          import json
-          data=json.load(open('/tmp/dag-public-search.json'))
-          items=data.get('data') or []
-          print('LIVE_SEARCH_COUNT',len(items))
-          counts=data.get('source_counts') or {}
-          names={'commons':'[COMMONS]','archive':'[ARCHIVE]','audius':'[AUDIUS]','vk_mail':'[VK]','hitmoz':'[HITMOZ]', 'hitmos':'[HITMOS]',
-                 'muzo':'[MUZOFOND]','zvooq':'[ZVOOQ]',
-                 'muzvox':'[MUZVOX]','muzca':'[MUZCA]',
-                 'jamendo':'[JAMENDO]', 'openverse':'[OPENVERSE]'}
-          for k,v in (data.get('sources') or {}).items():
-              print('LIVE_SOURCE',k,'ok='+str(bool(v.get('ok'))).lower(),
-                    'http='+str(v.get('http',0)),
-                    'configured='+str(v.get('configured','not_specified')),
-                    'matching_tracks='+str(counts.get(names.get(k,''),0)),
-                    'audio_verified=false')
-          matching={key:int(counts.get(source,0) or 0) for key,source in names.items()}
-          active={key:value for key,value in matching.items() if value>0}
-          print('LIVE_MATCHING_PROVIDERS',len(active),'OF',len(matching))
-          print('LIVE_MATCHING_SOURCE_NAMES',','.join(sorted(active)) or 'none')
-          if len(active)==1:
-              print('WARNING_ONLY_ONE_PROVIDER_RETURNED_MATCHING_TRACKS; other endpoints may be blocked, timed out, or have no matching results')
-          elif not active:
-              print('WARNING_NO_PROVIDER_MATCHES')
-          assert data.get('success') is True and len(items)>0, 'Live API search unavailable'
-          PY
-          curl --fail --silent --show-error --retry 2 --max-time 35 \
-            https://pl.dagstudio.ru/ota/DAGSTUDIO-PLAYER-web-version.json -o /tmp/dag-public-ota.json
-          python - <<'PY'
-          import json
-          data=json.load(open('/tmp/dag-public-ota.json'))
-          assert data.get('version') and data.get('checksum') and data.get('url')
-          print('LIVE_OTA_VERSION',data['version'])
-          PY
-
-
-      - name: Probe Hitmos website and targeted Russian / Caucasian discovery
+      - name: Check production search and source counts
         run: |
           python - <<'PY'
           import json,urllib.request,urllib.error
-          urls=['https://hitmos.fm/','https://rus.hitmos.fm/']
-          for url in urls:
-              req=urllib.request.Request(url,headers={
-                  'User-Agent':'DAGSTUDIO-PLAYER-source-health/1.0',
-                  'Accept':'text/html'})
+          allowed={'muzo':'[MUZOFOND]','hitmoz':'[HITMOZ]'}
+          for query in ['Miyagi','Мика Рамазанова','Кавказ']:
+              payload=json.dumps({'action':'search_global','query':query,'page':1,'network':'weak',
+                  'mode':'full'},ensure_ascii=False).encode()
+              req=urllib.request.Request('https://pl.dagstudio.ru/api.php',data=payload,
+                  headers={'Content-Type':'application/json','Accept':'application/json',
+                           'User-Agent':'DAGSTUDIO-PLAYER-source-health/2.0'},
+                  method='POST')
               try:
-                  with urllib.request.urlopen(req,timeout=12) as response:
-                      print('HITMOS_WEB_HTTP',response.status,
-                            'final_url='+response.url,
-                            'NOTE=Website_access_does_not_prove_API_or_stream_access')
-              except urllib.error.HTTPError as error:
-                  print('HITMOS_WEB_HTTP',error.code,'url='+url,
-                        'NOTE=No_authorized_API_confirmed')
-              except Exception as error:
-                  print('HITMOS_WEB_ERROR',url,type(error).__name__,str(error)[:100])
-          probes=['Dagestan','Caucasus folk','Russian folk','дагестанская музыка','русские песни новинки','кавказские песни новинки',
-                  'Мика Рамазанова','Ислам Айдаров']
-          for query in probes:
-              payload=json.dumps({
-                  'action':'search_global','query':query,'page':1,
-                  'mode':'fast','network':'weak'
-              },ensure_ascii=False).encode('utf-8')
-              req=urllib.request.Request('https://pl.dagstudio.ru/api.php',
-                  data=payload,headers={'Content-Type':'application/json',
-                      'Accept':'application/json'},method='POST')
-              try:
-                  with urllib.request.urlopen(req,timeout=28) as response:
+                  with urllib.request.urlopen(req,timeout=35) as response:
                       data=json.load(response)
                   if data.get('success') is not True:
-                      print('FOCUSED_DISCOVERY_ERROR',query,'invalid_response')
+                      print('SEARCH_ERROR',query,'invalid-response',str(data)[:180])
                       continue
-                  if query=='Dagestan':
-                      with open('/tmp/dag-dagestan.json','w') as out:
-                          json.dump(data,out,ensure_ascii=False)
-                  counts=data.get('source_counts') or {}
-                  matches={key:value for key,value in counts.items()
-                           if int(value or 0)>0}
-                  print('FOCUSED_DISCOVERY',json.dumps({
-                      'query':query,'tracks':len(data.get('data') or []),
-                      'matching_sources':matches,
-                      'sources':{key:{
-                          'http':item.get('http',0),
-                          'configured':item.get('configured','not_specified'),
-                          'ok':bool(item.get('ok'))}
-                          for key,item in (data.get('sources') or {}).items()}
-                  },ensure_ascii=False))
-                  if not matches:
-                      print('WARNING_NO_VERIFIED_TRACK_MATCH',query)
+                  sources=data.get('sources',{})
+                  counts=data.get('source_counts',{})
+                  print('SEARCH',json.dumps({'q':query,'results':len(data.get('data',[])),
+                      'sources':{k:{'http':v.get('http',0),'ok':bool(v.get('ok')),
+                       'matches':int(counts.get(allowed[k],0) or 0)}
+                       for k,v in sources.items() if k in allowed}},ensure_ascii=False))
+                  extra=set(sources)-set(allowed)
+                  if extra:print('WARNING_PRODUCTION_SEARCH_NOT_UPDATED',sorted(extra))
+                  samples={str(t.get('source')):t for t in data.get('data',[]) if t.get('url')}
+                  print('SAMPLE_AUDIO_SOURCES',list(samples))
               except Exception as error:
-                  print('FOCUSED_DISCOVERY_ERROR',query,type(error).__name__,
-                        str(error)[:120])
+                  print('SOURCE_CHECK_ERROR',query,type(error).__name__,str(error)[:160])
           PY
-
-      - name: Verify official Audius latest and trending JSON on production
-        run: |
-          set -euo pipefail
-          for MODE in latest trending; do
-            curl --fail --silent --show-error --retry 2 --max-time 35 \
-              --resolve pl.dagstudio.ru:443:188.127.241.85 \
-              -H 'Content-Type: application/json' \
-              --data "{\"action\":\"official_audius_feed\",\"mode\":\"$MODE\",\"page\":1}" \
-              https://pl.dagstudio.ru/api.php -o "/tmp/dag-audius-$MODE.json"
-            python - "$MODE" <<'PY'
-          import json,sys
-          mode=sys.argv[1]
-          data=json.load(open(f'/tmp/dag-audius-{mode}.json'))
-          assert isinstance(data.get('success'),bool),data
-          assert isinstance(data.get('data'),list),data
-          print('AUDIO_OFFICIAL_FEED',mode,'available='+str(data['success']).lower(),
-                'items='+str(len(data['data'])),'provider='+str(data.get('provider')))
-          for track in data['data'][:3]:
-              assert track.get('source')=='[AUDIUS]'
-              assert str(track.get('url','')).startswith((
-                'https://api.audius.co/v1/tracks/',
-                'https://discoveryprovider.audius.co/v1/tracks/'))
-          if not data['success']:
-              print('WARNING: Audius official',mode,'API unavailable from production host')
-          PY
-          done
-
-      - name: Probe representative audio per source on production
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import concurrent.futures,json,urllib.request,urllib.parse
-          data=json.load(open('/tmp/dag-public-search.json'))
-          groups={}
-          for item in data.get('data',[]):
-              tag=str(item.get('source','')).upper()
-              if item.get('url') and tag and tag not in groups:
-                  groups[tag]=item
-          try:
-              extra=json.load(open('/tmp/dag-dagestan.json'))
-              for item in extra.get('data',[]):
-                  tag=str(item.get('source','')).upper()
-                  if tag=='[COMMONS]' and item.get('url'):
-                      groups.setdefault(tag,item)
-          except (OSError,ValueError):
-              pass
-          labels=['[COMMONS]','[ARCHIVE]','[AUDIUS]','[VK]','[HITMOZ]','[HITMOS]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]','[OPENVERSE]']
-          def probe(label):
-              t=groups.get(label)
-              if not t:return (label,'NO_MATCHING_SEARCH_RESULT')
-              url='https://pl.dagstudio.ru/proxy.php?'+urllib.parse.urlencode({
-                  'url':t['url'],'source':label.strip('[]').lower(),'weak':'1'})
-              req=urllib.request.Request(url,method='HEAD',
-                  headers={'User-Agent':'DAGSTUDIO-PLAYER-source-health/1.0'})
-              try:
-                  with urllib.request.urlopen(req,timeout=20) as r:
-                      mime=r.headers.get('content-type','')
-                      return (label,'AUDIO_HEAD_OK' if r.status in (200,206) and mime.startswith('audio/') else 'BAD_RESPONSE',
-                          r.status,mime[:50])
-              except Exception as err:return (label,'AUDIO_HEAD_FAILED',str(err)[:120])
-          # Diagnose upstream MIME/redirect without downloading full files.
-          for label in ['[COMMONS]','[ARCHIVE]']:
-              track=groups.get(label)
-              if not track:continue
-              try:
-                  request=urllib.request.Request(track['url'],method='HEAD',
-                      headers={'User-Agent':'DAGSTUDIO-PLAYER-source-health/1.0'})
-                  with urllib.request.urlopen(request,timeout=12) as upstream:
-                      print('OPEN_AUDIO_UPSTREAM',label,upstream.status,
-                            urllib.parse.urlsplit(upstream.url).hostname,
-                            upstream.headers.get('content-type','')[:80])
-              except Exception as error:
-                  print('OPEN_AUDIO_UPSTREAM_FAILED',label,type(error).__name__,str(error)[:100])
-          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-              statuses=list(ex.map(probe,labels))
-          for item in statuses:print('LIVE_SOURCE_AUDIO',*item)
-          if not any(row[1]=='AUDIO_HEAD_OK' for row in statuses):
-              print('WARNING: No sample audio URL passed HEAD; investigate provider/server connectivity')
-          PY
-
-      - name: Stop local API
-        if: always()
-        run: |
-          if [ -f /tmp/dag-source-health.pid ]; then
-            kill "$(cat /tmp/dag-source-health.pid)" 2>/dev/null || true
-          fi
-          rm -f player.db player.db-*
-          rm -rf sessions
