@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2375';
+const WEB_BUILD_LABEL = '2376';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2392', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2393', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -2546,8 +2546,9 @@ function isJamendoStreamUrl(url) {
 window.downloadTrackFile = function(index) {
     const track = playlist[index];
     if (!track || !track.url) return;
-    if((track.source==='[JAMENDO]'||track.source==='[OPENVERSE]')||isJamendoStreamUrl(track.url)){
-        showNotification('Трек Jamendo доступен для прослушивания. Загрузка здесь не предусмотрена.');
+    if(['[JAMENDO]','[OPENVERSE]','[COMMONS]','[ARCHIVE]','[PARTNER]'].includes(track.source) ||
+        isJamendoStreamUrl(track.url)){
+        showNotification('Запись доступна для прослушивания. Скачивание из этого источника отключено.');
         return;
     }
     const safeTitle = `${track.artist} - ${track.title}`;
@@ -2567,7 +2568,8 @@ window.downloadTrackFile = function(index) {
 function canSaveTrackOffline(track) {
     return Boolean(track?.url && isRemoteMediaUrl(track.url) &&
         track.source !== '[JAMENDO]' && track.source !== '[OPENVERSE]' &&
-        track.source !== '[PARTNER]' &&
+        track.source !== '[PARTNER]' && track.source !== '[COMMONS]' &&
+        track.source !== '[ARCHIVE]' &&
         !isJamendoStreamUrl(track.url));
 }
 // The list and fullscreen player deliberately share the same verified
@@ -3407,6 +3409,8 @@ async function testMusicSourceHealth() {
             {key:'hitmoz',label:'Hitmoz',source:'[HITMOZ]'},
             {key:'hitmos',label:'Hitmos.fm',source:'[HITMOS]'},
             {key:'openverse',label:'Openverse (CC)',source:'[OPENVERSE]'},
+            {key:'commons',label:'Wikimedia Commons',source:'[COMMONS]'},
+            {key:'archive',label:'Internet Archive',source:'[ARCHIVE]'},
             {key:'muzo',label:'Muzofond',source:'[MUZOFOND]'},
             {key:'zvooq',label:'Zvooq',source:'[ZVOOQ]'},
             {key:'muzvox',label:'MuzVox',source:'[MUZVOX]'},
@@ -3425,7 +3429,7 @@ async function testMusicSourceHealth() {
                 (Number(info.http)||0)+')';
         });
         const render=()=>{
-            result.textContent=['Проверка '+sources.length+' источников (Hitmos/Jamendo по API, Openverse без ключа) · '+((Date.now()-started)/1000).toFixed(1)+' с',
+            result.textContent=['Проверка '+sources.length+' источников (открытые CC-каталоги + API-провайдеры) · '+((Date.now()-started)/1000).toFixed(1)+' с',
                 ...lines,
                 'HTTP 200 — не гарантия аудио. Проверка выполнена из сети сервера DAGSTUDIO.',
                 'При слабом сигнале или воспроизведении с малым буфером аудиопроверка пропускается.'
@@ -3525,7 +3529,9 @@ function downloadCurrentPlaylistOffline() {
     if(!playlist.length)return showNotification('В этом списке нет треков.');
     if(offlineBatch?.pending.size)return showNotification('Загрузка плейлиста уже идёт. Дождитесь завершения.');
     const tracks=playlist.filter(track=>track?.url&&isRemoteMediaUrl(track.url) &&
-        track.source!=='[JAMENDO]'&&track.source!=='[OPENVERSE]'&&!/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(track.url)));
+        track.source!=='[JAMENDO]'&&track.source!=='[OPENVERSE]'&&
+        track.source!=='[PARTNER]'&&track.source!=='[COMMONS]'&&
+        track.source!=='[ARCHIVE]'&&!/^https:\/\/(?:[a-z0-9-]+\.)?storage\.jamendo\.com(?:\/|$)/i.test(String(track.url)));
     const unique=[],seen=new Set();
     for(const track of tracks){
         const url=canonicalTrackUrl(track);
@@ -7665,14 +7671,19 @@ function renderPlaylist() {
             artist.appendChild(document.createTextNode(' '));
             artist.appendChild(sourceBadge);
         }
-        if((t.source==='[JAMENDO]' || t.source==='[OPENVERSE]') && currentTab==='search') {
+        if(['[JAMENDO]','[OPENVERSE]','[COMMONS]','[ARCHIVE]'].includes(t.source) &&
+            (currentTab==='search'||String(currentTab).startsWith('mix:'))) {
             // CC attribution: show the author (above), source and CC license.
             const official=String(t.source_url||'');
             const fromJamendo=t.source==='[JAMENDO]';
-            if((fromJamendo && /^https:\/\/(?:www\.)?jamendo\.com\/track\/[0-9]+(?:[/?#]|$)/.test(official)) ||
-                (!fromJamendo && /^https:\/\/commons\.wikimedia\.org\/wiki\/(?:File|Category):/.test(official))){
+            const fromArchive=t.source==='[ARCHIVE]';
+            const sourceValid =
+                (fromJamendo && /^https:\/\/(?:www\.)?jamendo\.com\/track\/[0-9]+(?:[/?#]|$)/.test(official)) ||
+                (fromArchive && /^https:\/\/archive\.org\/details\/[A-Za-z0-9_.%-]+$/.test(official)) ||
+                (!fromArchive && !fromJamendo && /^https:\/\/commons\.wikimedia\.org\/wiki\/(?:File|Category):/.test(official));
+            if(sourceValid){
                 const link=document.createElement('a');
-                link.textContent=fromJamendo?' · Jamendo':' · Wikimedia Commons';
+                link.textContent=fromJamendo?' · Jamendo':fromArchive?' · Internet Archive':' · Wikimedia Commons';
                 link.href=official;
                 link.target='_blank';
                 link.rel='noopener noreferrer';
