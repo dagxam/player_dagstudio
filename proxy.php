@@ -170,7 +170,8 @@ $bodyStarted = false;
 $attemptError = false;
 
 $sendHeaders = static function(bool $useRange) use (
-    &$responseHeaders, &$currentStatus, &$headersSent, $fallbackContentType, $forceNoRange, $forwardRange
+    &$responseHeaders, &$currentStatus, &$headersSent, $fallbackContentType, $forceNoRange, $forwardRange,
+    $source, $audioExt
 ) {
     if ($headersSent) return true;
 
@@ -195,7 +196,12 @@ $sendHeaders = static function(bool $useRange) use (
     }
 
     // Не превращаем HTML/JSON-антибот в аудио.
+    $wrappedAudio = in_array($source,['commons','archive','openverse'],true) &&
+        in_array($audioExt,['ogg','oga','opus','flac','wav'],true) &&
+        in_array($contentType,['application/ogg','application/x-ogg',
+            'application/flac','application/x-flac'],true);
     $validType = ($contentType === '' || str_starts_with($contentType, 'audio/') ||
+        $wrappedAudio ||
         in_array($contentType, ['application/octet-stream', 'application/mp3', 'binary/octet-stream'], true));
     if (!$validType) return false;
 
@@ -211,7 +217,7 @@ $sendHeaders = static function(bool $useRange) use (
         }
     }
 
-    $effectiveType = ($contentType === '' ||
+    $effectiveType = ($contentType === '' || $wrappedAudio ||
         in_array($contentType, ['application/octet-stream', 'application/mp3', 'binary/octet-stream'], true))
         ? $fallbackContentType
         : $contentType;
@@ -244,8 +250,8 @@ $sendHeaders = static function(bool $useRange) use (
 // Internet Archive's media files may redirect to IA's own audio CDN.
 // Do not follow a redirect to an unrelated host or a private IP.
 function dagArchiveRedirectAllowed(string $location): bool {
-    if (str_starts_with($location,'/') && !str_starts_with($location,'//'))
-        return true;
+    if (str_starts_with($location,'//')) $location='https:'.$location;
+    elseif (str_starts_with($location,'/')) return true;
     $info=parse_url($location);
     if (!is_array($info) || ($info['scheme']??'')!=='https' ||
         isset($info['port']) || isset($info['user']) || isset($info['pass'])) return false;
