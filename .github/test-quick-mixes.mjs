@@ -125,7 +125,7 @@ const mixed=ctx.quickMixSpreadSources([
 assert.equal(mixed.length,3);
 assert.equal(mixed[0].id,1);
 assert.equal(mixed[1].id,3);
-assert.equal(mixed[2].id,4);
+assert.equal(mixed[2].id,2,'With two sources, round-robin returns to the first provider');
 const apiSource=readFileSync(new URL('../api.php',import.meta.url),'utf8');
 for(const provider of ['muzo','hitmoz']){
  assert.ok(apiSource.includes("'"+provider+"'  =>")||new RegExp("'"+provider+"'\\s*=>").test(apiSource),
