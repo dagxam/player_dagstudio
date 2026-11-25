@@ -903,7 +903,8 @@ elseif ($action === 'search_global') {
                 $raw_results[] = [
                     'title' => $title,
                     'artist' => $artist,
-                    'url' => 'https://' . $audius_stream_host . '/v1/tracks/' . rawurlencode($id) . '/stream',
+                    'url' => 'https://' . $audius_stream_host . '/v1/tracks/' . rawurlencode($id) .
+                        '/stream?app_name=dagstudio-player',
                     'type' => 'audio',
                     'thumb' => $thumb,
                     'source' => '[AUDIUS]',

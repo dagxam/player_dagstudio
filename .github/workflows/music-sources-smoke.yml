@@ -10,6 +10,8 @@ on:
       - "music-official.php"
       - "openverse-provider.php"
       - "open-audio-providers.php"
+      - ".github/test-extra-audio.php"
+      - ".github/test-extra-audio.mjs"
       - ".github/workflows/music-sources-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -188,7 +190,7 @@ jobs:
                         'NOTE=No_authorized_API_confirmed')
               except Exception as error:
                   print('HITMOS_WEB_ERROR',url,type(error).__name__,str(error)[:100])
-          probes=['Russian folk','дагестанская музыка','русские песни новинки','кавказские песни новинки',
+          probes=['Caucasus folk','Russian folk','дагестанская музыка','русские песни новинки','кавказские песни новинки',
                   'Мика Рамазанова','Ислам Айдаров']
           for query in probes:
               payload=json.dumps({

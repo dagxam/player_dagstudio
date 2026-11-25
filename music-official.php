@@ -7,7 +7,8 @@ if (!in_array($mode, ['latest', 'trending'], true)) {
 $page = max(1, min(15, (int)($data['page'] ?? 1)));
 $limit = 24;
 $path = $mode === 'latest' ? '/v1/tracks/latest' : '/v1/tracks/trending';
-$params = http_build_query(['limit'=>$limit,'offset'=>($page-1)*$limit], '', '&', PHP_QUERY_RFC3986);
+$params = http_build_query(['limit'=>$limit,'offset'=>($page-1)*$limit,
+    'app_name'=>'dagstudio-player'], '', '&', PHP_QUERY_RFC3986);
 $hosts = ['api.audius.co', 'discoveryprovider.audius.co'];
 $tracks = [];
 $usedHost = '';
@@ -49,7 +50,8 @@ if ($usedHost !== '') {
         $items[]=[
             'title'=>$name,
             'artist'=>trim((string)($t['user']['name'] ?? 'Неизвестен')),
-            'url'=>'https://'.$usedHost.'/v1/tracks/'.rawurlencode($id).'/stream',
+            'url'=>'https://'.$usedHost.'/v1/tracks/'.rawurlencode($id).
+                '/stream?app_name=dagstudio-player',
             'type'=>'audio','thumb'=>$thumb,'source'=>'[AUDIUS]',
             'release_date'=>is_string($t['release_date'] ?? null) ? $t['release_date'] : '',
             'genre'=>trim((string)($t['genre'] ?? '')),
