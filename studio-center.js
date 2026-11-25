@@ -246,7 +246,7 @@ function render(mode='home'){
   selectNav('collections');
   defs.forEach(d=>grid.appendChild(card(d,()=>showMix(d.key,d.title))));
   gallery.appendChild(grid);
-  if(mode==='collections')window.warmInstantMixSelections?.();
+  if(mode==='collections'||mode==='home')window.warmInstantMixSelections?.();
  }
 
  gallery.scrollTop=0;
