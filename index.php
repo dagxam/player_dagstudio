@@ -119,7 +119,7 @@
         </div>
         <div id="quick-mix-status" class="quick-mix-status" role="status" aria-live="polite" hidden></div>
         <div class="search-container-wrap" id="search-container-box" role="search" aria-label="Поиск музыки">
-            <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>По всем доступным источникам</small></div>
+            <div class="dag-search-heading"><span>МУЗЫКАЛЬНЫЙ ПОИСК</span><small>Только Muzofond и Hitmoz</small></div>
             <div class="dag-search-field">
                 <i class="fas fa-magnifying-glass dag-search-glass" aria-hidden="true"></i>
                 <input type="search" id="search-input" class="search-input" name="dag_music_query" placeholder="Песня, исполнитель или плейлист" value="" autocomplete="off" data-lpignore="true" data-1p-ignore="true" autocapitalize="none" spellcheck="false" enterkeyhint="search" aria-label="Поиск трека или исполнителя" aria-controls="search-history">
@@ -204,7 +204,7 @@
             <button type="button" class="quick-mix-btn" data-mix="retro" onclick="startQuickMix('retro')">
                 <span class="mix-icon" aria-hidden="true"><i class="fas fa-compact-disc"></i></span><span class="mix-copy"><strong>Ретро</strong><small>Знакомая классика</small></span><i class="fas fa-chevron-right mix-arrow" aria-hidden="true"></i></button>
         </div>
-        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Поиск по всем подключённым музыкальным источникам. Если один сервер недоступен, используются результаты остальных. Подборки не подтверждают язык исполнения автоматически.</div>
+        <div class="quick-mixes-footer"><i class="fas fa-headphones" aria-hidden="true"></i> Поиск по Muzofond и Hitmoz. Если один сервер недоступен, используются результаты второго. Подборки не подтверждают язык исполнения автоматически.</div>
     </div>
 </div>
 
@@ -514,7 +514,7 @@
 </div>
 
 <script src="profile-sync.js?v=1" defer></script>
-<script src="script.js?v=2377" defer></script>
+<script src="script.js?v=2378" defer></script>
 <script src="studio.js?v=7" defer></script>
 <script src="studio-next.js?v=20" defer></script>
 <script src="studio-center.js?v=8" defer></script>
