@@ -120,21 +120,21 @@ assert.equal(plan[0].kind,'caucasus-russian');
 assert.ok(plan.some(d=>d.id==='dag_avar'&&d.kind==='caucasus-national'));
 assert.ok(!plan.some(d=>d.id==='dag_ru'&&d.kind==='caucasus-national'));
 const mixed=ctx.quickMixSpreadSources([
- {id:1,source:'[AUDIUS]'},{id:2,source:'[AUDIUS]'},
+ {id:1,source:'[MUZOFOND]'},{id:2,source:'[MUZOFOND]'},
  {id:3,source:'[HITMOZ]'},{id:4,source:'[MUZOFOND]'}],3);
 assert.equal(mixed.length,3);
 assert.equal(mixed[0].id,1);
 assert.equal(mixed[1].id,3);
 assert.equal(mixed[2].id,4);
 const apiSource=readFileSync(new URL('../api.php',import.meta.url),'utf8');
-for(const provider of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca']){
+for(const provider of ['muzo','hitmoz']){
  assert.ok(apiSource.includes("'"+provider+"'  =>")||new RegExp("'"+provider+"'\\s*=>").test(apiSource),
-    'not all servers queried: '+provider);
+    'Missing approved search provider: '+provider);
 }
 assert.ok(apiSource.includes('foreach ($urls as $key => $url)'));
 assert.ok(source.includes("response?.sources"));
 assert.ok(source.includes("_mixRegion:item.region"));
-console.log('CAUCASUS_REPUBLICS_AND_ALL_SEVEN_SOURCES_OK');
+console.log('CAUCASUS_REPUBLICS_AND_TWO_SEARCH_SOURCES_OK');
 
 assert.ok(source.includes('function openCaucasusRadio()'));
 assert.ok(source.includes('function startCaucasusRadio(regionId)'));
