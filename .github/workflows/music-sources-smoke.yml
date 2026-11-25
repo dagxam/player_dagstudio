@@ -225,7 +225,7 @@ jobs:
                         'NOTE=No_authorized_API_confirmed')
               except Exception as error:
                   print('HITMOS_WEB_ERROR',url,type(error).__name__,str(error)[:100])
-          probes=['Caucasus folk','Russian folk','дагестанская музыка','русские песни новинки','кавказские песни новинки',
+          probes=['Dagestan','Caucasus folk','Russian folk','дагестанская музыка','русские песни новинки','кавказские песни новинки',
                   'Мика Рамазанова','Ислам Айдаров']
           for query in probes:
               payload=json.dumps({
