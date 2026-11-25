@@ -5519,6 +5519,10 @@ async function findWaveNextTrack(){
     if(otherArtists.length)eligible=otherArtists;
     const newArtists=eligible.filter(item=>!recentArtists.has(item.artist));
     if(newArtists.length)eligible=newArtists;
+    // Discovery should introduce NEW performers before replaying favourite
+    // playlist seed artists, while keeping the curated 2026 genre priority.
+    const undiscoveredArtists=eligible.filter(item=>!seedArtists.includes(item.artist));
+    if(undiscoveredArtists.length)eligible=undiscoveredArtists;
     const topical=eligible.filter(item=>item.track._waveQueryKind==='theme');
     if(topical.length&&topics.length)eligible=topical;
     const releaseYear=new Date().getUTCFullYear();

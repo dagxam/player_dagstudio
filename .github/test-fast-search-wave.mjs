@@ -17,8 +17,8 @@ assert.match(html,/onclick="event.stopPropagation\(\); downloadPlayingTrackOffli
 assert.match(js,/function downloadPlayingTrackOffline\(\)/);
 assert.match(js,/mode: 'fast'/);
 assert.match(js,/mode: 'full'/);
-assert.match(js,/radioSearchPage\(direction\.query,direction\.page,net,'fast'\)/);
-assert.match(js,/radioSearchPage\(direction\.query,direction\.page,net,'full'\)/);
+assert.match(js,/radioSearchPage\(fastQuery,1,net,'fast'\)/);
+assert.match(js,/radioSearchPage\(fastQuery,1,net,'full'\)/);
 assert.match(js,/async function getStartupCachedAudio\(track, timeoutMs = 280\)/);
 assert.match(js,/Avoid loading an empty source before loading the selected one/);
 assert.match(engine,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
