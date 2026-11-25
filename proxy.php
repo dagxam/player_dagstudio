@@ -73,6 +73,20 @@ if (!$isAllowed && in_array($source,['openverse','commons'],true) && $scheme ===
     preg_match('/\.(mp3|ogg|oga|opus|m4a|aac)$/iD',(string)($parts['path'] ?? ''))) {
     $isAllowed = true;
 }
+// Public MP3 streams used by the additional verified search providers.
+// Restrict each stream to the precise CDN host, HTTPS and known audio path.
+if (!$isAllowed && $scheme === 'https' && !isset($parts['user']) &&
+    !isset($parts['pass']) && !isset($parts['port']) && !isset($parts['fragment']) &&
+    preg_match('/\.mp3$/iD', (string)($parts['path'] ?? ''))) {
+    $path = (string)($parts['path'] ?? '');
+    if (($source === 'muzrecord' && $host === 's.muzrecord.com' &&
+         str_starts_with($path, '/mp3/')) ||
+        ($source === 'muzpace' && $host === 'cdn.muzpace.net' &&
+         str_starts_with($path, '/dll/')) ||
+        ($source === 'hitmos' && preg_match('/^plc[0-9]{1,3}\.hitmos\.fm$/D', $host))) {
+        $isAllowed = true;
+    }
+}
 if (!$isAllowed && $source === 'archive' && $scheme === 'https' &&
     $host === 'archive.org' && !isset($parts['user']) && !isset($parts['pass']) &&
     !isset($parts['port']) &&
@@ -124,6 +138,8 @@ $profiles = [
     'ru.hitmos.site'  => ['referer' => 'https://ru.hitmos.site/',  'origin' => 'https://ru.hitmos.site'],
     'hitmoz.org'      => ['referer' => 'https://hitmoz.org/',      'origin' => 'https://hitmoz.org'],
     'muzofond.fm'     => ['referer' => 'https://muzofond.fm/',     'origin' => 'https://muzofond.fm'],
+    's.muzrecord.com' => ['referer' => 'https://muzrecord.com/', 'origin' => 'https://muzrecord.com'],
+    'cdn.muzpace.net' => ['referer' => 'https://muzpace.net/', 'origin' => 'https://muzpace.net'],
     'zvooq.net'       => ['referer' => 'https://zvooq.net/',       'origin' => 'https://zvooq.net'],
     'muzvox.org'      => ['referer' => 'https://muzvox.org/',      'origin' => 'https://muzvox.org'],
     'storage.muzvox.org' => ['referer' => 'https://muzvox.org/',   'origin' => 'https://muzvox.org'],
@@ -132,6 +148,9 @@ $profiles = [
 ];
 
 $profile = $profiles[$host] ?? ['referer' => $scheme . '://' . $host . '/', 'origin' => $scheme . '://' . $host];
+if ($source === 'hitmos' && preg_match('/^plc[0-9]{1,3}\.hitmos\.fm$/D', $host)) {
+    $profile = ['referer' => 'https://rus.hitmos.fm/', 'origin' => 'https://rus.hitmos.fm'];
+}
 $isMuzVox = ($source === 'muzvox' || str_ends_with($host, '.muzvox.org') || $host === 'muzvox.org');
 
 // Старые Android MediaPlayer/WebView хуже определяют кодек, если upstream
