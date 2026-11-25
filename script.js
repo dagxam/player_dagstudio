@@ -7740,7 +7740,7 @@ function renderPlaylist() {
         if (isSearchCard) {
             iconWrap.className = 'dag-track-artwork';
             const picture = String(t.thumb||'').trim();
-            if (picture && !/^(?:\\/?images\\/(?:cover|icon(?:-192)?|faviconch|[rfsz])\\.png)(?:\\?.*)?$/i.test(picture)) {
+            if (picture && !/^(?:\/?images\/(?:cover|icon(?:-192)?|faviconch|[rfsz])\.png)(?:\?.*)?$/i.test(picture)) {
                 try {
                     const resolved = new URL(picture, document.baseURI);
                     if (resolved.protocol==='https:' || resolved.origin===location.origin) {
