@@ -6138,6 +6138,45 @@ function openPlaybackQueue() {
 function clearPlaybackQueue() {
     playbackQueue.length=0;savePlaybackQueue();
 }
+// Continue the chosen category only: generic Smart Radio may cross genres.
+let instantMixNextBusy=false;
+const instantMixNextCursor={};
+async function playInstantMixNext(key){
+    if(instantMixNextBusy||!INSTANT_MIX_ARTISTS[key]||navigator.onLine===false)return;
+    instantMixNextBusy=true;
+    const token=currentPlaybackToken;
+    const before=String(playbackTab),current=playbackPlaylist[currentIndex];
+    const seeds=INSTANT_MIX_ARTISTS[key];
+    const cursor=instantMixNextCursor[key]||0;
+    instantMixNextCursor[key]=cursor+3;
+    const selected=Array.from({length:Math.min(3,seeds.length)},(_,i)=>
+        seeds[(cursor+i)%seeds.length]);
+    try{
+        const tasks=selected.map(async artist=>{
+            try{
+                const results=await instantMixFastArtistSearch(key,artist);
+                return quickMixUnique(results,playbackPlaylist).filter(track=>
+                    !waveSameArtist(track.artist,current?.artist));
+            }catch(error){return [];}
+        });
+        const available=await waveFirstNonempty(tasks);
+        if(token!==currentPlaybackToken||String(playbackTab)!==before||!playbackWanted)return;
+        const ranked=instantMixStartOrder(available,key);
+        const candidate=ranked[0];
+        if(candidate){
+            playbackPlaylist.push(candidate);
+            playTrack(playbackPlaylist.length-1,{fromPlayback:true,fromSmartRadio:true});
+        }else{
+            const label=document.getElementById('smart-radio-next-info');
+            if(label)label.textContent='Ищем следующую песню выбранной подборки…';
+            // An empty provider must not switch the user to an unrelated genre.
+            setTimeout(()=>{
+                if(currentPlaybackToken===token&&String(playbackTab)===before&&playbackWanted)
+                    playInstantMixNext(key).catch(()=>{});
+            },3000);
+        }
+    }finally{instantMixNextBusy=false;}
+}
 function playNext() {
     recordManualPlaybackTransition();
     if (playbackQueue.length) {
@@ -6149,6 +6188,14 @@ function playNext() {
         return;
     }
     if (!playbackPlaylist.length) return;
+    const chosenMix=String(playbackTab).replace(/^mix:/,'');
+    if(['caucasus','russian','foreign'].includes(chosenMix)){
+        const next=playbackPlaylist[currentIndex+1];
+        if(next&&!waveSameArtist(next.artist,playbackPlaylist[currentIndex]?.artist))
+            playTrack(currentIndex+1,{fromPlayback:true});
+        else playInstantMixNext(chosenMix).catch(()=>{});
+        return;
+    }
     // Continuous stations never wrap to the first song. A buffered result is
     // used immediately; otherwise discovery keeps trying in the background.
     if (isContinuousRadio()) {
@@ -7541,6 +7588,13 @@ async function startQuickMix(key) {
     if(requestId!==quickMixRequestId)return;
     quickMixCurrent.loading=false;
     renderQuickMixButtons();
+    if(!started&&INSTANT_MIX_ARTISTS[key]&&!NATIVE_MEDIA3_ACTIVE&&
+        String(mainAudio?.src||'').startsWith('data:audio/wav;base64,')){
+        mainAudio.pause();
+        mainAudio.loop=false;
+        playbackWanted=false;
+        updateState(false);
+    }
     if(!started)setQuickMixStatus(config.mode==='recent'
         ?'Источники не ответили. Проверьте подключение или попробуйте ещё раз.'
         :'Нет доступных песен. Попробуйте другую подборку.'+
