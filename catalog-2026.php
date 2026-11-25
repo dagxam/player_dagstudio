@@ -233,7 +233,7 @@ function dagCatalog2026(string $category): array {
 }
 
 if (!defined('DAG_CATALOG_LIBRARY_ONLY')) {
-    $category = (string)($data['category'] ?? '');
+    $category = (string)($data['category'] ?? ($_GET['category'] ?? ''));
     if (!in_array($category,['russian','caucasus'],true)) {
         http_response_code(400);
         echo json_encode(['error'=>'Unknown discovery category']);
