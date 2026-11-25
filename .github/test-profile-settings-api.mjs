@@ -46,6 +46,9 @@ try {
   const same=await post({action:'get_profile_settings'},token2);
   assert.equal(same.data.settings.equalizer.value.preset,'bass');
   assert.equal(same.data.settings.equalizer.revision,1);
+  const lean=await post({action:'get_profile_settings',known_revisions:{equalizer:1}},token2);
+  assert.equal(lean.data.settings.equalizer.unchanged,true);
+  assert.equal('value' in lean.data.settings.equalizer,false,'Do not retransmit large unchanged settings');
 
   const next=await post({action:'save_profile_setting',key:'equalizer',
     value:{enabled:true,preset:'rock',gains:[4,2,-1,1,3,4,3]},

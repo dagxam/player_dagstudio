@@ -11,6 +11,7 @@
   let apply = () => {}, status = () => {};
   let owner = '', entries = {}, epoch = 0, sequence = 0;
   let pulled = null, flushing = null, flushTimer = null, lastPull = 0;
+  let canSendLarge = () => true;
   const username = value => String(value || '').trim().toLowerCase().slice(0, 80);
   const clone = value => {
     try { return JSON.parse(JSON.stringify(value)); } catch (_) { return undefined; }
@@ -58,6 +59,8 @@
       for (const key of KEYS) {
         const entry = entries[key];
         if (!entry?.dirty || !valid(key, entry.value)) continue;
+        // Large taste metadata must not compete with a buffering audio stream.
+        if (key === 'taste' && !canSendLarge()) continue;
         let attempts = 0;
         while (attempts++ < 3) {
           if (owner !== current || epoch !== generation || username(getUser()) !== current) return false;
@@ -81,8 +84,10 @@
           return false;
         }
       }
-      show('Настройки профиля синхронизированы');
-      return true;
+      const pending = Object.values(entries).some(item => item?.dirty);
+      show(pending ? 'Настройки сохранены · звук в приоритете' :
+        'Настройки профиля синхронизированы');
+      return !pending;
     })();
     try { return await flushing; }
     finally {
@@ -98,7 +103,11 @@
     if (!force && Date.now() - lastPull < 60000) return true;
     lastPull = Date.now();
     pulled = (async () => {
-      const result = await api('get_profile_settings');
+      const known_revisions = {};
+      for (const [key, item] of Object.entries(entries))
+        if (!item?.dirty && item.revision > 0 && valid(key, item.value))
+          known_revisions[key] = item.revision;
+      const result = await api('get_profile_settings', {known_revisions});
       if (owner !== current || epoch !== generation) return false;
       if (!result?.success || !result.settings || typeof result.settings !== 'object') {
         lastPull = 0;
@@ -108,6 +117,8 @@
       for (const key of KEYS) {
         const remote = result.settings[key];
         const record = entries[key];
+        if (remote?.unchanged === true && record && !record.dirty &&
+            record.revision === remote.revision) continue;
         if (remote && valid(key, remote.value) && Number.isInteger(remote.revision) && remote.revision > 0) {
           if (record?.dirty) {
             record.revision = remote.revision; // Retain deliberate unsent local changes.
@@ -192,6 +203,7 @@
       read = options.read;
       apply = options.apply;
       status = options.status || status;
+      canSendLarge = options.canSendLarge || canSendLarge;
     },
     start, change, refresh: pull, flush, signOut,
     activeUser: () => owner

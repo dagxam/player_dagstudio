@@ -175,13 +175,20 @@ elseif ($action === 'get_profile_settings') {
         $stmt = $pdo->prepare("SELECT setting_key, setting_value, revision FROM profile_settings WHERE user_id = ?");
         $stmt->execute([(int)$_SESSION['user_id']]);
         $settings = [];
+        $known = is_array($data['known_revisions'] ?? null) ? $data['known_revisions'] : [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $key = $row['setting_key'];
+            $revision = (int)$row['revision'];
+            if (isset($known[$key]) && is_int($known[$key]) && $known[$key] === $revision) {
+                $settings[$key] = ['revision' => $revision, 'unchanged' => true];
+                continue;
+            }
             $value = json_decode($row['setting_value']);
             if (json_last_error() !== JSON_ERROR_NONE) continue;
-            $settings[$row['setting_key']] = ['value' => $value, 'revision' => (int)$row['revision']];
+            $settings[$key] = ['value' => $value, 'revision' => $revision];
         }
         header('Cache-Control: no-store');
-        echo json_encode(['success' => true, 'settings' => $settings], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => true, 'settings' => (object)$settings], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         error_log('Profile settings read: ' . $e->getMessage());
         http_response_code(500); echo json_encode(['error' => 'Ошибка синхронизации профиля']);
