@@ -17,3 +17,6 @@ if(result.error?.code!=='ENOENT'){
   assert.match(result.stdout,/LICENSED_PARTNER_API_RIGHTS_HOSTS_FULL_AUDIO_OK/);
 }
 console.log('PARTNER_AUDIO_SOURCE_WHITELIST_AND_PERMISSION_OK');
+
+assert.match(read('script.js'),/track\.source !== '\[PARTNER\]'/);
+console.log('PARTNER_FULL_STREAM_DOES_NOT_ASSUME_OFFLINE_LICENSE_OK');

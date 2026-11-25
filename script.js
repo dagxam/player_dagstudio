@@ -2567,6 +2567,7 @@ window.downloadTrackFile = function(index) {
 function canSaveTrackOffline(track) {
     return Boolean(track?.url && isRemoteMediaUrl(track.url) &&
         track.source !== '[JAMENDO]' && track.source !== '[OPENVERSE]' &&
+        track.source !== '[PARTNER]' &&
         !isJamendoStreamUrl(track.url));
 }
 // The list and fullscreen player deliberately share the same verified
