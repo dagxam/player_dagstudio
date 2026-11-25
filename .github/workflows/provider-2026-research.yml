@@ -1,0 +1,73 @@
+name: Research Russian and Caucasus Music Providers
+on:
+  push:
+    branches: [research/music-source-probe-2026]
+    paths: [.github/workflows/provider-2026-research.yml]
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check real public catalog, search and audio API responses
+        shell: bash
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,json,xml.etree.ElementTree as ET,re,time
+          targets=[
+            ('Kavkaz premieres','https://kavkazmusic.tv/category/premery/'),
+            ('Kavkaz Dagestan','https://kavkazmusic.tv/pesni-dagestana'),
+            ('Kavkaz WP search','https://kavkazmusic.tv/wp-json/wp/v2/search?search='+urllib.parse.quote('Зезаг')+'&per_page=3'),
+            ('Kavkaz HTML search','https://kavkazmusic.tv/?s='+urllib.parse.quote('Зезаг')),
+            ('Kavkaz premieres RSS','https://kavkazmusic.tv/category/premery/feed/'),
+            ('Kavkaz cards RSS','https://kavkazmusic.tv/category/trackcards/feed/'),
+            ('Zvuk-M premieres','https://zvuk-m.com/muzykalnye-premery'),
+            ('Zvuk-M new songs','https://zvuk-m.com/category/novinki-muzykalnogo-izdatelstva'),
+            ('Zvuk-M WP search','https://zvuk-m.com/wp-json/wp/v2/search?search='+urllib.parse.quote('Ислам Итляшев')+'&per_page=3'),
+            ('Zvuk-M HTML search','https://zvuk-m.com/?s='+urllib.parse.quote('Ислам Итляшев')),
+            ('Zvuk-M new RSS','https://zvuk-m.com/category/novinki-muzykalnogo-izdatelstva/feed/'),
+            ('Audius Caucasus','https://api.audius.co/v1/tracks/search?query='+urllib.parse.quote('Ислам Итляшев')+'&limit=3'),
+            ('Audius Russian','https://api.audius.co/v1/tracks/search?query='+urllib.parse.quote('Zivert')+'&limit=3'),
+            ('Audius Dagestan','https://api.audius.co/v1/tracks/search?query='+urllib.parse.quote('Dagestan')+'&limit=3'),
+            ('MusicBrainz Russian metadata','https://musicbrainz.org/ws/2/release/?'+urllib.parse.urlencode({'query':'artist:Zivert AND date:[2026-01-01 TO 2026-11-25]','fmt':'json','limit':'3'})),
+            ('Zvuk.com recent','https://zvuk.com/recently_added'),
+            ('Zvuk.com search','https://zvuk.com/search?query='+urllib.parse.quote('JONY')),
+            ('KavkazHit radio portal','https://kavkazhit.com/'),
+          ]
+          for name,url in targets:
+            req=urllib.request.Request(url,headers={'User-Agent':'DAGSTUDIO-PLAYER-Research/1.0 (public music integration check)','Accept':'application/json,application/rss+xml,text/html;q=0.8'})
+            try:
+              with urllib.request.urlopen(req,timeout=12) as r:
+                data=r.read(1100000)
+                status=r.status
+                ctype=r.headers.get('Content-Type','').split(';')[0]
+                final=r.url
+              detail=''
+              if 'json' in ctype or data.lstrip().startswith((b'{',b'[')):
+                try:
+                  val=json.loads(data)
+                  if isinstance(val,dict):
+                    rec=val.get('data',val.get('releases',val.get('results',[])))
+                    detail='json_count='+str(len(rec) if isinstance(rec,list) else '?')+' keys='+','.join(list(val.keys())[:6])
+                    if isinstance(rec,list):
+                      detail+=' sample='+str([(str(x.get('title',''))[:45],str(x.get('artist',''))[:28],x.get('release_date','')) for x in rec[:2] if isinstance(x,dict)])[:250]
+                  elif isinstance(val,list):
+                    detail='json_count='+str(len(val))+' sample='+str([(str(x.get('title',''))[:65]) for x in val[:2] if isinstance(x,dict)])[:200]
+                except Exception as exc:detail='json_parse_error='+type(exc).__name__
+              elif 'xml' in ctype or b'<rss' in data[:700]:
+                try:
+                  root=ET.fromstring(data); items=root.findall('.//item')
+                  detail='rss_count='+str(len(items))+' sample='+str([(x.findtext('title') or '')[:60] for x in items[:2]])
+                except Exception as exc:detail='rss_parse_error='+type(exc).__name__
+              else:
+                title=re.search(rb'<title[^>]*>(.*?)</title>',data,re.I|re.S)
+                words=' '.join(re.sub('<[^>]+>',' ',data[:70000].decode('utf8','ignore')).split())
+                detail='title='+re.sub(r'\s+',' ',title.group(1).decode('utf8','ignore'))[:50] if title else ''
+                detail+=' words_2026='+str(words.count('2026'))+' "music?"='+str('track' in words.lower())
+              print('PROBE',name,'http='+str(status),'bytes='+str(len(data)),'content='+ctype,'redirected='+str(final!=url),detail,flush=True)
+            except urllib.error.HTTPError as exc:
+              print('PROBE',name,'http='+str(exc.code),'ERROR','reason='+str(exc.reason)[:80],flush=True)
+            except Exception as exc:
+              print('PROBE',name,'http=0','ERROR',type(exc).__name__,str(exc)[:125],flush=True)
+          PY
