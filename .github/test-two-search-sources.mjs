@@ -27,7 +27,7 @@ assert.match(search, /\$order = \['\[MUZOFOND\]', '\[HITMOZ\]'\]/);
 assert.match(search, /'muzo' => '\[MUZOFOND\]'/);
 assert.match(search, /'hitmoz' => '\[HITMOZ\]'/);
 assert.match(search, /'matching_tracks'/);
-assert.match(search, /'audio_verified' => false/);
+assert.match(search, /\['audio_verified'\]\s*=\s*false/);
 assert.match(search, /'search_complete'/);
 for (const legacy of ['audius','jamendo','partner','hitmos','commons','archive',
     'openverse','zvooq','vk_mail','muzvox','muzca'])
@@ -38,8 +38,8 @@ const diagnostic = /const knownSources\s*=\s*\{([\s\S]*?)\};/.exec(js)?.[1];
 assert.ok(diagnostic);
 assert.deepEqual([...diagnostic.matchAll(/([a-z]+):\{label:/g)].map(m=>m[1]),
   ['muzo','hitmoz'], 'The diagnostics should show only two sources');
-assert.match(js, /\['MUZOFOND'\]/);
-assert.match(js, /\['HITMOZ'\]/);
+assert.match(js, /'\[MUZOFOND\]':'Muzofond'/);
+assert.match(js, /'\[HITMOZ\]':'Hitmoz'/);
 assert.match(css, /\.dag-search-card/);
 assert.match(html, /search-polish\.css\?v=/);
 assert.match(html, /Только Muzofond и Hitmoz/);
