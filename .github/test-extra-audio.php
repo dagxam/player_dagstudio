@@ -16,7 +16,7 @@ $fixture=['query'=>['pages'=>[
       'LicenseUrl'=>['value'=>'https://creativecommons.org/licenses/by-nc/4.0/']])]]],
  ['title'=>'File:Injected.mp3','imageinfo'=>[[
     'url'=>'https://upload.wikimedia.org.evil.test/wikipedia/commons/xxx.mp3',
-    'mime'=>'audio/mpeg','extmetadata'=>$license]]]]];
+    'mime'=>'audio/mpeg','extmetadata'=>$license]]]]]];
 $result=dagExtraMusicCommons($fixture);
 ensure(count($result)===1,'only permitted Commons media');
 ensure($result[0]['source']==='[COMMONS]' && $result[0]['artist']==='Dagestan Artist','Commons attribution');
