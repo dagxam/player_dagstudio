@@ -7679,8 +7679,7 @@ function renderPlaylist() {
         if(t.source && (currentTab==='search'||String(currentTab).startsWith('mix:'))) {
             const sourceBadge=document.createElement('span');
             sourceBadge.className='source-badge';
-            const labels={'[MUZOFOND]':'Muzofond','[AUDIUS]':'Audius',
-                '[HITMOS]':'Hitmos','[JAMENDO]':'Jamendo','[PARTNER]':'Партнёр'};
+            const labels={'[MUZOFOND]':'Muzofond','[HITMOZ]':'Hitmoz'};
             sourceBadge.textContent=isSearchCard?(labels[t.source]||t.source):t.source;
             const target=isSearchCard?meta:artist;
             if(!isSearchCard) target.appendChild(document.createTextNode(' '));
