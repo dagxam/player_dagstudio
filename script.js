@@ -2905,6 +2905,34 @@ async function api(action, data = {}) {
     }
 }
 
+
+function renderCurrentPlaylistFromAccountData() {
+    // Update the sidebar only when playlist data actually changed (including
+    // the last offline snapshot or a fresh server sync).
+    window.dispatchEvent(new Event('dag-playlists-updated'));
+
+    // Account sync must never interrupt an active Wave, charts, or offline
+    // station by unexpectedly switching tabs back to Search.
+    if (currentTab === 'search') {
+        playlist = searchPlaylistCache;
+        renderPlaylist();
+    } else if (currentTab === 'studio-likes') {
+        playlist = likedPlaylistTracks();
+        renderPlaylist();
+    } else if (currentTab === 'offline' || String(currentTab).startsWith('mix:')) {
+        // Continuous radio owns its playback/list state; leave it untouched.
+    } else {
+        const pl = playlists.find(p => String(p.id) === String(currentTab));
+        if (pl) {
+            playlist = [...(pl.tracks || [])];
+            renderPlaylist();
+        } else {
+            switchTab('search');
+        }
+    }
+    window.dispatchEvent(new CustomEvent('dag-library-changed'));
+}
+
 // Account preferences sync on PC / PWA / Android with the same signed-in user.
 // Offline files, last play position and device storage limits remain local.
 window.DAG_PROFILE_SYNC?.configure({
@@ -2980,33 +3008,6 @@ window.DAG_PROFILE_SYNC?.configure({
         }
     }
 });
-
-function renderCurrentPlaylistFromAccountData() {
-    // Update the sidebar only when playlist data actually changed (including
-    // the last offline snapshot or a fresh server sync).
-    window.dispatchEvent(new Event('dag-playlists-updated'));
-
-    // Account sync must never interrupt an active Wave, charts, or offline
-    // station by unexpectedly switching tabs back to Search.
-    if (currentTab === 'search') {
-        playlist = searchPlaylistCache;
-        renderPlaylist();
-    } else if (currentTab === 'studio-likes') {
-        playlist = likedPlaylistTracks();
-        renderPlaylist();
-    } else if (currentTab === 'offline' || String(currentTab).startsWith('mix:')) {
-        // Continuous radio owns its playback/list state; leave it untouched.
-    } else {
-        const pl = playlists.find(p => String(p.id) === String(currentTab));
-        if (pl) {
-            playlist = [...(pl.tracks || [])];
-            renderPlaylist();
-        } else {
-            switchTab('search');
-        }
-    }
-    window.dispatchEvent(new CustomEvent('dag-library-changed'));
-}
 
 function hydrateCachedAccount(username) {
     if (!username) return false;
