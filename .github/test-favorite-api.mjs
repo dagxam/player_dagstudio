@@ -13,6 +13,7 @@ await copyFile(join(base,'hitmos-config.php'),join(root,'hitmos-config.php'));
 await copyFile(join(base,'openverse-provider.php'),join(root,'openverse-provider.php'));
 await copyFile(join(base,'partner-config.php'),join(root,'partner-config.php'));
 await copyFile(join(base,'catalog-2026.php'),join(root,'catalog-2026.php'));
+await copyFile(join(base,'open-audio-providers.php'),join(root,'open-audio-providers.php'));
 await copyFile(join(base,'db.php'),join(root,'db.php'));
 const socket=createServer();
 await new Promise(resolve=>socket.listen(0,'127.0.0.1',resolve));
