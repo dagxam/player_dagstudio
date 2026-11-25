@@ -6,7 +6,7 @@ const script = read('../script.js');
 const dns = read('../native/android/DAGServerDns.java');
 const media = read('../native/android/DAGAudioEngine.java');
 assert.doesNotMatch(page, /id="studio-header-offline"/, 'No manual Offline header item');
-assert.doesNotMatch(page, /data-mix="charts"/, 'No Charts collection item');
+assert.match(page, /data-mix="charts"/, 'New releases must be a directly playable collection');
 assert.match(page, /id="cache-dashboard-modal"/, 'Cached audio stays manageable');
 assert.match(script, /startOfflineListening\(\{auto:true,autoplay:true\}\)/);
 assert.match(script, /getDeviceCachedAudio\(track\)/);

@@ -85,6 +85,7 @@ jobs:
           node .github/test-playlist-source-recovery.mjs
           node .github/test-local-icons.mjs
           node .github/test-fresh-mixes.mjs
+          node .github/test-four-instant-collections.mjs
           node .github/test-caucasus-catalogs.mjs
 
       # Includes verified-IP search and remote theme synchronization changes.

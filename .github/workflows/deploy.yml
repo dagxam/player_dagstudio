@@ -75,6 +75,7 @@ jobs:
           node .github/test-native-media.mjs
           node .github/test-quick-mixes.mjs
           node .github/test-fresh-mixes.mjs
+          node .github/test-four-instant-collections.mjs
           node .github/test-personal-radio.mjs
           node .github/test-wave-themes.mjs
           node .github/test-wave-2026-start.mjs

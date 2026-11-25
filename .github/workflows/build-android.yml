@@ -8,6 +8,7 @@ on:
       - 'native/android/**'
       # All shared player code is bundled into the downloadable APK.
       - 'script.js'
+      - '.github/test-four-instant-collections.mjs'
       - '.github/test-wave-2026-start.mjs'
       - 'studio.js'
       - 'studio-next.js'
@@ -150,6 +151,9 @@ jobs:
 
       - name: Test quick mixes and favorite
         run: node .github/test-quick-mixes.mjs
+
+      - name: Verify four instant-play collections
+        run: node .github/test-four-instant-collections.mjs
 
       - name: Build local web shell
         env:

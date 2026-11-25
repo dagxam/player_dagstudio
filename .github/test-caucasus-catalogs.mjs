@@ -11,10 +11,13 @@ const urls=[
  'https://kavkazhit.com/'
 ];
 for(const url of urls)assert.ok(center.includes(url),url);
-assert.match(center,/caucasusCatalogues\.forEach/);
+assert.doesNotMatch(center,/caucasusCatalogues\.forEach/,
+ 'External catalog links do not add extra collection cards');
+assert.match(center,/defs\.forEach\(d=>grid\.appendChild/);
 assert.match(center,/openCaucasusCatalogue/);
 assert.match(center,/window\.DAG_NATIVE_BRIDGE\.openExternal/);
-assert.match(center,/Встроенный поиск музыки работает отдельно/);
+assert.match(html,/data-mix="caucasus" onclick="startQuickMix\('caucasus'\)"/);
+assert.doesNotMatch(html,/id="caucasus-radio-modal"/);
 assert.match(player,/Эльмира Магомедова/);
 assert.match(player,/Роза Мальсагова/);
 assert.match(player,/Мадина Кайтмазова/);
