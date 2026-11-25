@@ -119,7 +119,7 @@ public class DAGCarModePlugin extends Plugin {
                     ("/ota-bridge.php".equals(path) || "/deploy-version.txt".equals(path));
             final String action = data.optString("action", "");
             final java.util.Set<String> actions = new java.util.HashSet<>(java.util.Arrays.asList(
-                "search_global", "official_audius_feed", "check_auth", "get_data",
+                "search_global", "official_audius_feed", "catalog_2026", "check_auth", "get_data",
                 "login", "register", "logout", "update_theme",
                 "get_profile_settings", "save_profile_setting",
                 "create_playlist", "rename_playlist", "update_playlist_icon",

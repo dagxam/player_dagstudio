@@ -633,6 +633,11 @@ elseif ($action === 'official_audius_feed') {
     require __DIR__ . '/music-official.php';
 }
 
+// Public, metadata-only 2026 release discovery. No proxying or scraping audio.
+elseif ($action === 'catalog_2026') {
+    require __DIR__ . '/catalog-2026.php';
+}
+
 // --- ГЛОБАЛЬНЫЙ ПОИСК ПО ДОСТУПНЫМ ИСТОЧНИКАМ ---
 elseif ($action === 'search_global') {
     $query_raw = isset($data['query']) ? $data['query'] : ($_POST['query'] ?? '');

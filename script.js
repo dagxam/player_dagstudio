@@ -101,7 +101,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2374';
+const WEB_BUILD_LABEL = '2375';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -927,7 +927,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2391', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2392', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -6869,7 +6869,9 @@ function quickMixRank(track,config,sourcePosition=0,now=Date.now()) {
     const relevance=Math.max(0,12-Math.floor(sourcePosition/3));
     if(config?.mode==='classic')
         return popularity+relevance+(age>7*365&&age<Infinity?12:0);
-    return popularity+recent+relevance;
+    // Editorial 2026 matches are preferred among songs with no verified
+    // provider release date, without fabricating a release_date field.
+    return popularity+recent+relevance+(track?._editorial2026Match?36:0);
 }
 function quickMixRankTracks(tracks,config) {
     const now=Date.now(),currentYear=new Date(now).getUTCFullYear();
@@ -7179,6 +7181,60 @@ function scheduleWaveFirstRetry(requestId,attempt) {
     },delay);
 }
 
+// Discover 2026 singles from independent editorial catalogs, then ask the
+// existing full-audio providers for exact artist/title matches. The metadata
+// source itself does not grant audio or download rights.
+const recentCatalog2026 = new Map();
+async function loadCatalog2026(category) {
+    const key=String(category);
+    const hit=recentCatalog2026.get(key);
+    if(hit && Date.now()-hit.at<20*60000)return hit.items;
+    const result=await api('catalog_2026',{category:key});
+    const items=result?.success&&Array.isArray(result.data)?result.data:[];
+    recentCatalog2026.set(key,{at:Date.now(),items});
+    return items;
+}
+function catalog2026Match(track,editorial) {
+    if(!track?.url || !editorial?.title || !editorial?.artist)return false;
+    const name=normalizeTrackIdentity;
+    return name(track.artist)===name(editorial.artist) &&
+        name(track.title)===name(editorial.title);
+}
+async function enrichMixFrom2026Catalog(key,requestId,addFound) {
+    if(!['russian','caucasus','charts'].includes(key)||navigator.onLine===false)return;
+    const categories=key==='charts'?['russian','caucasus']:[key];
+    // No more than two separate full-audio searches. Playback and first paint
+    // always take priority over metadata enrichment.
+    let used=0;
+    for(const category of categories){
+        if(requestId!==quickMixRequestId)return;
+        const list=await loadCatalog2026(category).catch(()=>[]);
+        const seeds=list.filter(t=>t?.title&&t?.artist).slice(0,key==='charts'?1:2);
+        for(const seed of seeds){
+            if(requestId!==quickMixRequestId||used++>=2)return;
+            const query=(seed.artist+' '+seed.title).slice(0,180);
+            try {
+                const net=getNetworkProfile();
+                const response=await api('search_global',{
+                    query,page:1,mode:'fast',network:net.weak?'weak':'normal',
+                    save_data:net.saveData?1:0
+                });
+                if(requestId!==quickMixRequestId)return;
+                const matches=(response?.data||[]).filter(t=>catalog2026Match(t,seed));
+                const safe=matches.map(t=>({
+                    ...t,_editorial2026Match:true,
+                    catalog_source:seed.catalog_source,
+                    catalog_source_url:seed.source_url,
+                    // A release article date is NOT an audio release date.
+                    catalog_published_date:seed.published_date||'',
+                    catalog_release_date:seed.release_date||''
+                }));
+                if(safe.length)addFound({region:category==='caucasus'?'Кавказ':'Россия',kind:'editorial'},safe);
+            }catch(error){recordPlayerEvent('catalog-2026-discovery-error');}
+        }
+    }
+}
+
 async function startQuickMix(key) {
     const seeds=key==='wave'?waveLibrarySeeds():[];
     // Wave is ONLINE discovery, not a replay of the user's own playlists.
@@ -7290,6 +7346,12 @@ async function startQuickMix(key) {
             (dates?' · с датой от источника: '+dates:' · даты выпуска не указаны')+
             (config.regions?' · направлений: '+quickMixCurrent.searchedRegions.size:'')+
             quickMixSourcesCaption(quickMixCurrent));
+    }
+    if(['russian','caucasus','charts'].includes(key)) {
+        setTimeout(()=>{
+            if(requestId===quickMixRequestId && quickMixCurrent?.key===key)
+                enrichMixFrom2026Catalog(key,requestId,publishMixResults).catch(()=>{});
+        },1800);
     }
     for(let offset=0;offset<plan.length;offset+=batchSize) {
         if(requestId!==quickMixRequestId)return;
