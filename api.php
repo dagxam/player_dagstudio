@@ -685,6 +685,14 @@ elseif ($action === 'search_global') {
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
         curl_setopt($ch, CURLOPT_TIMEOUT, $provider_timeout); 
+        // The Hitmoz endpoint is frequently unreachable. The fast search
+        // is for first audio, not exhaustive discovery: cap only this slow
+        // secondary source below one second. Full searches keep the normal
+        // timeout so they can still discover results when available.
+        if ($fast_search && $key === 'hitmoz') {
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 650);
+            curl_setopt($ch, CURLOPT_TIMEOUT_MS, 900);
+        }
         curl_setopt($ch, CURLOPT_ENCODING, '');
         curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, $weak_client ? 64 : 128);
         curl_setopt($ch, CURLOPT_LOW_SPEED_TIME, $weak_client ? 3 : 4);
