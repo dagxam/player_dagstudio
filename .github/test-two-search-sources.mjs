@@ -17,7 +17,7 @@ assert.ok(sources, 'Unified search source list must exist');
 assert.deepEqual([...sources.matchAll(/'([a-z_]+)'\s*=>/g)].map(m => m[1]),
   ['muzo', 'hitmoz'], 'No third music provider may receive a query');
 assert.match(sources, /muzofond\.fm\/search\//);
-assert.match(sources, /ru\.hitmos\.site\/search\?q=/);
+assert.match(sources, /ru\.hitmoz\.org\/search\?q=/);
 
 const grouped = /\$by_source\s*=\s*\[([\s\S]*?)\];/.exec(search)?.[1];
 assert.ok(grouped, 'Source result groups must exist');
