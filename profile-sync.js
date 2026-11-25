@@ -155,16 +155,21 @@
             }
         } catch (_) {}
       }
-      if (previous && previous !== name) {
-        // Do not show account A's preferences while account B loads.
-        for (const key of KEYS) if (!entries[key]) apply(key, undefined);
-      }
       for (const key of KEYS) {
-        if (entries[key]) apply(key, clone(entries[key].value));
-        else if (!previous || previous === name) {
-          const local = read(key);
-          if (valid(key, local))
-            entries[key] = {value: clone(local), revision: 0, dirty: false, seq: ++sequence};
+        if (entries[key]) {
+          apply(key, clone(entries[key].value));
+          continue;
+        }
+        // Taste and exclusions are already stored under the account name.
+        // Preserve account B's existing offline preferences when switching
+        // from account A; global display settings must instead reset.
+        const accountScoped = key === 'taste' || key === 'likes_exclusions';
+        const local = (!previous || previous === name || accountScoped)
+          ? read(key) : undefined;
+        if (valid(key, local)) {
+          entries[key] = {value: clone(local), revision: 0, dirty: false, seq: ++sequence};
+        } else if (previous && previous !== name) {
+          apply(key, undefined);
         }
       }
       save();
