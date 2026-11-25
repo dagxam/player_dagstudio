@@ -2905,6 +2905,82 @@ async function api(action, data = {}) {
     }
 }
 
+// Account preferences sync on PC / PWA / Android with the same signed-in user.
+// Offline files, last play position and device storage limits remain local.
+window.DAG_PROFILE_SYNC?.configure({
+    api,
+    getUser: () => currentUser,
+    status: message => {
+        const el=document.getElementById('profile-sync-status');
+        if(el)el.textContent=message;
+    },
+    read: key => {
+        const raw = item => localStorage.getItem(item);
+        const parsed = item => {
+            try { const value=raw(item); return value===null?undefined:JSON.parse(value); }
+            catch(_) { return undefined; }
+        };
+        if(key==='equalizer')return parsed(EQ_STORAGE_KEY);
+        if(key==='visualizer')return parsed('dag_visualizer_settings_v1');
+        if(key==='taste')return parsed(TASTE_STORAGE_PREFIX+tasteOwnerKey());
+        if(key==='likes_exclusions')return parsed(LIKES_EXCLUSIONS_PREFIX+tasteOwnerKey());
+        if(key==='search_history')return parsed(SEARCH_HISTORY_KEY);
+        if(key==='soft_leveling')return raw(EQ_LIMITER_KEY)===null?undefined:raw(EQ_LIMITER_KEY)==='on';
+        if(key==='smart_radio')return raw(SMART_RADIO_KEY)===null?undefined:raw(SMART_RADIO_KEY)!=='off';
+        if(key==='traffic_saver')return raw(STREAM_ECONOMY_KEY)===null?undefined:raw(STREAM_ECONOMY_KEY)==='on';
+        if(key==='rainbow_speed')return raw(RAINBOW_SPEED_KEY)===null?undefined:rainbowSpeedSeconds();
+        return undefined;
+    },
+    apply: (key,value) => {
+        if(key==='equalizer'){
+            const defaults={enabled:true,preset:'flat',gains:[0,0,0,0,0,0,0]};
+            const source=value&&typeof value==='object'?value:defaults;
+            eqState={
+                enabled:source.enabled!==false,
+                preset:EQ_PRESETS[source.preset]?source.preset:'custom',
+                gains:Array.isArray(source.gains)&&source.gains.length===7
+                    ?source.gains.map(v=>Math.max(-12,Math.min(12,Number(v)||0)))
+                    :[...defaults.gains]
+            };
+            localStorage.setItem(EQ_STORAGE_KEY,JSON.stringify(eqState));
+            renderEqualizer();
+            if(!NATIVE_MEDIA3_ACTIVE||nativeEqualizerRestored)applyEqualizerState();
+        }else if(key==='visualizer'){
+            if(value===undefined)localStorage.removeItem('dag_visualizer_settings_v1');
+            else localStorage.setItem('dag_visualizer_settings_v1',JSON.stringify(value));
+            window.dispatchEvent(new CustomEvent('dag-profile-visualizer',{detail:{value}}));
+        }else if(key==='smart_radio'){
+            smartRadioEnabled=value!==false;
+            localStorage.setItem(SMART_RADIO_KEY,smartRadioEnabled?'on':'off');
+            smartRadioRequestSerial++;smartRadioPrefetch=null;
+            renderSmartRadioState();
+        }else if(key==='traffic_saver'){
+            const enabled=value===true;
+            localStorage.setItem(STREAM_ECONOMY_KEY,enabled?'on':'off');
+            const input=document.getElementById('traffic-saver-switch');
+            if(input)input.checked=enabled;
+        }else if(key==='soft_leveling'){
+            localStorage.setItem(EQ_LIMITER_KEY,value===true?'on':'off');
+            renderEqualizer();
+            if(!NATIVE_MEDIA3_ACTIVE&&eqGraphReady)applyEqualizerState();
+        }else if(key==='rainbow_speed'){
+            localStorage.setItem(RAINBOW_SPEED_KEY,String(Number.isInteger(value)?value:16));
+            syncRainbowSpeedControl();
+            if(localStorage.getItem('dag_theme')==='rainbow')startRainbowCycle();
+        }else if(key==='taste'){
+            if(value===undefined)localStorage.removeItem(TASTE_STORAGE_PREFIX+tasteOwnerKey());
+            else localStorage.setItem(TASTE_STORAGE_PREFIX+tasteOwnerKey(),JSON.stringify(value));
+            scheduleWaveWarmup();
+        }else if(key==='likes_exclusions'){
+            localStorage.setItem(LIKES_EXCLUSIONS_PREFIX+tasteOwnerKey(),JSON.stringify(value||{}));
+            window.dispatchEvent(new Event('dag-library-changed'));
+        }else if(key==='search_history'){
+            localStorage.setItem(SEARCH_HISTORY_KEY,JSON.stringify(Array.isArray(value)?value:[]));
+            closeSearchHistory();
+        }
+    }
+});
+
 function renderCurrentPlaylistFromAccountData() {
     // Update the sidebar only when playlist data actually changed (including
     // the last offline snapshot or a fresh server sync).
@@ -8136,28 +8212,33 @@ window.handleLogout = handleLogout;
 
 checkAuth();
 
-// Profile colours and playlists are account-scoped, not shared browser storage.
-// Refresh after resuming TEYES and during longer foreground sessions.
-if (IS_NATIVE_APP) {
-    let lastForegroundProfileRefresh=0;
-    const refreshForegroundProfile=async()=>{
-        if(!currentUser || navigator.onLine===false) return;
-        if(Date.now()-lastForegroundProfileRefresh<20000) return;
-        lastForegroundProfileRefresh=Date.now();
-        await synchronizeProfileTheme(true);
-        await loadUserData(true);
-    };
-    window.addEventListener('dag-native-state',event=>{
-        if(event.detail?.isActive) refreshForegroundProfile().catch(error=>
-            console.warn('Profile refresh on resume unavailable:',error));
-    });
-    document.addEventListener('visibilitychange',()=>{
-        if(!document.hidden)refreshForegroundProfile().catch(()=>{});
-    });
-    setInterval(()=>{
-        if(!document.hidden) synchronizeProfileTheme().catch(()=>{});
-    },90000);
-}
+// Any foreground device (PC, PWA, Android/TEYES, iOS) sees the same account.
+// Keep this small: never restart music, switch playlists or load audio here.
+let lastForegroundProfileRefresh=0;
+const refreshForegroundProfile=async()=>{
+    if(!currentUser||navigator.onLine===false)return;
+    if(Date.now()-lastForegroundProfileRefresh<30000)return;
+    lastForegroundProfileRefresh=Date.now();
+    await Promise.all([
+        synchronizeProfileTheme(true),
+        window.DAG_PROFILE_SYNC?.refresh(true),
+        loadUserData(true)
+    ]);
+};
+window.addEventListener('dag-native-state',event=>{
+    if(event.detail?.isActive)refreshForegroundProfile().catch(()=>{});
+});
+document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden)refreshForegroundProfile().catch(()=>{});
+});
+window.addEventListener('focus',()=>refreshForegroundProfile().catch(()=>{}));
+window.addEventListener('online',()=>refreshForegroundProfile().catch(()=>{}));
+setInterval(()=>{
+    if(!document.hidden&&currentUser&&navigator.onLine!==false){
+        synchronizeProfileTheme().catch(()=>{});
+        window.DAG_PROFILE_SYNC?.refresh().catch(()=>{});
+    }
+},90000);
 
 // Native installer reports actual download/verification progress. This is
 // cosmetic only: a success message comes from the Android system installer.
