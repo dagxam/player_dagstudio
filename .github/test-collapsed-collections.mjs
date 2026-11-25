@@ -28,12 +28,12 @@ const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
 assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
 const jsRevision = html.match(/studio-vision\.js\?v=(\d+)/)?.[1];
 assert.ok(jsRevision && sw.includes("'/studio-vision.js?v="+jsRevision+"'"));
-for(const name of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'])
+for(const name of ['muzo','hitmoz'])
  assert.ok(api.includes("'"+name+"'"),'Search provider: '+name);
 assert.match(api,/foreach \(\$urls as \$key => \$url\)/);
 assert.match(api,/foreach \(\$order as \$source\)/);
-assert.match(health,/LIVE_MATCHING_PROVIDERS/);
-assert.match(health,/LIVE_MATCHING_SOURCE_NAMES/);
+assert.match(health,/Verify Muzofond and Hitmoz/);
+assert.match(health,/SAMPLE_AUDIO_SOURCES/);
 const stripped=css.replace(/\/\*[\s\S]*?\*\//g,'');
 assert.equal((stripped.match(/\{/g)||[]).length,(stripped.match(/\}/g)||[]).length);
-console.log('NARROW_SIDEBAR_COLLECTION_CARDS_QUEUE_HIDDEN_MULTI_SOURCE_AUDIT_OK');
+console.log('NARROW_SIDEBAR_COLLECTION_CARDS_QUEUE_HIDDEN_TWO_SOURCE_AUDIT_OK');
