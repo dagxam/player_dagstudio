@@ -69,6 +69,7 @@ assert.equal(selected.title,'Undated',
 assert.ok(calls>=2);
 assert.ok(store.has('dag_wave_cursor_v4_four_priority:2026-start'));
 const html=readFileSync(new URL('../index.php',import.meta.url),'utf8');
-assert.match(html,/Русские и кавказские · подборка 2026/);
+assert.match(html,/id="vinyl-wave-play"/);
+assert.match(html,/id="studio-header-wave"/);
 assert.match(src,/new Promise\(resolve=>setTimeout\(\(\)=>resolve\(null\),180\)\)/);
 console.log('WAVE_2026_RUSSIAN_CAUCASUS_FAST_START_AND_DIVERSITY_OK');
