@@ -680,7 +680,7 @@ elseif ($action === 'search_global') {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         // No API credentials are sent to these sources. Limit redirects.
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_MAXREDIRS, 2);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 8);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $provider_connect_timeout);
