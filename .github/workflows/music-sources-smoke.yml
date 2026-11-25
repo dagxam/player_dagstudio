@@ -31,6 +31,26 @@ jobs:
           node --check script.js
           node .github/test-two-search-sources.mjs
 
+      - name: Check redirect targets of the two music sites
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error
+          urls=['https://muzofond.fm/search/Miyagi?page=1',
+                'https://muzofond.fm/search/Miyagi',
+                'https://ru.hitmoz.org/search?q=Miyagi',
+                'https://hitmoz.org/search?q=Miyagi']
+          for url in urls:
+              try:
+                  req=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'Mozilla/5.0'})
+                  with urllib.request.urlopen(req,timeout=12) as res:
+                      print('PROVIDER_REDIRECT_PROBE',url,'status',res.status,
+                            'destination',res.url,'type',res.headers.get('content-type',''))
+              except urllib.error.HTTPError as e:
+                  print('PROVIDER_REDIRECT_HTTP',url,e.code,e.headers.get('location',''))
+              except Exception as e:
+                  print('PROVIDER_REDIRECT_ERROR',url,type(e).__name__,str(e)[:130])
+          PY
+
       - name: Check production search and source counts
         run: |
           python - <<'PY'
