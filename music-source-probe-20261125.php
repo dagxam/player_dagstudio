@@ -90,6 +90,47 @@ foreach($channels as $entry){
          }
      }finally{libxml_clear_errors();libxml_use_internal_errors($prev);}
  }
+
+ // Locate only explicit, publicly advertised media links in HTML.
+ // No authentication, signed-url rewriting or anti-bot bypass.
+ $candidates=[];
+ preg_match_all('/\b(data-url|data-src|data-file|src|href)\s*=\s*(["\x27])(.*?)\2/si',
+     $body,$attributes,PREG_SET_ORDER);
+ foreach($attributes as $hit){
+     $attr=strtolower($hit[1]);
+     $candidate=html_entity_decode((string)$hit[3],ENT_QUOTES|ENT_HTML5,'UTF-8');
+     if(!preg_match('/\.(?:mp3|m4a|aac|ogg|opus|wav)(?:[?&#]|$)/i',$candidate))continue;
+     if(str_starts_with($candidate,'/'))$candidate=(string)parse_url($target['url'],PHP_URL_SCHEME).'://'.
+          (string)parse_url($target['url'],PHP_URL_HOST).$candidate;
+     $p=parse_url($candidate);
+     if(!is_array($p)||strtolower($p['scheme']??'')!=='https'||isset($p['user'])||
+         isset($p['pass'])||isset($p['port'])||filter_var($p['host']??'',FILTER_VALIDATE_IP))continue;
+     $host=strtolower((string)($p['host']??''));
+     if(!preg_match('/(^|\.)(muzrecord\.com|hitmos\.fm|muzpace\.net|nmuz\.net|muzofond\.fm)$/i',$host))continue;
+     if(!isset($candidates[$candidate]))$candidates[$candidate]=['attribute'=>$attr,'host'=>$host,
+         'ext'=>strtolower(pathinfo($p['path']??'',PATHINFO_EXTENSION))];
+     if(count($candidates)>=8)break;
+ }
+ $audioProbe=null;
+ if(count($candidates)>0){
+     $sampleUrl=array_key_first($candidates);
+     $read=0;$headType='';$headRange='';
+     $probe=curl_init($sampleUrl);
+     curl_setopt_array($probe,[
+         CURLOPT_RETURNTRANSFER=>false,CURLOPT_FOLLOWLOCATION=>false,
+         CURLOPT_RANGE=>'0-511',CURLOPT_CONNECTTIMEOUT=>3,CURLOPT_TIMEOUT=>7,
+         CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_SSL_VERIFYPEER=>true,
+         CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_USERAGENT=>'DAGSTUDIO-PLAYER-AudioProbe/1.0',
+         CURLOPT_WRITEFUNCTION=>static function($h,string $data)use(&$read):int{
+             $read+=strlen($data);return $read>2048?0:strlen($data);
+         }
+     ]);
+     curl_exec($probe);
+     $audioProbe=['http'=>(int)curl_getinfo($probe,CURLINFO_RESPONSE_CODE),
+         'errno'=>curl_errno($probe),'type'=>curl_getinfo($probe,CURLINFO_CONTENT_TYPE),
+         'read_bytes'=>$read];
+     curl_close($probe);
+ }
  $results[]=[
   'id'=>$target['id'],'http'=>$http,
   'errno'=>$err,
@@ -100,6 +141,9 @@ foreach($channels as $entry){
   'audio_attributes'=>preg_match_all('/(?:data-url|data-src|<audio\b|\.mp3\b)/i',$body),
   'track_markers'=>preg_match_all('/(?:tracks__item|track-item|track__title|data-track|music-item)/i',$body),
   'sample_links'=>$samples,
+  'explicit_audio_urls'=>count($candidates),
+  'media_hosts'=>array_values(array_unique(array_column(array_values($candidates),'host'))),
+  'sample_audio_probe'=>$audioProbe,
   'redirect'=>mb_substr((string)$entry['location'],0,140)
  ];
  curl_multi_remove_handle($multi,$ch);curl_close($ch);
