@@ -302,7 +302,7 @@ $runAttempt = function(bool $useRange) use (
         // Не скачиваем тело аудиофайла при диагностическом HEAD.
         CURLOPT_NOBODY => $isHead,
         // An authorized Hitmos API must return a final approved audio URL.
-        CURLOPT_FOLLOWLOCATION => !in_array($source, ['hitmos','openverse','partner'], true),
+        CURLOPT_FOLLOWLOCATION => !in_array($source, ['hitmos','openverse','partner','muzrecord','muzpace'], true),
         CURLOPT_MAXREDIRS => 5,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         CURLOPT_REDIR_PROTOCOLS => $source === 'archive' ? CURLPROTO_HTTPS : CURLPROTO_HTTP | CURLPROTO_HTTPS,
