@@ -3402,34 +3402,30 @@ async function testMusicSourceHealth() {
         });
         if (response?.error) throw new Error(String(response.error));
         if (!response?.success || !response?.sources) throw new Error('Не получен ответ от поискового API.');
-        const sources=[
-            {key:'audius',label:'Audius',source:'[AUDIUS]'},
-            {key:'jamendo',label:'Jamendo',source:'[JAMENDO]'},
-            {key:'vk_mail',label:'VK / Slider',source:'[VK]'},
-            {key:'hitmoz',label:'Hitmoz',source:'[HITMOZ]'},
-            {key:'hitmos',label:'Hitmos.fm',source:'[HITMOS]'},
-            {key:'openverse',label:'Openverse (CC)',source:'[OPENVERSE]'},
-            {key:'commons',label:'Wikimedia Commons',source:'[COMMONS]'},
-            {key:'archive',label:'Internet Archive',source:'[ARCHIVE]'},
-            {key:'muzo',label:'Muzofond',source:'[MUZOFOND]'},
-            {key:'zvooq',label:'Zvooq',source:'[ZVOOQ]'},
-            {key:'muzvox',label:'MuzVox',source:'[MUZVOX]'},
-            {key:'muzca',label:'Muzca',source:'[MUZCA]'}
-        ];
+        const knownSources = {
+            muzo:{label:'Muzofond',source:'[MUZOFOND]'},
+            audius:{label:'Audius',source:'[AUDIUS]'},
+            hitmos:{label:'Hitmos.fm',source:'[HITMOS]'},
+            partner:{label:'Партнёрский каталог',source:'[PARTNER]'},
+            jamendo:{label:'Jamendo',source:'[JAMENDO]'}
+        };
+        // Never report removed or unconfigured sources as part of a live test.
+        const sources=Object.keys(response.sources)
+            .filter(key=>knownSources[key])
+            .map(key=>({key,...knownSources[key]}));
         const samples=Array.isArray(response.data)?response.data:[];
         const counts=response.source_counts||{};
         const skipStreams = playbackWanted && bufferedSecondsAhead()<25;
         const lines=sources.map(({key,label,source})=>{
             const info=response.sources[key]||{};
             const count=Number(counts[source])||0;
-            const status=info.configured===false ? (key==='openverse' ? 'экспериментальный, отключён' : 'ожидает ключ API')
-                : info.ok ? (count>0?'есть совпадения':'ответ есть, совпадений нет')
+            const status=info.ok ? (count>0?'найдены треки':'ответ есть, совпадений нет')
                 : 'недоступен';
             return label+': поиск '+status+' · '+count+' тр. (HTTP '+
                 (Number(info.http)||0)+')';
         });
         const render=()=>{
-            result.textContent=['Проверка '+sources.length+' источников (открытые CC-каталоги + API-провайдеры) · '+((Date.now()-started)/1000).toFixed(1)+' с',
+            result.textContent=['Проверка '+sources.length+' подключённых источников · '+((Date.now()-started)/1000).toFixed(1)+' с',
                 ...lines,
                 'HTTP 200 — не гарантия аудио. Проверка выполнена из сети сервера DAGSTUDIO.',
                 'При слабом сигнале или воспроизведении с малым буфером аудиопроверка пропускается.'
@@ -3456,7 +3452,7 @@ async function testMusicSourceHealth() {
             await Promise.all(Array.from({length:Math.min(3,pending.length)},worker));
         }
         const hasMatches=sources.filter(({source})=>Number(counts[source])>0).length;
-        lines.push('С результатами по Miyagi: '+hasMatches+' из '+sources.length+' источников (Hitmos/Jamendo по API).');
+        lines.push('С результатами по Miyagi: '+hasMatches+' из '+sources.length+' подключённых источников.');
         lines.push('Для других исполнителей результаты могут отличаться. Работа в России без VPN проверяется отдельно на устройстве.');
         render();
         recordPlayerEvent('provider-diagnostics');
@@ -6648,12 +6644,19 @@ async function performSearch(rawQuery, save = false) {
         playlist = tracks;
         hasMoreSearchResults = false; // Full pass decides pagination.
         renderPlaylist();
-        scheduleSearchEnrichment(query, requestId);
+        if (!result.search_complete) scheduleSearchEnrichment(query, requestId);
+        else hasMoreSearchResults=tracks.length>=15;
         const counts = result.source_counts || {};
         const providersWithSongs = Object.values(counts).filter(value => Number(value) > 0).length;
         if (tracks.length) {
-            searchStatus('Первые результаты: ' + tracks.length +
-                ' · источников: ' + providersWithSongs + ' · уточняем поиск…');
+            searchStatus((result.search_complete?'Найдено: ':'Первые результаты: ') + tracks.length +
+                ' · источников: ' + providersWithSongs + (result.search_complete?'':' · уточняем поиск…'));
+        } else if (result.search_complete) {
+            const reachable=Object.values(result.sources||{}).some(s=>s?.ok);
+            displaySearchMessage(reachable
+                ? 'По вашему запросу песен не найдено. Попробуйте название или исполнителя.'
+                : 'Музыкальный источник временно недоступен. Повторите поиск позже.');
+            searchStatus(reachable?'Совпадений не найдено.':'Источник не отвечает.',!reachable);
         } else {
             displaySearchMessage('Проверяем остальные музыкальные источники…');
             searchStatus('Ищем более полные результаты…');
@@ -7610,7 +7613,19 @@ function renderPlaylist() {
     }
 
     playlist.forEach((t, i) => { 
-        const div = document.createElement('div'); div.className = 'track-row ' + (playbackPlaylist[currentIndex] && canonicalTrackUrl(t) === canonicalTrackUrl(playbackPlaylist[currentIndex]) ? 'active' : ''); 
+        const div = document.createElement('div'); div.className = 'track-row ' + (playbackPlaylist[currentIndex] && canonicalTrackUrl(t) === canonicalTrackUrl(playbackPlaylist[currentIndex]) ? 'active' : '');
+        const isSearchCard = currentTab === 'search';
+        if (isSearchCard) {
+            div.classList.add('dag-search-card');
+            div.setAttribute('role','button');
+            div.setAttribute('tabindex','0');
+            div.setAttribute('aria-label','Слушать: '+(t.artist||'Исполнитель')+' — '+(t.title||'Трек'));
+            div.addEventListener('keydown', e=>{
+                if(e.target===div&&(e.key==='Enter'||e.key===' ')){
+                    e.preventDefault();playTrack(i);
+                }
+            });
+        } 
         let iconHtml = '';
         // Every track uses the active DAGSTUDIO ornament, so the entire list
         // follows palette changes (including externally sourced tracks).
@@ -7661,15 +7676,18 @@ function renderPlaylist() {
 
         const left = document.createElement('div'); left.className = 'track-left';
         const title = document.createElement('div'); title.className = 't-title'; title.textContent = t.title || '';
-        const artist = document.createElement('div'); artist.className = 't-artist'; 
-        
+        const artist = document.createElement('div'); artist.className = 't-artist';
+        const meta = document.createElement('div'); meta.className = 'dag-track-meta';
         artist.textContent=t.artist||'Неизвестен';
         if(t.source && (currentTab==='search'||String(currentTab).startsWith('mix:'))) {
             const sourceBadge=document.createElement('span');
             sourceBadge.className='source-badge';
-            sourceBadge.textContent=t.source;
-            artist.appendChild(document.createTextNode(' '));
-            artist.appendChild(sourceBadge);
+            const labels={'[MUZOFOND]':'Muzofond','[AUDIUS]':'Audius',
+                '[HITMOS]':'Hitmos','[JAMENDO]':'Jamendo','[PARTNER]':'Партнёр'};
+            sourceBadge.textContent=isSearchCard?(labels[t.source]||t.source):t.source;
+            const target=isSearchCard?meta:artist;
+            if(!isSearchCard) target.appendChild(document.createTextNode(' '));
+            target.appendChild(sourceBadge);
         }
         if(['[JAMENDO]','[OPENVERSE]','[COMMONS]','[ARCHIVE]'].includes(t.source) &&
             (currentTab==='search'||String(currentTab).startsWith('mix:'))) {
@@ -7689,7 +7707,7 @@ function renderPlaylist() {
                 link.rel='noopener noreferrer';
                 link.title='Официальная запись исполнителя';
                 link.addEventListener('click',event=>event.stopPropagation());
-                artist.appendChild(link);
+                (isSearchCard?meta:artist).appendChild(link);
             }
             const license=String(t.license_url||'');
             if(/^https:\/\/creativecommons\.org\/(?:licenses\/[a-z-]+\/[0-9.]+|publicdomain\/(?:zero|mark)\/1\.0)\/?$/.test(license)){
@@ -7700,7 +7718,7 @@ function renderPlaylist() {
                 licenseLink.rel='noopener noreferrer';
                 licenseLink.title='Условия лицензии записи';
                 licenseLink.addEventListener('click',event=>event.stopPropagation());
-                artist.appendChild(licenseLink);
+                (isSearchCard?meta:artist).appendChild(licenseLink);
             }
         }
         if(currentTab==='mix:caucasus' && t._mixRegion) {
@@ -7713,12 +7731,41 @@ function renderPlaylist() {
         }
         
         left.appendChild(title); left.appendChild(artist);
+        if (isSearchCard && meta.childNodes.length) left.appendChild(meta);
 
         const actions = document.createElement('div'); actions.className = 'track-actions'; actions.innerHTML = actionBtn;
 
-        const iconWrap = document.createElement('div'); iconWrap.innerHTML = iconHtml;
+        const iconWrap = document.createElement('div');
+        let artwork = null;
+        if (isSearchCard) {
+            iconWrap.className = 'dag-track-artwork';
+            const picture = String(t.thumb||'').trim();
+            if (picture && !/^(?:\\/?images\\/(?:cover|icon(?:-192)?|faviconch|[rfsz])\\.png)(?:\\?.*)?$/i.test(picture)) {
+                try {
+                    const resolved = new URL(picture, document.baseURI);
+                    if (resolved.protocol==='https:' || resolved.origin===location.origin) {
+                        artwork = document.createElement('img');
+                        artwork.src=resolved.href;
+                        artwork.alt=''; artwork.loading='lazy'; artwork.decoding='async';
+                        artwork.onerror=()=>{artwork.remove();iconWrap.classList.remove('has-artwork');};
+                        iconWrap.classList.add('has-artwork');
+                        iconWrap.appendChild(artwork);
+                    }
+                } catch(error) { /* No trusted artwork URL; show a music note. */ }
+            }
+            const fallback = document.createElement('i');
+            fallback.className='fas fa-music dag-track-note';
+            fallback.setAttribute('aria-hidden','true');
+            iconWrap.appendChild(fallback);
+            const playGlyph=document.createElement('i');
+            playGlyph.className='fas fa-play dag-track-play-glyph';
+            playGlyph.setAttribute('aria-hidden','true');
+            iconWrap.appendChild(playGlyph);
+        } else {
+            iconWrap.innerHTML = iconHtml;
+        }
 
-        div.appendChild(iconWrap.firstChild); div.appendChild(left); div.appendChild(actions);
+        div.appendChild(isSearchCard?iconWrap:iconWrap.firstChild); div.appendChild(left); div.appendChild(actions);
         div.onclick = () => { playTrack(i); }; 
         fragment.appendChild(div); 
     }); 
