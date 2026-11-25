@@ -24,7 +24,7 @@ assert.match(js,/Avoid loading an empty source before loading the selected one/)
 assert.match(engine,/setBufferDurationsMsForStreaming\(60000, 180000, 2500, 12000\)/);
 assert.match(php,/\$fast_search = \(\$data\['mode'\] \?\? ''\) === 'fast';/);
 assert.match(php,/\$provider_timeout = \$fast_search \? 3/);
-assert.match(php,/\$muzca_detail_limit = \$fast_search \? 0/);
+assert.match(php,/'hitmoz' => "https:\/\/ru\.hitmoz\.org\/search\?q="/);
 assert.match(php,/foreach \(\$urls as \$key => \$url\)/);
 const start=js.indexOf('function scheduleSearchEnrichment(');
 const end=js.indexOf('\nasync function performSearch(',start);
@@ -40,7 +40,7 @@ const context={
  navigator:{onLine:true},getNetworkProfile:()=>({weak:false,saveData:false}),
  api:async(action,params)=>{
   assert.equal(action,'search_global');assert.equal(params.mode,'full');
-  return {success:true,data:[first,second],source_counts:{audius:2},sources:{audius:{ok:true}}};
+  return {success:true,data:[first,second],source_counts:{'[MUZOFOND]':2},sources:{muzo:{ok:true}}};
  },
  searchPlaylistCache:[first],currentTab:'search',playlist:[first],
  canonicalTrackUrl:track=>track.url,renderPlaylist:()=>{renders++},
