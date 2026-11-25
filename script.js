@@ -6479,6 +6479,7 @@ function queueCatalogSearch(){
     catalogSearchTimer=setTimeout(()=>requestCatalogSearch(query,serial),700);
 }
 mainSearchInput?.addEventListener('input',queueCatalogSearch);
+searchClearButton?.addEventListener('click',queueCatalogSearch);
 mainSearchInput?.addEventListener('keydown',event=>{
     if(event.key==='Enter')queueCatalogSearch();
 });
@@ -6666,6 +6667,10 @@ function searchStatus(message, retry = false) {
     }
 }
 function clearSearchResults() {
+    clearTimeout(catalogSearchTimer);
+    catalogSearchSerial++;
+    catalogSearchRows=[];
+    catalogSearchPanel.remove();
     clearTimeout(searchEnrichmentTimer);
     searchRequestSerial++;
     isSearchLoading = false;
