@@ -241,6 +241,9 @@ jobs:
                   if data.get('success') is not True:
                       print('FOCUSED_DISCOVERY_ERROR',query,'invalid_response')
                       continue
+                  if query=='Dagestan':
+                      with open('/tmp/dag-dagestan.json','w') as out:
+                          json.dump(data,out,ensure_ascii=False)
                   counts=data.get('source_counts') or {}
                   matches={key:value for key,value in counts.items()
                            if int(value or 0)>0}
@@ -298,7 +301,15 @@ jobs:
               tag=str(item.get('source','')).upper()
               if item.get('url') and tag and tag not in groups:
                   groups[tag]=item
-          labels=['[AUDIUS]','[VK]','[HITMOZ]','[HITMOS]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]','[OPENVERSE]']
+          try:
+              extra=json.load(open('/tmp/dag-dagestan.json'))
+              for item in extra.get('data',[]):
+                  tag=str(item.get('source','')).upper()
+                  if tag=='[COMMONS]' and item.get('url'):
+                      groups.setdefault(tag,item)
+          except (OSError,ValueError):
+              pass
+          labels=['[COMMONS]','[ARCHIVE]','[AUDIUS]','[VK]','[HITMOZ]','[HITMOS]','[MUZOFOND]','[ZVOOQ]','[MUZVOX]','[MUZCA]','[JAMENDO]','[OPENVERSE]']
           def probe(label):
               t=groups.get(label)
               if not t:return (label,'NO_MATCHING_SEARCH_RESULT')
