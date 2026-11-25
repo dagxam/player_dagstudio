@@ -83,6 +83,7 @@ jobs:
           node .github/test-trusted-ip-dns.mjs
           node .github/test-profile-theme.mjs
           node .github/test-catalog-2026.mjs
+          node .github/test-partner-api.mjs
           node .github/test-cloud-profile.mjs
 
       - name: Test low bandwidth playback and mobile song list
