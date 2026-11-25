@@ -257,7 +257,7 @@ function dagArchiveRedirectAllowed(string $location): bool {
         isset($info['port']) || isset($info['user']) || isset($info['pass'])) return false;
     $host=strtolower((string)($info['host']??''));
     if ($host==='archive.org')return true;
-    return (bool)preg_match('/^ia[0-9]+(?:\.[a-z0-9-]+)*\.archive\.org$/D',$host);
+    return (bool)preg_match('/^(?:ia|dn)[0-9]+(?:\.[a-z0-9-]+)*\.archive\.org$/D',$host);
 }
 
 $runAttempt = function(bool $useRange) use (
