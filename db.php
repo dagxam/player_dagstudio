@@ -59,6 +59,17 @@ try {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_playlist_covers_user ON playlist_covers(user_id)");
 
+    // Small, versioned, per-account preferences. Media files remain device-local.
+    // A separate table avoids ALTER TABLE on existing hosting installations.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS profile_settings (
+        user_id INTEGER NOT NULL,
+        setting_key TEXT NOT NULL,
+        setting_value TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (user_id, setting_key),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS tracks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         playlist_id INTEGER NOT NULL,

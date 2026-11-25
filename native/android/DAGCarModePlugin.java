@@ -121,6 +121,7 @@ public class DAGCarModePlugin extends Plugin {
             final java.util.Set<String> actions = new java.util.HashSet<>(java.util.Arrays.asList(
                 "search_global", "official_audius_feed", "check_auth", "get_data",
                 "login", "register", "logout", "update_theme",
+                "get_profile_settings", "save_profile_setting",
                 "create_playlist", "rename_playlist", "update_playlist_icon",
                 "update_playlist_cover", "delete_playlist", "add_track", "set_favorite",
                 "update_track_url", "delete_track", "upload_track"

@@ -242,13 +242,13 @@ let lastHttpTransport = 'native';
 // possibly successful POST. Old APKs reject unsupported operations immediately.
 const OWN_SERVER_ACTIONS = new Set([
   'search_global','official_audius_feed','check_auth','get_data',
-  'login','register','logout','update_theme',
+  'login','register','logout','update_theme','get_profile_settings','save_profile_setting',
   'create_playlist','rename_playlist','update_playlist_icon',
   'update_playlist_cover','delete_playlist','add_track','set_favorite',
   'update_track_url','delete_track','upload_track'
 ]);
 const OWN_SERVER_READS = new Set([
-  'search_global','official_audius_feed','check_auth','get_data'
+  'search_global','official_audius_feed','check_auth','get_data','get_profile_settings'
 ]);
 function nativeDnsError(error) {
   return /unable to resolve host|unknownhost|name_not_resolved|no address associated|dns|enotfound|name or service not known|failed to resolve/i

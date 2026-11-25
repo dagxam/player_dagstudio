@@ -88,7 +88,7 @@ if (!$data) {
 }
 
 // Открываем сессию обратно только для действий, где она нужна
-if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'update_playlist_cover', 'delete_playlist', 'add_track', 'set_favorite', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register'])) {
+if (in_array($action, ['login', 'logout', 'check_auth', 'get_data', 'create_playlist', 'rename_playlist', 'update_playlist_icon', 'update_playlist_cover', 'delete_playlist', 'add_track', 'set_favorite', 'update_track_url', 'delete_track', 'update_theme', 'upload_track', 'register', 'get_profile_settings', 'save_profile_setting'])) {
     @session_start();
 }
 
@@ -161,6 +161,93 @@ elseif ($action === 'update_theme') {
         $stmt->execute([strip_tags($data['theme'] ?? 'brown'), $_SESSION['user_id']]);
         echo json_encode(['success' => true]);
     } catch (Exception $e) { echo json_encode(['error' => 'Ошибка обновления темы.']); }
+}
+// Settings are account-scoped and versioned independently. A stale phone
+// cannot blindly replace preferences updated more recently on the PC.
+elseif ($action === 'get_profile_settings') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        http_response_code(405); echo json_encode(['error' => 'Method not allowed']); exit;
+    }
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(401); echo json_encode(['error' => 'Auth required']); exit;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT setting_key, setting_value, revision FROM profile_settings WHERE user_id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $settings = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $value = json_decode($row['setting_value'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) continue;
+            $settings[$row['setting_key']] = ['value' => $value, 'revision' => (int)$row['revision']];
+        }
+        header('Cache-Control: no-store');
+        echo json_encode(['success' => true, 'settings' => $settings], JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        error_log('Profile settings read: ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['error' => 'Ошибка синхронизации профиля']);
+    }
+}
+elseif ($action === 'save_profile_setting') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        http_response_code(405); echo json_encode(['error' => 'Method not allowed']); exit;
+    }
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(401); echo json_encode(['error' => 'Auth required']); exit;
+    }
+    $limits = [
+        'equalizer' => 2048, 'soft_leveling' => 24, 'rainbow_speed' => 24,
+        'smart_radio' => 24, 'traffic_saver' => 24, 'visualizer' => 2048,
+        'taste' => 220000, 'likes_exclusions' => 20000, 'search_history' => 3000
+    ];
+    $key = (string)($data['key'] ?? '');
+    $expected = $data['expected_revision'] ?? null;
+    $value = $data['value'] ?? null;
+    $simple = in_array($key, ['soft_leveling','smart_radio','traffic_saver'], true);
+    $object = in_array($key, ['equalizer','visualizer','taste','likes_exclusions'], true);
+    $array = $key === 'search_history';
+    $valid = isset($limits[$key]) && is_int($expected) &&
+        $expected >= 0 && $expected < 2147483647 &&
+        ($simple ? is_bool($value) : ($object ? is_array($value) &&
+            !array_is_list($value) : ($array ? is_array($value) &&
+            array_is_list($value) : ($key === 'rainbow_speed' &&
+            is_int($value) && $value >= 4 && $value <= 60))));
+    if (!$valid) {
+        http_response_code(400); echo json_encode(['error' => 'Invalid setting']); exit;
+    }
+    $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false || strlen($encoded) > $limits[$key]) {
+        http_response_code(413); echo json_encode(['error' => 'Setting too large']); exit;
+    }
+    try {
+        $pdo->exec('BEGIN IMMEDIATE');
+        $read = $pdo->prepare("SELECT setting_value, revision FROM profile_settings WHERE user_id = ? AND setting_key = ?");
+        $read->execute([(int)$_SESSION['user_id'], $key]);
+        $stored = $read->fetch(PDO::FETCH_ASSOC);
+        $actual = $stored ? (int)$stored['revision'] : 0;
+        if ($actual !== $expected) {
+            $pdo->rollBack();
+            echo json_encode(['success' => false, 'conflict' => true, 'setting' => [
+                'value' => $stored ? json_decode($stored['setting_value'], true) : null,
+                'revision' => $actual
+            ]], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $next = $actual + 1;
+        if ($actual === 0) {
+            $insert = $pdo->prepare("INSERT INTO profile_settings (user_id, setting_key, setting_value, revision) VALUES (?, ?, ?, ?)");
+            $insert->execute([(int)$_SESSION['user_id'], $key, $encoded, $next]);
+        } else {
+            $update = $pdo->prepare("UPDATE profile_settings SET setting_value = ?, revision = ? WHERE user_id = ? AND setting_key = ?");
+            $update->execute([$encoded, $next, (int)$_SESSION['user_id'], $key]);
+        }
+        $pdo->commit();
+        header('Cache-Control: no-store');
+        echo json_encode(['success' => true, 'revision' => $next]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Profile settings write: ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['error' => 'Ошибка сохранения профиля']);
+    }
 }
 elseif ($action === 'get_data') {
     if (!isset($_SESSION['user_id'])) { echo json_encode(['error' => 'Auth required']); exit; }
