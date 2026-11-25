@@ -283,7 +283,7 @@ jobs:
           protocol=os.environ.get('FTP_PROTOCOL','ftp').lower()
           port=int(os.environ.get('FTP_PORT') or 21)
           version=os.environ['GITHUB_SHA']
-          essential=['script.js','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
+          essential=['api.php','script.js','search-polish.css','studio-next.js','studio-sidebar-modern.css','sw.js','index.php','deploy-version.txt',
                      'deploy-'+version+'.txt']
           if protocol not in ('ftp','ftps'):
               raise SystemExit('FTP fallback supports ftp and explicit ftps only')
@@ -344,6 +344,8 @@ jobs:
       - name: Verify production version
         if: ${{ env.FTP_SERVER != '' && env.FTP_USERNAME != '' && env.FTP_PASSWORD != '' && env.FTP_SERVER_DIR != '' }}
         run: |
+          # Fail over to the trusted IP but retain SNI, TLS chain and hostname verification.
+          curl() { command curl "$@" || command curl --resolve pl.dagstudio.ru:443:188.127.241.85 "$@"; }
           EXPECTED="$GITHUB_SHA"
 
           UNIQUE_URL="https://pl.dagstudio.ru/deploy-$EXPECTED.txt"
