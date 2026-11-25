@@ -170,10 +170,13 @@ function dagExtraMusicArchiveFiles(string $id,array $details): array {
 }
 
 function dagExtraMusicArchiveTracks(array $search, string $query, bool $fast=false): array {
+    // Initial search must never wait for a second provider's metadata.
+    // Full enrichment may resolve a small bounded number of recordings.
+    if ($fast) return [];
     $items=dagExtraMusicArchiveCandidates($search);
     $out=[];
-    foreach (array_slice($items,0,$fast?2:4,true) as $id=>$item) {
-        $json=dagExtraMusicHttpJson('https://archive.org/metadata/'.rawurlencode((string)$id),$fast?3:5);
+    foreach (array_slice($items,0,2,true) as $id=>$item) {
+        $json=dagExtraMusicHttpJson('https://archive.org/metadata/'.rawurlencode((string)$id),4);
         foreach (dagExtraMusicArchiveFiles((string)$id,$json) as $track) $out[]=$track;
         if (count($out)>=8)break;
     }
