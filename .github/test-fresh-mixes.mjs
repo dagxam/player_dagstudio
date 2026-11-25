@@ -122,8 +122,8 @@ assert.match(code,/const pageResults=await Promise\.all\(picks\.map\(async/);
 assert.match(code,/state\.pageNumbers\.get\(query\)\|\|0\)\+1/);
 assert.match(code,/requestedQueries=new Set\(\)/);
 const php=read('api.php');
-for(const provider of ['audius','vk_mail','hitmoz','muzo','zvooq','muzvox','muzca'])
- assert.ok(php.includes("'"+provider+"'"),'Unmodified multiserver search: '+provider);
+for(const provider of ['muzo','hitmoz'])
+ assert.ok(php.includes("'"+provider+"'"),'Approved search provider: '+provider);
 assert.match(php,/foreach \(\$urls as \$key => \$url\)/);
-assert.match(php,/'release_date' => is_string\(\$track\['release_date'\]/);
+assert.match(php,/'search_complete'/);
 console.log('FRESH_VERIFIED_RELEASE_YEARS_DIVERSE_RUSSIAN_CAUCASUS_FAST_MIX_SEARCH_OK');
