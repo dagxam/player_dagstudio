@@ -176,7 +176,7 @@ elseif ($action === 'get_profile_settings') {
         $stmt->execute([(int)$_SESSION['user_id']]);
         $settings = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $value = json_decode($row['setting_value'], true);
+            $value = json_decode($row['setting_value']);
             if (json_last_error() !== JSON_ERROR_NONE) continue;
             $settings[$row['setting_key']] = ['value' => $value, 'revision' => (int)$row['revision']];
         }
@@ -228,7 +228,7 @@ elseif ($action === 'save_profile_setting') {
         if ($actual !== $expected) {
             $pdo->rollBack();
             echo json_encode(['success' => false, 'conflict' => true, 'setting' => [
-                'value' => $stored ? json_decode($stored['setting_value'], true) : null,
+                'value' => $stored ? json_decode($stored['setting_value']) : null,
                 'revision' => $actual
             ]], JSON_UNESCAPED_UNICODE);
             exit;
