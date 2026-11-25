@@ -233,6 +233,7 @@ function dagCatalog2026(string $category): array {
 }
 
 if (!defined('DAG_CATALOG_LIBRARY_ONLY')) {
+    header('Content-Type: application/json; charset=utf-8');
     $category = (string)($data['category'] ?? ($_GET['category'] ?? ''));
     if (!in_array($category,['russian','caucasus'],true)) {
         http_response_code(400);

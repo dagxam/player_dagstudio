@@ -9,7 +9,7 @@ const api=read('api.php'),proxy=read('proxy.php'),js=read('script.js');
 assert.match(source,/function dagOpenverseTracks/);
 assert.match(api,/api\.openverse\.org\/v1\/audio/);
 assert.match(api,/dagOpenverseTracks\(\$openverseData\)/);
-assert.match(proxy,/CURLOPT_FOLLOWLOCATION => \$source !== 'hitmos' && \$source !== 'openverse'/);
+assert.match(proxy,/CURLOPT_FOLLOWLOCATION => !in_array\(\$source, \['hitmos','openverse','partner'\], true\)/);
 assert.match(js,/key:'openverse',label:'Openverse \(CC\)'/);
 assert.match(js,/Wikimedia Commons/);
 const item={
