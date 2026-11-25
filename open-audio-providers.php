@@ -71,17 +71,27 @@ function dagExtraMusicCommons(array $json): array {
         $url=(string)($info['url']??'');
         $mime=(string)($info['mime']??'');
         if (!dagExtraMusicCommonsUrl($url) ||
-            !in_array($mime,['audio/mpeg','audio/ogg','audio/flac','audio/wav','audio/x-wav','audio/aac','audio/mp4'],true))continue;
+            !in_array($mime,[
+                'audio/mpeg','audio/ogg','application/ogg','audio/opus',
+                'audio/flac','audio/x-flac','audio/wav','audio/x-wav',
+                'audio/aac','audio/mp4'
+            ],true))continue;
         $meta=$info['extmetadata']??[];
         $short=dagExtraMusicClean($meta['LicenseShortName']['value']??'',60);
         $license=dagExtraMusicLicense((string)($meta['LicenseUrl']['value']??''));
         if (!$license && preg_match('/^CC0(?: [0-9.]+)?$/i',$short))
             $license='https://creativecommons.org/publicdomain/zero/1.0/';
+        if (!$license && in_array(mb_strtolower($short),['public domain','public domain mark','pd'],true))
+            $license='https://creativecommons.org/publicdomain/mark/1.0/';
         if (!$license)continue; // Unknown, non-commercial, proprietary rights.
         $title=dagExtraMusicClean((string)($page['title']??''));
         $title=preg_replace('/^(?:File|Файл):/u','',$title);
         $title=preg_replace('/\.(mp3|ogg|oga|opus|flac|wav|m4a|aac)$/i','',$title);
         $title=str_replace('_',' ',$title);
+        // Commons also hosts speech snippets and dictionary pronunciations.
+        // Those are not music tracks and should not crowd actual songs.
+        if (preg_match('/\b(pronunciation|voice of america|folk tales|spoken word|wiktionary)\b/i',$title))
+            continue;
         $author=dagExtraMusicClean($meta['Artist']['value']??'',140);
         if (!$author) $author='Wikimedia Commons';
         if (!$title)continue;
@@ -109,7 +119,10 @@ function dagExtraMusicArchiveApi(string $query,int $page=1): string {
     // must never change the mediatype and license predicates.
     $safe=preg_replace('/[^\p{L}\p{N}\s-]/u',' ',mb_substr($query,0,85));
     $safe=trim(preg_replace('/\s+/u',' ',$safe));
-    $expr='mediatype:audio AND licenseurl:creativecommons.org AND (title:("'.$safe.'") OR creator:("'.$safe.'"))';
+    // Archive's own advanced-search guide specifies licenseurl:http*
+    // wildcard matching; literal substring matching yielded no index hits.
+    // Every candidate is rechecked against its actual CC license metadata.
+    $expr='mediatype:audio AND licenseurl:http* AND (title:("'.$safe.'") OR creator:("'.$safe.'") OR subject:("'.$safe.'"))';
     return 'https://archive.org/advancedsearch.php?'.http_build_query([
         'q'=>$expr,'fl'=>['identifier','title','creator','date','licenseurl'],
         'rows'=>8,'page'=>min(10,$page),'output'=>'json'
