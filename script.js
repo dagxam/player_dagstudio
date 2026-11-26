@@ -103,7 +103,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2381';
+const WEB_BUILD_LABEL = '2382';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -495,8 +495,13 @@ window.manualUpdateApplication = async function() {
             return;
         }
 
-        // A newer native APK takes precedence: an OTA web bundle cannot
-        // upgrade Java/Media3, DNS recovery or Android permissions.
+        // First apply a signed/checksummed web-layer OTA in the existing app.
+        // This updates search and interface without Android's unknown-apps
+        // permission or an APK replacement; the user already pressed Update.
+        const otaResult = await checkNativeLiveUpdate(true, true);
+        if (otaResult.status === 'updated') return; // WebView switches bundle.
+        // If OTA is current/unavailable, look for an APK engine update.
+        // An APK never silently replaces a signed installation.
         const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
         let apkCheckFailed = false;
         if (NATIVE_PLATFORM === 'android') {
@@ -553,11 +558,7 @@ window.manualUpdateApplication = async function() {
             }
         }
 
-        const result = await checkNativeLiveUpdate(true, true);
-        if (result.status === 'updated') {
-            // updater.set() switches bundles and normally reloads the WebView.
-            return;
-        }
+        const result = otaResult;
         if (result.status === 'current' || result.status === 'throttled') {
             await refreshAppVersionInfo();
             if (androidApkSigningConflict && NATIVE_PLATFORM === 'android') {
@@ -777,6 +778,27 @@ async function findAvailableAppUpdate() {
     }
     if (NATIVE_PLATFORM !== 'android') return null;
 
+    // Prefer an in-app web-layer update for search/UI changes. The native
+    // APK installer remains a fallback for engine and Android-permission changes.
+    // OTA does not download anything during this availability-only check.
+    try {
+        const updater = nativeUpdaterBridge();
+        if (updater && typeof updater.current === 'function') {
+            const meta = await fetchOtaManifest();
+            const installed = await getInstalledBundleVersion();
+            if (nativeOtaChanged(installed, window.DAG_NATIVE_BUILD_COMMIT, meta)) {
+                return {
+                    kind: 'ota',
+                    key: 'ota:' + meta.version,
+                    version: 'OTA ' + meta.version,
+                    message: 'Доступно обновление поиска и интерфейса. Скачаем его внутри DAGSTUDIO PLAYER; плейлисты и настройки останутся.'
+                };
+            }
+        }
+    } catch (error) {
+        console.warn('OTA check unavailable; checking signed APK instead:', error);
+    }
+
     // Native Java compares versionCode, checks the trusted HTTPS origin, and
     // does not download APK bytes during this availability probe.
     const installer = window.DAG_NATIVE_BRIDGE?.apkInstaller;
@@ -804,17 +826,7 @@ async function findAvailableAppUpdate() {
         }
     }
 
-    const updater = nativeUpdaterBridge();
-    if (!updater || typeof updater.current !== 'function') return null;
-    const meta = await fetchOtaManifest();
-    const installed = await getInstalledBundleVersion();
-    if (!nativeOtaChanged(installed, window.DAG_NATIVE_BUILD_COMMIT, meta)) return null;
-    return {
-        kind: 'ota',
-        key: 'ota:' + meta.version,
-        version: 'OTA ' + meta.version,
-        message: 'Обновление интерфейса DAGSTUDIO PLAYER готово. Музыка и сохранённые плейлисты останутся в приложении.'
-    };
+    return null;
 }
 
 function presentAvailableAppUpdate(update) {
@@ -929,7 +941,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2398', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2399', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
