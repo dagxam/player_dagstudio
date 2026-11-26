@@ -25,6 +25,8 @@ assert.equal(scheduled.size,1,'Second same-query call canceled the scheduled sup
 assert.equal(context.playableCatalogSearchSerial,1,'Same query unexpectedly invalidated the search');
 const task=[...scheduled.values()][0];
 assert.equal(task.delay,720);
+// A real timeout is removed from the event loop when it fires.
+scheduled.delete([...scheduled.keys()][0]);
 task.fn();
 assert.deepEqual(requested[0],['Miyagi',1],'All provider results must be fetched');
 context.mainSearchInput.value='Ислам Итляшев';
