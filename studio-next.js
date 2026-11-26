@@ -94,17 +94,49 @@ add('offline','Офлайн','circle-down',()=>{
  showList('offline');window.openOfflineListening?.();
 });
 add('collections','Подборки','layer-group',()=>window.studioCenterRender?.('collections'));
+// Official streaming services are opened on their own trusted domains.
+// Do not proxy their pages, cookies, account login, paid media or credentials.
+const musicServicesTitle=node('div','showcase-service-heading','МУЗЫКАЛЬНЫЕ СЕРВИСЫ');
+musicServicesTitle.setAttribute('aria-hidden','true');
+menu.appendChild(musicServicesTitle);
+function addOfficialMusicService(key,label,brand,url){
+ const link=node('a','showcase-nav-btn showcase-external-service');
+ link.id='showcase-'+key;
+ link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+ link.title=label+' — открыть официальный сайт в новой вкладке';
+ link.setAttribute('aria-label',label+' — открыть официальный сайт');
+ link.dataset.musicService=key;
+ const icon=node('i','fab fa-'+brand);
+ icon.setAttribute('aria-hidden','true');
+ link.appendChild(icon);link.appendChild(node('span','',label));
+ link.addEventListener('click',event=>{
+   // Native apps use the system browser when its bridge is available.
+   // On the web, the standard anchor preserves the account's own cookies.
+   const openExternal=window.DAG_NATIVE_BRIDGE?.openExternal;
+   if(typeof openExternal==='function'){
+     event.preventDefault();
+     Promise.resolve(openExternal({url})).catch(()=>{
+       window.open(url,'_blank','noopener,noreferrer');
+     });
+   }
+   closeMobile();
+ });
+ menu.appendChild(link);
+ return link;
+}
+addOfficialMusicService('yandex-music','Яндекс Музыка','yandex','https://music.yandex.ru/');
+addOfficialMusicService('youtube-music','YouTube Music','youtube','https://music.youtube.com/');
 add('settings','Настройки','gear',()=>{if(typeof openMenu==='function')openMenu();window.studioSettingsPage?.();});
 nav.appendChild(menu);
 // Capture sidebar navigation before it renders playlists, likes, search or settings.
 // This only changes a CSS view; it never touches the playback engine or queue.
 nav.addEventListener('click',event=>{
- if(event.target.closest?.('.showcase-nav-btn'))
+ if(event.target.closest?.('.showcase-nav-btn:not(.showcase-external-service)'))
   root.classList.remove('vision-player-expanded');
 },true);
 menu.addEventListener('click',event=>{
  const chosen=event.target.closest('.showcase-nav-btn');
- if(!chosen || chosen.id==='showcase-settings')return;
+ if(!chosen || chosen.id==='showcase-settings' || chosen.classList.contains('showcase-external-service'))return;
  const pane=document.getElementById('menu-modal');
  if(pane?.classList.contains('showcase-settings-page')){
    pane.classList.remove('showcase-settings-page','show');
