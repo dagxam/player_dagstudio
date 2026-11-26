@@ -103,7 +103,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2379';
+const WEB_BUILD_LABEL = '2380';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -929,7 +929,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2396', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2397', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -6417,10 +6417,12 @@ async function requestPlayableCatalogs(query,serial){
     }
 }
 function queuePlayableCatalogSearch(override){
-    clearTimeout(playableCatalogSearchTimer);
     const query=String(override??mainSearchInput?.value??'').trim().replace(/\s+/g,' ');
+    // Preserve an already scheduled lookup for the same query. Clearing the
+    // timer before this check silently killed all extra music providers.
     if(query===playableCatalogQuery&&
        (playableCatalogRows.length||playableCatalogSearchTimer))return;
+    clearTimeout(playableCatalogSearchTimer);
     const serial=++playableCatalogSearchSerial;
     playableCatalogRows=[];
     playableCatalogQuery=query;
