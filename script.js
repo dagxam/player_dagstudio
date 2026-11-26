@@ -103,7 +103,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2380';
+const WEB_BUILD_LABEL = '2381';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -929,7 +929,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2397', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2398', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -6735,8 +6735,7 @@ function scheduleSearchEnrichment(query, requestId) {
                         : 'Источники временно недоступны. Повторите поиск.');
                     searchStatus(available ? 'Результатов пока нет.' : 'Источники не отвечают.', true);
                 } else {
-                    const counts = result.source_counts || {};
-                    const providers = Object.values(counts).filter(n => Number(n) > 0).length;
+                                        const providers = new Set(searchPlaylistCache.map(track => String(track?.source || '')).filter(Boolean)).size;
                     searchStatus('Найдено: '+searchPlaylistCache.length+
                         ' · источников: '+providers);
                 }
@@ -6802,10 +6801,9 @@ async function performSearch(rawQuery, save = false) {
         renderPlaylist();
         if (!result.search_complete) scheduleSearchEnrichment(query, requestId);
         else hasMoreSearchResults=tracks.length>=15;
-        const counts = result.source_counts || {};
-        const providersWithSongs = Object.values(counts).filter(value => Number(value) > 0).length;
+                const providersWithSongs = new Set(searchPlaylistCache.map(track => String(track?.source || '')).filter(Boolean)).size;
         if (tracks.length) {
-            searchStatus((result.search_complete?'Найдено: ':'Первые результаты: ') + tracks.length +
+            searchStatus((result.search_complete?'Найдено: ':'Первые результаты: ') + searchPlaylistCache.length +
                 ' · источников: ' + providersWithSongs + (result.search_complete?'':' · уточняем поиск…'));
         } else if (result.search_complete) {
             const reachable=Object.values(result.sources||{}).some(s=>s?.ok);
