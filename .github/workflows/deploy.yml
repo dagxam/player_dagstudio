@@ -44,6 +44,7 @@ jobs:
           node --check sw.js
           node .github/test-cc3-offline-failover.mjs
           node .github/test-ota-update.mjs
+          node .github/test-android-ota-priority.mjs
           node .github/test-connectivity.mjs
           node .github/test-end-to-end-network.mjs
           node .github/test-profile-theme.mjs

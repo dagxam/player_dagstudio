@@ -501,7 +501,7 @@
 </div>
 
 <script src="profile-sync.js?v=1" defer></script>
-<script src="script.js?v=2381" defer></script>
+<script src="script.js?v=2382" defer></script>
 <script src="studio.js?v=7" defer></script>
 <script src="studio-next.js?v=20" defer></script>
 <script src="studio-center.js?v=8" defer></script>

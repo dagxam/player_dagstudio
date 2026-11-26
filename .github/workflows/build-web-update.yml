@@ -90,7 +90,9 @@ jobs:
 
       # Includes verified-IP search and remote theme synchronization changes.
       - name: Test manual OTA and backup delivery
-        run: node .github/test-ota-update.mjs
+        run: |
+          node .github/test-ota-update.mjs
+          node .github/test-android-ota-priority.mjs
 
       - name: Package live update with Capgo CLI
         run: |
