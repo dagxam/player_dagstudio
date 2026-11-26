@@ -654,37 +654,3 @@
    min-width:42px!important;min-height:42px!important;
  }
 }
-
-/* Official services: external destinations, never disguised as local playlists. */
-.vision-ui .showcase-service-heading{
-  display:block;margin:11px 6px 1px;padding:11px 7px 5px;
-  border-top:1px solid rgba(var(--theme-rgb,192,108,66),.22);
-  font:800 .61rem/1.4 Inter,"Segoe UI",sans-serif;
-  letter-spacing:.14em;color:var(--nav-secondary);
-}
-.vision-ui .showcase-external-service{
-  text-decoration:none!important;
-  cursor:pointer!important;
-}
-.vision-ui .showcase-external-service:hover{
-  text-decoration:none!important;
-}
-.vision-ui .showcase-external-service[href="https://music.yandex.ru/"] i{
-  color:#f4c84d!important;
-}
-.vision-ui .showcase-external-service[href="https://music.youtube.com/"] i{
-  color:#f06565!important;
-}
-@media(min-width:769px){
-  .vision-ui.showcase-nav-collapsed .showcase-service-heading{
-    width:38px!important;height:10px!important;max-height:10px!important;
-    padding:0!important;margin:6px 0 0!important;overflow:hidden!important;
-    font-size:0!important;
-  }
-}
-@media(max-width:768px){
-  .vision-ui .showcase-service-heading{
-    margin-top:12px;
-    padding-top:13px;
-  }
-}

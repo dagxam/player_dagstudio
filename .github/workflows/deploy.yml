@@ -49,7 +49,6 @@ jobs:
           node .github/test-profile-theme.mjs
           node .github/test-catalog-2026.mjs
           node .github/test-two-search-sources.mjs
-          node .github/test-music-service-shortcuts.mjs
           node .github/test-cloud-profile.mjs
           node .github/test-profile-settings-api.mjs
           node .github/test-native-http-fallback.mjs
