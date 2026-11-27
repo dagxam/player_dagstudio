@@ -85,6 +85,7 @@ jobs:
           node .github/test-wave-sidebar-autoplay.mjs
           node .github/test-all-track-autofullscreen.mjs
           node .github/test-android-sidebar-row.mjs
+          node .github/test-mobile-polish.mjs
           node .github/test-wave-2026-start.mjs
           node .github/test-wave-caucasus-offline.mjs
           node .github/test-continuous-radio.mjs
