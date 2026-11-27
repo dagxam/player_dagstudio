@@ -47,10 +47,9 @@
     invokeNav('wave');
     updateNav();
   };
-  // The brand opens a presentation of the *existing* playback state.
-  // No changes to playbackPlaylist, playbackTab, currentIndex or Media3 are made.
+  // Brand marks are decorative only; selecting a track or using the mini-player
+  // opens the full player. The logo/text never acts as a navigation link.
   const brand = document.querySelector('.showcase-sidebar .showcase-brand');
-  const headerBrand = document.querySelector('.header-overlay .header-left');
   const playingPanel = document.querySelector('.main-container.studio-showcase > .left-col');
   const expandPlayer = () => {
     root.classList.add('vision-player-expanded');
@@ -63,28 +62,8 @@
     updateNav();
     refreshVisualizer();
   };
-  const activateBrand = element => {
-    if (!element) return;
-    element.title = 'Показать текущий трек';
-    element.setAttribute('role', 'button');
-    element.setAttribute('tabindex', '0');
-    element.setAttribute('aria-label', 'Открыть текущий проигрыватель, не меняя музыку');
-    element.addEventListener('click', event => {
-      if (event.target.closest?.('button, a')) return; // Sidebar rail toggle.
-      expandPlayer();
-    });
-    element.addEventListener('keydown', event => {
-      if (event.target !== element || !['Enter', ' '].includes(event.key)) return;
-      event.preventDefault();
-      expandPlayer();
-    });
-  };
-  activateBrand(brand);
-  activateBrand(headerBrand);
-
-  // Mobile has no visible left sidebar: provide the same brand control at the
-  // top left while keeping the existing search field and menu button.
-  const mobileBrand = button('vision-top-brand', 'Открыть текущий проигрыватель', null, expandPlayer);
+  // Mobile brand remains visible but is deliberately noninteractive.
+  const mobileBrand = el('div', 'vision-top-brand');
   const mobileBrandImage = el('img', 'vision-top-brand-art');
   mobileBrandImage.alt = '';
   mobileBrandImage.src = brand?.querySelector('img')?.getAttribute('src') || 'images/cover.png';
@@ -636,7 +615,14 @@
     ['wave', 'Моя волна', 'wave-square', openWave],
     ['playlists', 'Плейлисты', 'music', () => { collapsePlayer(); invokeNav('playlists'); }],
     ['likes', 'Нравится', 'heart', () => { collapsePlayer(); invokeNav('likes'); }],
-    ['menu', 'Ещё', 'bars', () => document.getElementById('showcase-menu-toggle')?.click()]
+    ['menu', 'Ещё', 'bars', () => {
+      // Return to the library layout before opening the existing drawer;
+      // the sidebar is intentionally hidden behind the fullscreen player.
+      collapsePlayer();
+      root.classList.remove('showcase-wave-only');
+      document.getElementById('showcase-menu-toggle')?.click();
+      updateNav();
+    }]
   ];
   const bottomMap = new Map();
   for (const [key, name, glyph, handler] of bottomItems) {
@@ -656,8 +642,9 @@
 
   function updateNav() {
     const active = document.querySelector('#studio-navigation .showcase-nav-btn.active')?.dataset.showcase;
-    const selected = root.classList.contains('vision-player-expanded') ? 'current'
-      : root.classList.contains('showcase-wave-only') ? 'wave'
+    const selected = root.classList.contains('showcase-wave-only') ? 'wave'
+      : root.classList.contains('vision-player-expanded')
+        ? (active === 'wave' ? 'wave' : 'current')
       : (pane.classList.contains('showcase-curated') && active === 'wave') ? 'home'
       : active;
     root.classList.toggle('vision-home-active', selected === 'home');

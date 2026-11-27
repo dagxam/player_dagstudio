@@ -29,7 +29,7 @@ assert.match(vision,/window\.studioCenterRender\?\.\('playlists'\)/);
 assert.match(vision,/vision-mini-player/);
 assert.match(vision,/vision-bottom-nav/);
 assert.match(vision,/vision-player-expanded/);
-assert.match(vision,/activateBrand\(brand\)/,'Logo must open current playback view');
+assert.doesNotMatch(vision,/activateBrand\(/,'Brand is decorative and must not open player');
 
 // Logo opens the current player; a sidebar rail toggle only changes the rail.
 // The original desktop compact-grid rules put the player in column 3 / row 2
@@ -81,10 +81,10 @@ const withoutComments=css.replace(/\/\*[\s\S]*?\*\//g,'');
 const opens=(withoutComments.match(/\{/g)||[]).length;
 const closes=(withoutComments.match(/\}/g)||[]).length;
 assert.equal(opens,closes,'Design CSS braces must balance');
-// The brand must open the current player without touching playback or the queue.
+// The existing expanded-player controller must preserve playback and queue.
 const {runInNewContext} = await import('node:vm');
 const openStart = vision.indexOf('  const expandPlayer = () => {');
-const openEnd = vision.indexOf('  const activateBrand = element => {', openStart);
+const openEnd = vision.indexOf('  // Mobile brand remains visible', openStart);
 assert.ok(openStart > 0 && openEnd > openStart, 'Brand view controller exists');
 const classes = new Set();
 const currentQueue = [{title:'Playing',url:'https://example.org/audio.mp3'}];
@@ -94,13 +94,13 @@ const modeCtx = {window:{},root:{classList:{add:x=>classes.add(x),remove:x=>clas
 runInNewContext(vision.slice(openStart,openEnd) +
  '\nglobalThis.openCurrent=expandPlayer;globalThis.closeCurrent=collapsePlayer;',modeCtx);
 modeCtx.openCurrent();
-assert.ok(classes.has('vision-player-expanded'),'Clicking brand expands player view');
+assert.ok(classes.has('vision-player-expanded'),'Existing player expander opens playback view');
 assert.equal(JSON.stringify({queue:currentQueue,index:0,time:audioState.currentTime,paused:audioState.paused}),
  beforePlayback,'Opening player must not modify audio or queue');
 modeCtx.closeCurrent();
 assert.ok(!classes.has('vision-player-expanded'),'Back restores the previous view');
-assert.match(vision,/activateBrand\(brand\)/);
-assert.match(vision,/activateBrand\(headerBrand\)/);
+assert.doesNotMatch(vision,/activateBrand\(/);
+assert.match(vision,/const mobileBrand = el\('div', 'vision-top-brand'\)/);
 assert.match(vision,/topbar\.appendChild\(mobileBrand\)/);
 assert.match(vision,/pointerdown/);
 assert.match(vision,/pointermove/);
