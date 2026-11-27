@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const css=read('studio-sidebar-modern.css'),html=read('index.php');
 const sw=read('sw.js'),script=read('script.js');
-const start=css.indexOf('/* Mobile polish 2387');
+const start=css.indexOf('/* Mobile polish 2386');
 assert.ok(start>0);
 const patch=css.slice(start);
 assert.match(patch,/@media \(max-width:768px\)/);
