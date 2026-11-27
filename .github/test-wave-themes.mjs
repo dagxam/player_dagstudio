@@ -185,8 +185,8 @@ assert.equal(gesturePlayCalls,1,'Media3 is never primed with an HTML5 silence tr
 const studio=readFileSync(new URL('../studio.js',import.meta.url),'utf8');
 const waveEntry=studio.slice(studio.indexOf('window.openStudioWave=function()'),
  studio.indexOf('// Return to the real list',studio.indexOf('window.openStudioWave=function()')));
-assert.ok(waveEntry.indexOf('primeWaveAudioFromClick()')>=0);
-assert.ok(waveEntry.indexOf('primeWaveAudioFromClick()')<waveEntry.indexOf("startQuickMix('wave')"),
+assert.ok(waveEntry.indexOf('primeWaveAudioFromClick(true)')>=0);
+assert.ok(waveEntry.indexOf('primeWaveAudioFromClick(true)')<waveEntry.indexOf("startQuickMix('wave')"),
  'Wave primer executes directly in the click before asynchronous discovery');
 assert.ok(src.includes('if (isRepeat && !isContinuousRadio())'),
  'A persisted Repeat setting must not prevent the next Wave song');
