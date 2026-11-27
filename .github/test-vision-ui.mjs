@@ -9,10 +9,10 @@ const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
 assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=12"/);
-assert.match(html,/studio-center\.js\?v=8" defer><\/script>\s*<script src="studio-vision\.js\?v=10"/);
+assert.match(html,/studio-center\.js\?v=8" defer><\/script>\s*<script src="studio-vision\.js\?v=11"/);
 assert.match(sw,/dagstudio-player-shell-v\d+/);
 for(const asset of [
- 'studio-vision.js?v=10','studio-vision.css?v=12','images/vision-hero.svg'
+ 'studio-vision.js?v=11','studio-vision.css?v=12','images/vision-hero.svg'
 ])assert.ok(sw.includes("'/" + asset + "'"),'PWA precache must contain '+asset);
 assert.ok(read('images/vision-hero.svg').startsWith('<svg'));
 assert.ok(native.includes('studio-vision'), 'Native script injection must include VISION');
@@ -39,8 +39,8 @@ assert.match(railCss,/grid-template-columns:78px minmax\(0,1fr\)!important/);
 assert.match(railCss,/\.vision-ui\.vision-player-expanded\.showcase-nav-collapsed>\.left-col\s*\{[\s\S]*?grid-column:2!important;[\s\S]*?grid-row:1!important/);
 assert.match(railCss,/\.vision-ui\.vision-player-expanded\.showcase-nav-collapsed>\.showcase-sidebar\s*\{[\s\S]*?grid-column:1!important;[\s\S]*?grid-row:1!important/);
 assert.match(navScript,/root\.classList\.toggle\('showcase-nav-collapsed'\)/);
-assert.match(vision,/event\.target\.closest\?\.\('button, a'\)/,
-  'Clicking collapse button inside the logo must not trigger a new player navigation');
+assert.doesNotMatch(vision,/event\.target\.closest\?\.\('button, a'\)/,
+  'Brand must not install a click handler; rail toggle works independently');
 assert.match(html,/studio-vision\.css\?v=\d+"[\s\S]*studio-sidebar-modern\.css\?v=\d+"/,
   'The collapsed-player grid repair must load after legacy player styles');
 
