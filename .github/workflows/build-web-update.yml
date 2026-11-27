@@ -72,6 +72,7 @@ jobs:
           node .github/test-favorite-hearts.mjs
           node .github/test-wave-themes.mjs
           node .github/test-wave-sidebar-autoplay.mjs
+          node .github/test-all-track-autofullscreen.mjs
           node .github/test-wave-2026-start.mjs
           node .github/test-wave-caucasus-offline.mjs
           node .github/test-playlist-navigation.mjs
