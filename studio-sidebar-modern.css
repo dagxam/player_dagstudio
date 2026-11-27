@@ -654,3 +654,137 @@
    min-width:42px!important;min-height:42px!important;
  }
 }
+
+
+/* Android touchscreen navigation — horizontal icon + caption, never stacked.
+   Overrides the compact tablet/car rail from studio-vision.css. */
+@media (min-width:769px) and (max-width:1199px),
+       (min-width:769px) and (max-height:740px) {
+  .main-container.studio-showcase.vision-ui:not(.showcase-wave-only):not(.vision-player-expanded):not(.showcase-nav-collapsed) {
+    grid-template-columns:clamp(185px,20vw,222px) minmax(0,1fr) minmax(230px,30%)!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed):not(.showcase-wave-only)>.showcase-sidebar .showcase-nav-btn {
+    display:flex!important;flex-direction:row!important;
+    align-items:center!important;justify-content:flex-start!important;
+    text-align:left!important;gap:10px!important;
+    width:100%!important;min-width:0!important;
+    height:auto!important;min-height:54px!important;
+    padding:7px 10px!important;border-radius:14px!important;
+    font-size:clamp(.78rem,1.1vw,.91rem)!important;
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-nav-btn > i {
+    display:grid!important;place-items:center!important;
+    flex:0 0 38px!important;width:38px!important;height:38px!important;
+    margin:0!important;font-size:1.1rem!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-nav-btn > span {
+    display:block!important;flex:1 1 0!important;min-width:0!important;
+    text-align:left!important;white-space:nowrap!important;
+    overflow:hidden!important;text-overflow:ellipsis!important;
+    line-height:1.25!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand {
+    flex-direction:row!important;flex-wrap:nowrap!important;
+    justify-content:flex-start!important;text-align:left!important;
+    align-items:center!important;gap:8px!important;
+    padding:9px 8px!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand-icon {
+    flex:0 0 34px!important;width:34px!important;height:34px!important;
+    min-width:34px!important;max-width:34px!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-brand-text {
+    flex:1 1 0!important;text-align:left!important;
+  }
+  .vision-ui:not(.showcase-nav-collapsed)>.showcase-sidebar .showcase-rail-toggle {
+    flex:0 0 30px!important;margin:0!important;
+  }
+}
+/* Landscape Android may retain a desktop "collapsed rail" preference.
+   On touch devices restore legible labels without changing saved settings. */
+@media (min-width:769px) and (pointer:coarse) {
+  .main-container.studio-showcase.vision-ui.showcase-nav-collapsed:not(.showcase-wave-only):not(.vision-player-expanded) {
+    grid-template-columns:clamp(185px,20vw,222px) minmax(0,1fr) minmax(230px,30%)!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar {
+    width:100%!important;min-width:0!important;max-width:none!important;
+    padding:12px 9px!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-menu {
+    width:100%!important;align-items:stretch!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-nav-btn {
+    display:flex!important;flex-direction:row!important;
+    justify-content:flex-start!important;align-items:center!important;
+    gap:10px!important;min-width:0!important;width:100%!important;
+    height:auto!important;min-height:54px!important;
+    padding:7px 10px!important;font-size:.86rem!important;
+    border-radius:14px!important;touch-action:manipulation;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-nav-btn > i {
+    display:grid!important;place-items:center!important;
+    flex:0 0 38px!important;width:38px!important;height:38px!important;
+    margin:0!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-nav-btn > span {
+    display:block!important;min-width:0!important;flex:1 1 0!important;
+    white-space:nowrap!important;text-overflow:ellipsis!important;
+    text-align:left!important;overflow:hidden!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-brand {
+    display:flex!important;flex-direction:row!important;
+    align-items:center!important;justify-content:flex-start!important;
+    padding:9px 8px!important;gap:9px!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-brand-text {
+    display:block!important;text-align:left!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-brand-icon {
+    display:block!important;flex:0 0 34px!important;
+    min-width:34px!important;max-width:34px!important;
+    width:34px!important;height:34px!important;
+  }
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-rail-toggle {
+    display:none!important;
+  }
+}
+/* Phone/tablet drawer: comfortably sized, always one horizontal line. */
+@media (max-width:768px) {
+  .vision-ui>.showcase-sidebar .showcase-nav-btn,
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-nav-btn {
+    display:flex!important;flex-direction:row!important;
+    align-items:center!important;justify-content:flex-start!important;
+    gap:12px!important;width:100%!important;
+    min-height:56px!important;height:auto!important;
+    padding:8px 12px!important;text-align:left!important;
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  }
+  .vision-ui>.showcase-sidebar .showcase-nav-btn > i,
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-nav-btn > i {
+    display:grid!important;place-items:center!important;
+    flex:0 0 39px!important;width:39px!important;height:39px!important;
+    margin:0!important;font-size:1.1rem!important;
+  }
+  .vision-ui>.showcase-sidebar .showcase-nav-btn > span,
+  .vision-ui.showcase-nav-collapsed>.showcase-sidebar .showcase-nav-btn > span {
+    display:block!important;min-width:0!important;flex:1 1 auto!important;
+    white-space:nowrap!important;overflow:hidden!important;
+    text-align:left!important;text-overflow:ellipsis!important;
+    font-size:.9rem!important;
+  }
+}
+/* A pressed item has immediate tactile feedback; active state remains themed. */
+@media (pointer:coarse) {
+  .vision-ui>.showcase-sidebar .showcase-nav-btn:active {
+    transform:scale(.985)!important;
+    background:rgba(var(--theme-rgb,192,108,66),.24)!important;
+  }
+  .vision-ui>.showcase-sidebar .showcase-nav-btn:focus-visible {
+    outline:2px solid var(--theme-bright,#ffd08c)!important;
+    outline-offset:2px!important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  .vision-ui>.showcase-sidebar .showcase-nav-btn:active {transform:none!important}
+}
