@@ -82,7 +82,16 @@ add('search','Поиск','magnifying-glass',()=>{
  document.getElementById('search-input')?.focus();
 });
 add('wave','Моя волна','wave-square',()=>{
- showList('wave');window.studioWaveScreen?.();activate('wave');
+ // A sidebar tap behaves exactly like the main Wave play button, not a
+ // navigation into a silent song-list page. The existing audio engine owns
+ // the single playback queue and replaces any previously playing source.
+ showList('wave');
+ if(typeof window.openStudioWave==='function')window.openStudioWave();
+ else window.studioWaveScreen?.();
+ // The brand/logo uses this same expanded now-playing presentation.
+ if(typeof window.studioExpandPlayer==='function')window.studioExpandPlayer();
+ else root.classList.add('vision-player-expanded');
+ activate('wave');
 });
 add('playlists','Плейлисты','music',()=>window.studioCenterRender?.('playlists'));
 add('likes','Мне нравится','heart',()=>{

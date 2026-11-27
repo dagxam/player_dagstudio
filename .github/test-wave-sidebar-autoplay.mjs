@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const next=read('studio-next.js');
+const studio=read('studio.js');
+const vision=read('studio-vision.js');
+const script=read('script.js');
+const index=read('index.php');
+const sw=read('sw.js');
+const navStart=next.indexOf("add('wave','Моя волна','wave-square',()=>{");
+const navEnd=next.indexOf("\nadd('playlists',",navStart);
+assert.ok(navStart>0&&navEnd>navStart,'Sidebar Wave button exists');
+const sidebar=next.slice(navStart,navEnd);
+assert.match(sidebar,/window\.openStudioWave\(\)/,'Sidebar starts playback');
+assert.match(sidebar,/window\.studioExpandPlayer\(\)/,'Sidebar opens full now-playing view');
+assert.ok(sidebar.indexOf('window.openStudioWave()')<sidebar.indexOf('window.studioExpandPlayer()'));
+assert.ok(!sidebar.includes("switchTab('mix:wave')"),'No track-browser navigation');
+assert.match(vision,/window\.studioExpandPlayer = expandPlayer/);
+const waveStart=studio.indexOf('window.openStudioWave=function(){');
+const waveEnd=studio.indexOf('\n  // Return to the real list',waveStart);
+assert.ok(waveStart>0&&waveEnd>waveStart);
+const wave=studio.slice(waveStart,waveEnd);
+assert.ok(wave.indexOf('pausePlayback()') < wave.indexOf('primeWaveAudioFromClick(true)'),
+ 'Previous audio must pause before preparing new Wave');
+assert.ok(wave.indexOf('primeWaveAudioFromClick(true)')<wave.indexOf("startQuickMix('wave')"),
+ 'Audio primer and Wave launch must happen in same tap');
+assert.match(wave,/playbackTab!=='mix:wave'/,'Do not unnecessarily restart current Wave');
+assert.match(script,/function primeWaveAudioFromClick\(forCollection=false\)/);
+assert.match(script,/if\(NATIVE_MEDIA3_ACTIVE\|\|navigator\.onLine===false\|\|playbackWanted\|\|/);
+assert.match(index,/studio\.js\?v=8/);
+assert.match(index,/studio-next\.js\?v=21/);
+assert.match(index,/studio-vision\.js\?v=10/);
+assert.match(index,/script\.js\?v=2383/);
+assert.match(sw,/dagstudio-player-shell-v2400/);
+console.log('SIDEBAR_WAVE_ONE_TAP_EXPANDED_AUTOPLAY_PAUSES_PREVIOUS_SOURCE_OK');

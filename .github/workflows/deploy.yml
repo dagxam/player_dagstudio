@@ -82,6 +82,7 @@ jobs:
           node .github/test-four-instant-collections.mjs
           node .github/test-personal-radio.mjs
           node .github/test-wave-themes.mjs
+          node .github/test-wave-sidebar-autoplay.mjs
           node .github/test-wave-2026-start.mjs
           node .github/test-wave-caucasus-offline.mjs
           node .github/test-continuous-radio.mjs

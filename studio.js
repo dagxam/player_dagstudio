@@ -124,9 +124,17 @@
     }
     if(typeof quickMixCurrent!=='undefined'&&quickMixCurrent?.key==='wave'&&
        quickMixCurrent.loading)return;
-    // Prime autoplay synchronously while the browser still recognizes the
-    // actual tap. The remote track is fetched afterward without a second Play.
-    if(typeof primeWaveAudioFromClick==='function')primeWaveAudioFromClick();
+    // Immediately pause the previous search/playlist/collection audio.
+    // Waiting for remote Wave discovery would otherwise let the old song
+    // continue for several seconds under the Wave loading screen.
+    // Use the existing audio engine, never a second media element.
+    if(typeof playbackTab!=='undefined'&&playbackTab!=='mix:wave'&&
+       typeof playbackWanted!=='undefined'&&playbackWanted&&
+       typeof pausePlayback==='function')pausePlayback();
+    // Prime the SAME HTML audio element under this user gesture even though
+    // the previous queue still has a selected (now paused) track.
+    // Media3 intentionally skips the silent primer; it loads the new item.
+    if(typeof primeWaveAudioFromClick==='function')primeWaveAudioFromClick(true);
     if(typeof startQuickMix==='function')startQuickMix('wave').catch(error=>{
       console.warn('Wave discovery failed',String(error?.message||error));
     });

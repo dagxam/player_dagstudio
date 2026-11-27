@@ -57,6 +57,7 @@
     updateNav();
     refreshVisualizer();
   };
+  window.studioExpandPlayer = expandPlayer;
   const collapsePlayer = () => {
     root.classList.remove('vision-player-expanded');
     updateNav();
