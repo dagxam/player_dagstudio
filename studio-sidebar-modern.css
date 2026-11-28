@@ -1019,3 +1019,76 @@
 .vision-ui .showcase-brand .showcase-rail-toggle {
   cursor:pointer!important;
 }
+
+
+/* 2388 — explicit Back action instead of the ambiguous downward chevron.
+   Keeps the previous list and active audio; thumb-sized on Android/TEYES. */
+.vision-ui.vision-player-expanded>.vision-player-back,
+.vision-ui.showcase-wave-only>.vision-player-back {
+  display:flex!important;flex-direction:row!important;
+  align-items:center!important;justify-content:center!important;
+  gap:9px!important;box-sizing:border-box!important;
+  width:auto!important;min-width:48px!important;height:46px!important;
+  min-height:46px!important;padding:0 15px!important;
+  border-radius:15px!important;
+  border:1px solid rgba(132,171,255,.35)!important;
+  background:linear-gradient(145deg,rgba(29,38,67,.91),rgba(19,22,39,.94))!important;
+  color:#f5f7ff!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 23px rgba(0,0,0,.32)!important;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  font:750 .8rem/1 Manrope,Inter,"Segoe UI",sans-serif!important;
+  letter-spacing:.02em!important;cursor:pointer!important;
+  touch-action:manipulation!important;
+  -webkit-tap-highlight-color:transparent;
+  transition:border-color .18s,background-color .18s,box-shadow .18s,transform .18s!important;
+  z-index:245!important;
+}
+.vision-ui .vision-player-back>i {
+  display:block!important;font-size:1.12rem!important;
+  color:#b9d8ff!important;line-height:1!important;
+}
+.vision-ui .vision-player-back>.vision-back-label {
+  display:inline-block!important;white-space:nowrap!important;
+}
+@media(hover:hover) {
+  .vision-ui .vision-player-back:hover {
+    border-color:rgba(160,199,255,.75)!important;
+    background:linear-gradient(145deg,rgba(42,64,105,.97),rgba(22,31,54,.97))!important;
+    box-shadow:inset 0 1px rgba(255,255,255,.14),0 9px 28px rgba(40,104,204,.20)!important;
+  }
+}
+.vision-ui .vision-player-back:active {
+  transform:scale(.96)!important;
+  background:rgba(42,77,128,.95)!important;
+}
+.vision-ui .vision-player-back:focus-visible {
+  outline:2px solid var(--theme-bright,#d3dfff)!important;
+  outline-offset:3px!important;
+}
+@media(min-width:769px) {
+  .vision-ui.vision-player-expanded>.vision-player-back {
+    top:16px!important;
+    left:calc(clamp(170px,17vw,245px) + 16px)!important;
+  }
+  .vision-ui.showcase-wave-only:not(.vision-player-expanded)>.vision-player-back {
+    top:16px!important;
+    left:calc(clamp(80px,15vw,238px) + 16px)!important;
+  }
+  .vision-ui.vision-player-expanded.showcase-nav-collapsed>.vision-player-back {
+    left:94px!important;
+  }
+}
+@media(max-width:768px) {
+  .vision-ui.vision-player-expanded>.vision-player-back,
+  .vision-ui.showcase-wave-only>.vision-player-back {
+    top:calc(12px + env(safe-area-inset-top,0px))!important;
+    left:calc(12px + env(safe-area-inset-left,0px))!important;
+    width:48px!important;min-width:48px!important;
+    height:48px!important;min-height:48px!important;
+    padding:0!important;border-radius:14px!important;
+  }
+  .vision-ui .vision-player-back>.vision-back-label {display:none!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  .vision-ui .vision-player-back {transition:none!important}
+}

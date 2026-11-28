@@ -634,10 +634,25 @@
   }
   root.appendChild(mobileNav);
 
-  const back = button('vision-player-back', 'Вернуться к библиотеке', 'chevron-down', () => {
+  // A real Back action. Track lists keep their previous search/playlist view;
+  // full-screen Wave and collection mixes return to their originating section.
+  // No audio, queue, shuffle, or track state is changed by navigation.
+  const goBackFromPlayer = () => {
+    const isFullMix = root.classList.contains('showcase-wave-only');
+    const fromCollection = Boolean(root.dataset.activeMix);
     collapsePlayer();
+    if (isFullMix) {
+      delete root.dataset.activeMix;
+      root.classList.remove('showcase-wave-only');
+      const destination = fromCollection ? 'collections' : 'home';
+      if (typeof window.studioCenterRender === 'function')
+        window.studioCenterRender(destination);
+      else window.studioShowCurated?.();
+    }
     updateNav();
-  });
+  };
+  const back = button('vision-player-back', 'Назад', 'arrow-left', goBackFromPlayer);
+  back.appendChild(el('span', 'vision-back-label', 'Назад'));
   root.appendChild(back);
 
   function updateNav() {

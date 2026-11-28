@@ -18,11 +18,11 @@ assert.match(patch,/\.vision-quick-grid,\.vision-ui \.showcase-curation-list \{/
 assert.match(patch,/max-width:360px/);
 assert.match(patch,/max-height:650px/);
 assert.match(patch,/\.vision-ui\.vision-player-expanded \.vision-bottom-nav/);
-assert.match(html,/studio-sidebar-modern\.css\?v=10/);
-assert.match(sw,/studio-sidebar-modern\.css\?v=10/);
-assert.match(html,/script\.js\?v=2387/);
-assert.match(sw,/dagstudio-player-shell-v2404/);
-assert.match(script,/WEB_BUILD_LABEL = '2387'/);
+assert.match(html,/studio-sidebar-modern\.css\?v=11/);
+assert.match(sw,/studio-sidebar-modern\.css\?v=11/);
+assert.match(html,/script\.js\?v=2388/);
+assert.match(sw,/dagstudio-player-shell-v2405/);
+assert.match(script,/WEB_BUILD_LABEL = '2388'/);
 const uncomments=css.replace(/\/\*[\s\S]*?\*\//g,'');
 assert.equal((uncomments.match(/\{/g)||[]).length,(uncomments.match(/\}/g)||[]).length,'Balanced layout blocks');
 console.log('MOBILE_PHONE_LAYOUT_ALIGNED_SAFE_AREA_CARDS_DRAWER_PLAYER_OK');

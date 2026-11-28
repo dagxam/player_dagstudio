@@ -82,6 +82,7 @@ jobs:
           node .github/test-rainbow-offline.mjs
           node .github/test-fast-search-wave.mjs
           node .github/test-vision-ui.mjs
+          node .github/test-player-back-button.mjs
           node .github/test-search-history-ui.mjs
           node .github/test-collapsed-collections.mjs
           node .github/test-playlist-visual.mjs
