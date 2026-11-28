@@ -500,7 +500,7 @@
     </div>
 </div>
 
-<!-- Build 2390: home navigation and studio-center v9; synchronized browser, OTA and APK smoke tests. -->
+<!-- Build 2390: current-year radio, theme-linked visualizer and synchronized browser/Android assets. -->
 <script src="profile-sync.js?v=1" defer></script>
 <script src="script.js?v=2390" defer></script>
 <script src="studio.js?v=8" defer></script>
