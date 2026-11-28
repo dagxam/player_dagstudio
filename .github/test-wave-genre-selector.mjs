@@ -89,11 +89,11 @@ const transparent=css.split('/* === WAVE UNIFIED TRANSPARENT BACKDROP 2393 ===')
 assert.ok(transparent,'Missing unified Wave background');
 assert.match(transparent,/url\('images\/vision-hero\.svg'\) center center \/ cover no-repeat!important/,
   'Wave background should continue across the player and the station rail');
-assert.match(transparent,/>\\.left-col\{\s*background:transparent!important/,
+assert.match(transparent,/>\.left-col\{\s*background:transparent!important/,
   'The player itself must not block the shared background');
-assert.match(transparent,/>\\.vision-wave-genre-panel\{\s*background:transparent!important/,
+assert.match(transparent,/>\.vision-wave-genre-panel\{\s*background:transparent!important/,
   'The right rail must not have a solid dark backing');
-assert.match(transparent,/>\\.vision-wave-genre-panel\{[\s\S]*?backdrop-filter:none!important/,
+assert.match(transparent,/>\.vision-wave-genre-panel\{[\s\S]*?backdrop-filter:none!important/,
   'No opaque glass panel or blur may reintroduce the dark rectangle');
 assert.match(transparent,/\.vision-wave-genre-option\.active\{[\s\S]*?background:linear-gradient\(/,
   'The selected radio category has a gentle theme accent');
