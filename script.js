@@ -103,7 +103,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2390';
+const WEB_BUILD_LABEL = '2391';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -941,7 +941,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2407', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2408', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -5258,10 +5258,33 @@ function radioRememberPlayed(kind,track){
         }
     }
 }
+// Wave station is a local preference. It does not alter saved playlists.
+const WAVE_GENRE_STORAGE_KEY='dag_wave_genre_v1';
+const WAVE_GENRES=['all','caucasus','russian','foreign'];
+function getWaveGenre(){
+    try {
+        const saved=localStorage.getItem(WAVE_GENRE_STORAGE_KEY);
+        return WAVE_GENRES.includes(saved)?saved:'all';
+    }catch(_){return 'all';}
+}
+function setWaveGenre(genre){
+    if(!WAVE_GENRES.includes(genre)||genre===getWaveGenre())return false;
+    try{localStorage.setItem(WAVE_GENRE_STORAGE_KEY,genre);}catch(_){return false;}
+    waveWarmState=null;
+    waveSearchOwner='';waveSearchCursor=0;
+    if(typeof window!=='undefined')
+        window.dispatchEvent?.(new CustomEvent('dag-wave-genre-changed',{detail:{genre}}));
+    return true;
+}
+if(typeof window!=='undefined'){
+    window.getWaveGenre=getWaveGenre;
+    window.setWaveGenre=setWaveGenre;
+}
 const WAVE_CURSOR_PREFIX='dag_wave_cursor_v4_four_priority:';
 let waveSearchCursor=0,waveSearchOwner='';
 function nextWaveSearchCursor(){
-    const owner=tasteOwnerKey();
+    const selected=getWaveGenre();
+    const owner=tasteOwnerKey()+(selected==='all'?'':':'+selected);
     if(owner!==waveSearchOwner){
         waveSearchOwner=owner;
         let saved=0;
@@ -5405,7 +5428,16 @@ function waveSearchDirections(library=waveLibrarySeeds()){
         directions.push({query:theme.queries[0]+' '+year,
             fallback:theme.queries[1],kind:'theme',theme:theme.id,page:1});
     }
-    return directions;
+    const selected=getWaveGenre();
+    if(selected==='all')return directions;
+    // Constrain every search direction, including personalized hints, to
+    // the explicitly selected station rather than mixing other categories.
+    const allowed=selected==='caucasus'
+        ?new Set(['caucasus','dagestan','avar','lezgin','dargin','kumyk','chechen'])
+        :new Set([selected==='russian'?'russian-pop':'foreign']);
+    const subset=directions.filter(item=>allowed.has(item.theme));
+    return selected==='foreign'?subset.slice(0,12)
+        :selected==='russian'?subset.slice(0,16):subset;
 }
 // Normalizes artist collaborations so that an identical singer or group
 // cannot be followed by another track credited to that same participant.
@@ -5422,6 +5454,30 @@ function waveArtistCredits(artist){
 function waveSameArtist(a,b){
     const first=new Set(waveArtistCredits(a));
     return first.size>0&&waveArtistCredits(b).some(credit=>first.has(credit));
+}
+// Genres from provider metadata and known performers are checked when a user
+// explicitly locks Wave to one category. Search queries alone are not proof.
+function waveGenreMatchesTrack(track,selected,direction){
+    if(selected==='all')return true;
+    const artist=normalizeTrackIdentity(track?.artist);
+    if(!artist)return false;
+    const expected=normalizeTrackIdentity(direction?.fallback);
+    if(expected&&(artist===expected||artist.includes(expected+' ')||
+        artist.startsWith(expected+' feat')))return true;
+    const catalog=typeof INSTANT_MIX_ARTISTS!=='undefined'
+        ?INSTANT_MIX_ARTISTS[selected]||[]:[];
+    if(catalog.some(name=>{
+        const normalized=normalizeTrackIdentity(name);
+        return artist===normalized||artist.startsWith(normalized+' ')||
+            artist.includes(' '+normalized+' ');
+    }))return true;
+    const genre=normalizeTrackIdentity(track?.genre);
+    if(!genre)return false;
+    if(selected==='caucasus')return /кавказ|дагест|авар|лезгин|даргин|кумык|чечен|ингуш|осет|кабардин|балкар|карача|адыг|caucas|dagestan/.test(genre);
+    if(selected==='russian')return /русск|российск|russian/.test(genre)&&
+        !/кавказ|дагест|caucas/.test(genre);
+    if(selected==='foreign')return /зарубеж|international|foreign|english|world pop/.test(genre);
+    return false;
 }
 function waveReleasePriority(track,now=Date.now()){
     const released=quickMixReleaseTimestamp(track);
@@ -5469,7 +5525,8 @@ async function findWaveNextTrack(){
     const topics=waveThemeDirections(library);
     const seen=t=>!t?.url||!t?.title||!t?.artist||excluded.has(tasteTrackId(t))||
         urls.has(String(t.url))||titles.has(tasteTrackId(t));
-    const net=getNetworkProfile(),directions=waveSearchDirections(library);
+    const net=getNetworkProfile(),selectedGenre=getWaveGenre(),
+        directions=waveSearchDirections(library);
     if(!directions.length)return null;
     // Query both directions concurrently and use the FIRST usable response.
     // Do not wait for an unavailable provider or the slower second genre.
@@ -5499,8 +5556,9 @@ async function findWaveNextTrack(){
             }
             // Preserve older tracks as a fallback after verified current-year
             // releases. Search words never prove a release year.
-            return items.map(t=>({...t,_waveQueryKind:direction.kind,
-                _waveQueryTheme:direction.theme}));
+            return items.filter(t=>waveGenreMatchesTrack(t,selectedGenre,direction))
+                .map(t=>({...t,_waveQueryKind:direction.kind,
+                    _waveQueryTheme:direction.theme}));
         }catch(error){
             recordPlayerEvent('wave-discovery-error');
             return [];
@@ -5586,7 +5644,7 @@ async function findWaveNextTrack(){
     const picked=shortlist[0]?.track;
     if(!picked)return null;
     const {_waveQueryKind,_waveQueryTheme,...song}=picked;
-    return {...song,_smartRadio:true,_waveRadio:true};
+    return {...song,_smartRadio:true,_waveRadio:true,_waveGenre:selectedGenre};
 }
 
 // Prepare the first recommendation while the player is idle. This is only a
@@ -5594,6 +5652,7 @@ async function findWaveNextTrack(){
 let waveWarmState=null,waveWarmTimer=null;
 function waveWarmCandidateAllowed(track){
     if(!track?._waveRadio||!track.url)return false;
+    if((track._waveGenre||'all')!==getWaveGenre())return false;
     if(typeof playbackTab!=='undefined'&&playbackTab==='mix:wave'&&
         waveSameArtist(track.artist,playbackPlaylist[currentIndex]?.artist))return false;
     if(radioRecentTracks('wave').includes(radioTrackIdentity(track)))return false;
@@ -5604,7 +5663,7 @@ function waveWarmCandidateAllowed(track){
 function warmWaveFirstTrack(){
     if(navigator.onLine===false||playbackWanted)
         return Promise.resolve(null);
-    const owner=tasteOwnerKey();
+    const owner=tasteOwnerKey()+'|'+getWaveGenre();
     if(waveWarmState?.owner===owner){
         if(waveWarmState.candidate&&Date.now()-waveWarmState.at<4*60*1000&&
             waveWarmCandidateAllowed(waveWarmState.candidate))
@@ -7501,7 +7560,9 @@ function scheduleWaveFirstRetry(requestId,attempt) {
     waveFirstRetryTimer=setTimeout(async ()=>{
         waveFirstRetryTimer=null;
         if(requestId!==quickMixRequestId||quickMixCurrent?.key!=='wave'||
-            currentTab!=='mix:wave'||playbackPlaylist[currentIndex]?._waveRadio)return;
+            currentTab!=='mix:wave'||
+            (playbackPlaylist[currentIndex]?._waveRadio&&
+             (playbackPlaylist[currentIndex]._waveGenre||'all')===getWaveGenre()))return;
         if(navigator.onLine===false){
             scheduleWaveFirstRetry(requestId,attempt+1);
             return;
@@ -7602,7 +7663,10 @@ async function startQuickMix(key) {
         // Playback starts with the first NEW suggestion from the network.
         // Hide the browser; the giant player remains the only wave UI.
         currentTab='mix:wave';playlist=[];renderQuickMixView();
-        setQuickMixStatus('Русские и кавказские треки · 2026 · подключаем звук…');
+        const selected=getWaveGenre();
+        const stationLabel={all:'Русские · Кавказские · Зарубежные',
+            caucasus:'Кавказские',russian:'Русские',foreign:'Зарубежные'}[selected];
+        setQuickMixStatus(stationLabel+' · хиты 2026 первыми · подключаем звук…');
         const warm=waveWarmState?.owner===tasteOwnerKey()?waveWarmState:null;
         let first=warm?.candidate||null;
         if(!first&&warm?.promise)first=await Promise.race([

@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=23">
     <link rel="stylesheet" href="studio-touch.css?v=12">
-    <link rel="stylesheet" href="studio-vision.css?v=13">
+    <link rel="stylesheet" href="studio-vision.css?v=14">
     <link rel="stylesheet" href="studio-sidebar-modern.css?v=11">
     <link rel="stylesheet" href="search-polish.css?v=1">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
@@ -500,13 +500,13 @@
     </div>
 </div>
 
-<!-- Build 2390: current-year radio, theme-linked visualizer and synchronized browser/Android assets. -->
+<!-- Build 2391: current-year radio, theme-linked visualizer and synchronized browser/Android assets. -->
 <script src="profile-sync.js?v=1" defer></script>
-<script src="script.js?v=2390" defer></script>
+<script src="script.js?v=2391" defer></script>
 <script src="studio.js?v=8" defer></script>
 <script src="studio-next.js?v=21" defer></script>
 <script src="studio-center.js?v=9" defer></script>
-<script src="studio-vision.js?v=13" defer></script>
+<script src="studio-vision.js?v=14" defer></script>
 
 </body>
 </html>

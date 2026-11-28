@@ -660,6 +660,63 @@
   back.appendChild(el('span', 'vision-back-label', 'Назад'));
   root.appendChild(back);
 
+  // Contextual radio selector: its own right rail appears only in My Wave.
+  // The player artwork, active audio, search providers and playlist controls
+  // remain the original ones; only the selected station is restarted.
+  const waveGenrePanel=el('aside','vision-wave-genre-panel');
+  waveGenrePanel.setAttribute('aria-label','Направление Моей волны');
+  const genreHeading=el('div','vision-wave-genre-heading');
+  genreHeading.append(el('span','vision-wave-genre-eyebrow','DAGSTUDIO RADIO'));
+  genreHeading.append(el('h2','', 'Моя волна'));
+  genreHeading.append(el('p','', 'Выбери, что слушать'));
+  waveGenrePanel.appendChild(genreHeading);
+  const genreYear=el('div','vision-wave-genre-year');
+  genreYear.append(icon('fire'),el('span','','Хиты и новинки 2026'));
+  waveGenrePanel.appendChild(genreYear);
+  const genreChoices=el('div','vision-wave-genre-options');
+  genreChoices.setAttribute('role','group');
+  genreChoices.setAttribute('aria-label','Выбрать жанр радиостанции');
+  const waveModes=[
+    ['all','Всё','Три направления','shuffle'],
+    ['caucasus','Кавказские','Кавказские хиты','mountain'],
+    ['russian','Русские','Русские хиты','music'],
+    ['foreign','Зарубежные','Мировые хиты','globe']
+  ];
+  const genreButtons=new Map();
+  const syncWaveGenre=()=>{
+    const chosen=window.getWaveGenre?.()||'all';
+    for(const [genre,item] of genreButtons){
+      const active=genre===chosen;
+      item.classList.toggle('active',active);
+      item.setAttribute('aria-pressed',String(active));
+    }
+  };
+  for(const [key,label,hint,glyph] of waveModes){
+    const item=button('vision-wave-genre-option','Включить: '+label,glyph,()=>{
+      if(!window.setWaveGenre?.(key))return;
+      syncWaveGenre();
+      if(root.classList.contains('showcase-wave-only')&&!root.dataset.activeMix){
+        // An explicit category selection is a playback gesture, like
+        // switching stations in a radio player.
+        if(typeof window.startQuickMix==='function')
+          Promise.resolve(window.startQuickMix('wave')).catch(()=>{});
+      }
+    });
+    item.dataset.waveGenre=key;
+    const copy=el('span','vision-wave-genre-copy');
+    copy.append(el('strong','',label),el('small','',hint));
+    item.append(copy,icon('chevron-right'));
+    genreChoices.appendChild(item);
+    genreButtons.set(key,item);
+  }
+  waveGenrePanel.appendChild(genreChoices);
+  const genreFoot=el('div','vision-wave-genre-foot');
+  genreFoot.append(icon('sparkles'),el('span','','Сначала проверенные релизы и топ-хиты 2026 года'));
+  waveGenrePanel.appendChild(genreFoot);
+  root.appendChild(waveGenrePanel);
+  window.addEventListener('dag-wave-genre-changed',syncWaveGenre);
+  syncWaveGenre();
+
   function updateNav() {
     const active = document.querySelector('#studio-navigation .showcase-nav-btn.active')?.dataset.showcase;
     const selected = root.classList.contains('showcase-wave-only') ? 'wave'

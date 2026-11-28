@@ -70,6 +70,7 @@ jobs:
           node .github/test-two-search-sources.mjs
           node .github/test-cloud-profile.mjs
           node .github/test-favorite-hearts.mjs
+          node .github/test-wave-genre-selector.mjs
           node .github/test-wave-themes.mjs
           node .github/test-wave-sidebar-autoplay.mjs
           node .github/test-all-track-autofullscreen.mjs
