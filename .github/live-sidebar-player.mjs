@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer-core';
 
-// Regression: clicking the DAGSTUDIO logo opens the current-player presentation.
+// The brand must remain non-clickable; explicitly expand the player before testing the sidebar.
 // Collapsing / reopening the sidebar must never make .left-col disappear.
 const browser = await puppeteer.launch({
   executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
@@ -56,9 +56,15 @@ try {
       const root=document.querySelector('.main-container');
       root.classList.remove('showcase-nav-collapsed','showcase-wave-only','vision-player-expanded');
     });
+    const before=await currentState();
     await page.click('.showcase-sidebar .showcase-brand-text strong');
+    const afterBrand=await currentState();
+    if(afterBrand.expanded||afterBrand.wave||afterBrand.index!==before.index||
+       afterBrand.queue!==before.queue||afterBrand.wanted!==before.wanted)
+      throw new Error('Brand changed player/navigation state: '+JSON.stringify(afterBrand));
+    await page.evaluate(()=>window.studioExpandPlayer?.());
     const open=await currentState();
-    visible(open,'After logo click '+viewport.width);
+    visible(open,'After explicit player expansion '+viewport.width);
     await page.click('.showcase-rail-toggle');
     const compact=await currentState();
     visible(compact,'After collapsing menu '+viewport.width);
@@ -81,7 +87,7 @@ try {
     }));
   }
   if(errors.length)throw new Error('Browser errors: '+errors.join('; '));
-  console.log('BRAND_PLAYER_SURVIVES_SIDEBAR_COLLAPSE_DESKTOP_TEYES_OK');
+  console.log('BRAND_INERT_PLAYER_SURVIVES_SIDEBAR_COLLAPSE_DESKTOP_TEYES_OK');
 } finally {
   await browser.close();
 }

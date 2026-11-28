@@ -213,10 +213,12 @@ try {
       {width:1280,height:720},{width:390,height:844}]){
     await page.setViewport(viewport);
     const dialogs=await page.evaluate(()=>{
-      const ids=['quick-mixes-modal','caucasus-radio-modal','confirm-modal',
+      const ids=['quick-mixes-modal','confirm-modal',
         'manage-pl-modal','save-modal','input-modal',
         'equalizer-modal','queue-modal','sleep-modal','diagnostics-modal',
         'cache-dashboard-modal'];
+      // The legacy Caucasus region modal is no longer mounted in the current
+      // Collections UI; verify drawers that the page actually exposes.
       const failures=[];
       ids.forEach(id=>{
         const overlay=document.getElementById(id),panel=overlay?.querySelector('.modal-box');
