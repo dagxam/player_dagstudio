@@ -82,6 +82,6 @@ assert.match(css,/\.vision-ui \.vision-wave-genre-option\.active\{[\s\S]*?box-sh
 assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/script\.js\?v=2392/);
 assert.match(html,/studio-vision\.js\?v=14/);
-assert.match(html,/studio-vision\.css\?v=14/);
+assert.match(html,/studio-vision\.css\?v=15/);
 assert.match(sw,/dagstudio-player-shell-v2409/);
 console.log('WAVE_GENRE_SELECTOR_2026_THREE_STATIONS_PERSISTENCE_AND_RIGHT_PANEL_OK');
