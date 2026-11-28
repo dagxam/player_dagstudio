@@ -500,6 +500,7 @@
     </div>
 </div>
 
+<!-- Build 2389: validated home navigation and versioned studio-center v9 for web/Android. -->
 <script src="profile-sync.js?v=1" defer></script>
 <script src="script.js?v=2389" defer></script>
 <script src="studio.js?v=8" defer></script>

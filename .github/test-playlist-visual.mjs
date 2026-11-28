@@ -70,11 +70,11 @@ for(const selector of [
 for(const breakpoint of ['@media(max-width:768px)','@media(max-width:370px)',
  '@media(min-width:769px) and (max-width:1199px)'])assert.ok(css.includes(breakpoint));
 assert.match(html,/studio-vision\.css\?v=\d+/);
-assert.ok(html.includes('studio-center.js?v=8'));
+assert.ok(html.includes('studio-center.js?v=9'));
 assert.match(sw,/dagstudio-player-shell-v\d+/);
 const cssRevision = html.match(/studio-vision\.css\?v=(\d+)/)?.[1];
 assert.ok(cssRevision && sw.includes("'/studio-vision.css?v="+cssRevision+"'"));
-assert.ok(sw.includes("'/studio-center.js?v=8'"));
+assert.ok(sw.includes("'/studio-center.js?v=9'"));
 assert.match(bridge,/copyFile\(join\(root, 'studio-center\.js'\)/);
 assert.match(bridge,/copyFile\(join\(root, 'studio-vision\.css'\)/);
 const clean=css.replace(/\/\*[\s\S]*?\*\//g,'');
