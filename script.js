@@ -5427,9 +5427,11 @@ function waveReleasePriority(track,now=Date.now()){
     const released=quickMixReleaseTimestamp(track);
     if(!released)return {bucket:1,bonus:0,verified:false};
     const age=Math.max(0,(now-released)/86400000);
-    return age<=540
-        ?{bucket:2,bonus:Math.round(34*(1-age/900)),verified:true}
-        :{bucket:0,bonus:-Math.min(30,Math.round((age-540)/50)),verified:true};
+    // A track from the previous year is not a current-year premiere even
+    // when fewer than 540 days old. Prefer undated over verified older music.
+    if(new Date(released).getUTCFullYear()!==new Date(now).getUTCFullYear())
+        return {bucket:0,bonus:-Math.min(30,Math.round(age/60)),verified:true};
+    return {bucket:2,bonus:Math.round(34*(1-age/900)),verified:true};
 }
 // The Wave starts from the first *usable* search result. Promise.all would
 // unnecessarily wait for a slow or blocked source after another already
