@@ -36,14 +36,16 @@ const state={normalizeTrackIdentity:v=>String(v||'').toLowerCase().trim(),
  QUICK_MIXES:{charts:{mode:'recent'}},setTimeout:()=>{},api:async()=>({success:true,data:[]})};
 runInNewContext(code.slice(start,end),state);
 assert.equal(state.instantMixValidRelease({release_date:'2020-01-01'},'charts'),false);
+assert.equal(state.instantMixValidRelease({release_date:'2020-01-01'},'foreign'),true);
 assert.equal(state.instantMixValidRelease({release_date:'2026-10-01'},'charts'),true);
 assert.equal(state.instantMixValidRelease({release_date:''},'charts'),true);
 const accepted={title:'A',artist:'Dua Lipa',url:'https://example.org/a.mp3',release_date:'2026-10-04'};
 const wrong={title:'B',artist:'Баста',url:'https://example.org/b.mp3',release_date:'2026-10-04'};
 const old={title:'C',artist:'Dua Lipa',url:'https://example.org/c.mp3',release_date:'2010-10-04'};
 const valid=state.instantMixFreshCandidates([accepted,wrong,old],'foreign','Dua Lipa');
-assert.equal(valid.length,1);
+assert.equal(valid.length,2,'Verified old hits remain available after 2026 music');
 assert.equal(valid[0].title,'A');
+assert.equal(valid[1].title,'C');
 const begin=code.indexOf('function playNext() {'),after=code.indexOf('function playPrev()',begin);
 assert.ok(begin>0&&after>begin);
 const calls=[];

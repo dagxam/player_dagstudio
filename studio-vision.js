@@ -87,7 +87,7 @@
     color: ['theme','copper','violet','ocean','mint','rose','ice','white','custom'],
     quality: ['auto','smooth','economy','off']
   };
-  const visualizerDefaults = {mode:'bars',intensity:'normal',color:'violet',quality:'auto',customColor:'#BFA7FF'};
+  const visualizerDefaults = {mode:'bars',intensity:'normal',color:'theme',quality:'auto',customColor:'#BFA7FF'};
   const normalizeVisualizerSettings = candidate => {
     const cfg = {};
     for (const [key, allowed] of Object.entries(VISUALIZER_OPTIONS)) {
@@ -360,6 +360,11 @@
     refreshVisualizer();
   });
   syncVisualizerControls();
+  // Keep the selected palette synced with the site theme, including Rainbow.
+  // No second audio processing or animation loop is introduced.
+  window.addEventListener('dag-theme-applied',()=>{
+    if(visualizerSettings.color==='theme')syncVisualizerControls();
+  },{passive:true});
   document.addEventListener('visibilitychange',refreshVisualizer,{passive:true});
   window.addEventListener('pagehide', () => {
     if(vizFrame)window.cancelAnimationFrame(vizFrame);

@@ -29,6 +29,18 @@ try{
       const clicks=()=>[...document.querySelectorAll('[data-viz-palette]')];
       const state=()=>JSON.parse(localStorage.getItem('dag_visualizer_settings_v1')||'null');
       if(!settings||!preview||!stage||!menu)throw Error('Required visualization UI missing');
+      if(!state()){
+        const themeButton=clicks().find(b=>b.dataset.vizPalette==='theme');
+        const match=()=>settings.style.getPropertyValue('--viz-selected-color')===
+          getComputedStyle(document.documentElement).getPropertyValue('--theme-bright').trim();
+        if(themeButton?.getAttribute('aria-pressed')!=='true'||!match())
+          throw Error('Visualization must default to player theme color');
+        if(typeof window.setTheme==='function'){
+          window.setTheme('blue',false);
+          if(!match())throw Error('Theme change did not recolor visualization preview');
+          window.setTheme(theme,false);
+        }
+      }
       menu.classList.add('show');
       const card=settings.getBoundingClientRect(),w=window.innerWidth;
       if(card.width<160||card.left<0||card.right>w+2)

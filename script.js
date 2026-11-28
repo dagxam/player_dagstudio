@@ -103,7 +103,7 @@ const NATIVE_UPDATE_BACKUP_META_URL =
 const ANDROID_APK_DOWNLOAD_URL = 'https://pl.dagstudio.ru/apk-download.php';
 const ANDROID_APK_FALLBACK_URL = 'https://github.com/dagxam/player_dagstudio/releases/download/android-preview/DAGSTUDIO-PLAYER-Preview.apk';
 // Release 2320: low-bandwidth radio and compact mobile library.
-const WEB_BUILD_LABEL = '2389';
+const WEB_BUILD_LABEL = '2390';
 
 let nativeUpdateCheckInFlight = false;
 let nativeLastUpdateCheckAt = 0;
@@ -941,7 +941,7 @@ async function offerNativeUpdateOnLaunch(force = false) {
 let serviceWorkerRegistrationPromise = Promise.resolve(null);
 if (!IS_NATIVE_APP && 'serviceWorker' in navigator) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-            .register('/sw.js?v=2406', { scope: '/', updateViaCache: 'none' })
+            .register('/sw.js?v=2407', { scope: '/', updateViaCache: 'none' })
         .then(function(registration) {
             registration.update().catch(function() {});
             return registration;
@@ -4933,9 +4933,12 @@ async function playTrack(index, options = {}) {
                 ? buildProxyUrl(track, { weak: isWeakConnection(), norange: true, retry: 0 })
                 : resolveMediaUrl(track.url);
         } else if (track.url && isRemoteMediaUrl(track.url)) {
-            // Wave discoveries are never saved-playlist tracks: skip the
-            // browser CacheStorage check and start the network stream now.
-            const cachedRes = playbackTab==='mix:wave' && track._waveRadio
+            // Radio and freshly discovered mixes should not block playback on
+            // a slow CacheStorage/IndexedDB lookup. Offline and saved playlists
+            // still use their full cache-first path.
+            const directMixStream=String(playbackTab).startsWith('mix:') &&
+                (track._waveRadio||track._quickMix) && currentTab!=='offline';
+            const cachedRes = directMixStream
                 ? {url:resolveMediaUrl(track.url),isBlob:false,inCache:false}
                 : await getStartupCachedAudio(track);
             if (token !== currentPlaybackToken) {
@@ -5338,7 +5341,7 @@ function waveSearchDirections(library=waveLibrarySeeds()){
     // Моя волна 2026: editorial Russian and Caucasus music only.
     // The year in a search query is a discovery hint, NOT a verified
     // release date. Never fabricate a date for an undated provider track.
-    const year=2026;
+    const year=new Date().getUTCFullYear();
     const russian=[
         ['русские песни новинки','Мари Краймбрери'],
         ['российские поп хиты','JONY'],
@@ -5367,18 +5370,35 @@ function waveSearchDirections(library=waveLibrarySeeds()){
         ['кавказские песни на русском','Мурат Тхагалегов','caucasus'],
         ['осетинские новинки','Мадина Кайтмазова','ossetian']
     ];
+    // The same artist pool powers both Caucasus collections and Wave.
+    // Unit tests can exercise this discovery function without the UI bundle.
+    const priorityCaucasus=typeof INSTANT_MIX_ARTISTS!=='undefined'
+        ?INSTANT_MIX_ARTISTS.caucasus:caucasus.map(entry=>entry[1]);
+    const caucasusSeeds=[...new Set([...priorityCaucasus,...caucasus.map(entry=>entry[1])])];
+    const foreign=[
+        ['зарубежные хиты','The Weeknd'],['мировые новинки','Dua Lipa'],
+        ['популярные песни мира','Sabrina Carpenter'],['новая зарубежная музыка','Billie Eilish'],
+        ['global top hits','Bruno Mars'],['latest international songs','Taylor Swift'],
+        ['new global pop','Ariana Grande'],['international chart hits','Lady Gaga'],
+        ['foreign pop releases','Ed Sheeran'],['world top songs','SZA'],
+        ['international hits','Benson Boone'],['new english songs','Olivia Rodrigo']
+    ];
     const directions=[];
-    for(let i=0;i<russian.length;i++){
-        const rus=russian[i],cau=caucasus[i%caucasus.length];
+    for(let i=0;i<Math.max(russian.length,caucasusSeeds.length,foreign.length);i++){
+        const rus=russian[i%russian.length],cau=caucasus[i%caucasus.length];
+        const caucasusArtist=caucasusSeeds[i%caucasusSeeds.length];
+        const outside=foreign[i%foreign.length];
         // Fast exact-artist search is a fallback because many providers
         // do not index "2026" in title/artist and report no release_date.
         directions.push({query:rus[0]+' '+year,fallback:rus[1],
             kind:'theme',theme:'russian-pop',page:1});
-        directions.push({query:cau[0]+' '+year,fallback:cau[1],
+        directions.push({query:cau[0]+' '+year,fallback:caucasusArtist,
             kind:'theme',theme:cau[2],page:1});
+        directions.push({query:outside[0]+' '+year,fallback:outside[1],
+            kind:'theme',theme:'foreign',page:1});
     }
     // Personal preferences can influence ranking and help later discovery,
-    // but cannot replace the Russian/Caucasus-only opening schedule.
+    // but cannot replace the three-genre current-year opening rotation.
     for(const theme of waveThemeDirections(library)){
         if(!['russian-pop','dagestan','caucasus','avar','lezgin','dargin',
             'kumyk','chechen'].includes(theme.id))continue;
@@ -5475,12 +5495,9 @@ async function findWaveNextTrack(){
                 response=await radioSearchPage(fastQuery,1,net,'full');
                 items=response?.success&&Array.isArray(response.data)?response.data:[];
             }
-            // A known 2024/2025 track is not a "2026" release. Tracks without
-            // dates remain unverified and must never receive a fabricated year.
-            return items.filter(track=>{
-                const release=quickMixReleaseTimestamp(track);
-                return !release||new Date(release).getUTCFullYear()===2026;
-            }).map(t=>({...t,_waveQueryKind:direction.kind,
+            // Preserve older tracks as a fallback after verified current-year
+            // releases. Search words never prove a release year.
+            return items.map(t=>({...t,_waveQueryKind:direction.kind,
                 _waveQueryTheme:direction.theme}));
         }catch(error){
             recordPlayerEvent('wave-discovery-error');
@@ -5512,8 +5529,11 @@ async function findWaveNextTrack(){
             const sameArtist=artist===prior?55:0;
             // Previously liked artists should not overwhelm genre discovery.
             const artistBias=seedArtists.includes(artist)?-18:8;
+            const popularity=Math.min(34,
+                Math.log10(Math.max(0,Number(track.play_count)||0)+1)*7+
+                Math.log10(Math.max(0,Number(track.favorite_count)||0)+1)*4);
             const score=topicMatch+explicitTheme+genreMatch+artistBias+
-                Math.min(22,Math.max(-22,taste))+release.bonus+
+                Math.min(22,Math.max(-22,taste))+release.bonus+popularity+
                 (typeof sourceHealthScore==='function'?sourceHealthScore(track.source):0)-
                 recentRepeat-artistRepeat-sameArtist;
             return {track,artist,score,release};
@@ -5559,7 +5579,9 @@ async function findWaveNextTrack(){
     eligible.sort((a,b)=>b.score-a.score);
     const best=eligible[0].score;
     const shortlist=eligible.filter(item=>item.score>=best-18).slice(0,12);
-    const picked=shortlist[Math.floor(Math.random()*shortlist.length)]?.track;
+    // Highest scored verified/available hit first; search cursor and recent
+    // playback history provide variation without random old-song promotion.
+    const picked=shortlist[0]?.track;
     if(!picked)return null;
     const {_waveQueryKind,_waveQueryTheme,...song}=picked;
     return {...song,_smartRadio:true,_waveRadio:true};
@@ -6937,7 +6959,8 @@ const QUICK_MIXES={
     russian:{title:'Русские',mode:'popular',
         // Genre-based searches make the catalogue less dependent on a fixed
         // set of performers. A year in a search is not a verified release date.
-        queries:['русские песни новинки','новые русские песни','русская музыка',
+        queries:['русские хиты '+new Date().getFullYear(),
+          'русские песни новинки','новые русские песни','русская музыка',
           'русский поп','русские хиты','русские песни '+new Date().getFullYear()],
         artists:['Zivert','Баста','Мот','Мияги','Егор Крид','Полина Гагарина',
           'Дима Билан','Ани Лорак','JONY','Хабиб','Макс Корж','Клава Кока',
@@ -6947,6 +6970,7 @@ const QUICK_MIXES={
         // Start with Caucasian songs in Russian; national republic catalogues follow.
         russianQueries:[
           'кавказские песни на русском '+new Date().getFullYear(),
+          'кавказские хиты '+new Date().getFullYear(),
           'Ислам Итляшев '+new Date().getFullYear(),
           'Султан Лагучев '+new Date().getFullYear(),
           'Эльбрус Джанмирзоев '+new Date().getFullYear(),
@@ -6964,7 +6988,8 @@ const QUICK_MIXES={
         // Search broadly first; artist names remain fallback queries.
         {id:'dag_ru',label:'Дагестан · на русском',queries:[
           'дагестанские новые песни','дагестанская музыка','Ислам Итляшев',
-          'Султан Лагучев','Эльбрус Джанмирзоев','Эльдар Далгатов',
+          'Султан Лагучев','Эльбрус Джанмирзоев','Магамет Дзыбов',
+          'Рустам Нахушев','Артур Бесаев','Эльдар Далгатов',
           'Тимур Темиров','Эльмира Магомедова','Зульфия Чотчаева']},
         {id:'dag_avar',label:'Дагестан · аварские',queries:[
           'аварские песни','аварские новинки','Зара Гамзатова','аварские']},
@@ -6998,7 +7023,8 @@ const QUICK_MIXES={
           'азербайджанские песни','азербайджанские новинки','Ройа Айхан']}
     ]},
     foreign:{title:'Зарубежные',mode:'popular',
-        queries:['new pop music','new songs','international hits','latest music'],
+        queries:['global hits '+new Date().getFullYear(),
+          'new music '+new Date().getFullYear(),'new pop music','new songs','international hits','latest music'],
         artists:['Dua Lipa','The Weeknd','Taylor Swift','Billie Eilish','Bruno Mars',
           'Lady Gaga','Sabrina Carpenter','Ariana Grande','Ed Sheeran','SZA']},
     hits:{title:'Лучшее · подборка',mode:'popular',
@@ -7016,9 +7042,20 @@ const QUICK_MIXES={
 // Fast direct playback for the four visible collections. Genre search hints
 // are not release-date evidence. Unknown dates remain unverified.
 const INSTANT_MIX_ARTISTS={
-    caucasus:['Ислам Итляшев','Султан Лагучев','Зульфия Чотчаева',
-        'Мика Рамазанова','Эльбрус Джанмирзоев','Ислам Мальсуйгенов',
-        'Мурат Тхагалов','Эльдар Далгатов','Зара Гамзатова'],
+    caucasus:[
+        "Эльбрус Джанмирзоев","Ислам Итляшев","Султан Лагучев","Мурат Тхагалегов",
+        "Ислам Мальсуйгенов","Магамет Дзыбов","Рустам Нахушев","Руслан Добрый",
+        "Патимат Расулова","Азамат Биштов","Зульфия Чотчаева","Алибек Казаров",
+        "Артур Текеев","Бахтавар","Артур Бесаев","Роберт Катчиев",
+        "Рейсан Магомедкеримов","Айдамир Мугу","Артур Кунижев","Сакит Самедов",
+        "Амина Магомедова","Ahmed Shad","Alim Zu","Эльдар Агачев",
+        "Альберт Назранов","Азамат Пхешхов","Заур Тхагалегов","Шамиль Кашешов",
+        "Мурат Гочияев","Авет Маркарян","Шамхан Далдаев","Shodi",
+        "Альберт Эркенов","Анора","Арсен Шахунц","Роберт Каракетов",
+        "Анзор Хусинов","Шейх Мансур","Рустам Батербиев","Антон и Альфия",
+        "Айна Гетагазова","Мика Рамазанова","Зара Гамзатова","Эльдар Далгатов",
+        "Фатима Рабаданова","Аслан Кятов","Руслан Шанов"
+    ],
     russian:['Zivert','JONY','Мари Краймбрери','Баста','Клава Кока',
         'Егор Крид','МОТ','Полина Гагарина','Хабиб'],
     foreign:['Dua Lipa','The Weeknd','Sabrina Carpenter','Billie Eilish',
@@ -7033,7 +7070,9 @@ function instantMixValidRelease(track,key){
     if(!date)return true;
     const year=new Date(date).getUTCFullYear();
     const current=new Date().getUTCFullYear();
-    return key==='charts'?year>=current:year>=current-1;
+    // Current-year hits rank first. Older releases remain playable fallback
+    // in genre stations, but not in the strict New Releases station.
+    return key==='charts'?year>=current:true;
 }
 function instantMixFreshCandidates(tracks,key,artist=''){
     const identity=normalizeTrackIdentity(artist);
@@ -7166,7 +7205,12 @@ function quickMixRankTracks(tracks,config) {
             const fresh=e.year===currentYear?0:(e.year>0?2:4);
             return fresh+(e.track._caucasusRussianSearch===true?0:1);
         };
+        const engagement=e=>Math.min(70,
+            Math.log10(Math.max(0,Number(e.track.play_count)||0)+1)*12+
+            Math.log10(Math.max(0,Number(e.track.favorite_count)||0)+1)*5);
         ranked.sort((a,b)=>priority(a)-priority(b)||
+            (a.year===currentYear&&b.year===currentYear?
+                engagement(b)-engagement(a):0)||
             b.released-a.released||scoreOrder(a,b));
         return quickMixAvoidAdjacentArtists(ranked.map(e=>({...e.track,_releaseVerified:!!e.released})));
     }
@@ -7181,8 +7225,25 @@ function quickMixRankTracks(tracks,config) {
         dated.filter(e=>e.released===date).sort(scoreOrder)
             .map(e=>({...e.track,_releaseVerified:true}))
     ));
-    return [...verifiedByDate,
-        ...quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})))];
+    const undatedFallback=quickMixDiversify(undated.map(e=>({...e.track,_releaseVerified:false})));
+    if(config?.mode==='popular'){
+        const current=verifiedByDate.filter(t=>
+            new Date(quickMixReleaseTimestamp(t)).getUTCFullYear()===currentYear);
+        const previous=verifiedByDate.filter(t=>
+            new Date(quickMixReleaseTimestamp(t)).getUTCFullYear()!==currentYear);
+        const engagement=t=>Math.min(70,
+            Math.log10(Math.max(0,Number(t.play_count)||0)+1)*12+
+            Math.log10(Math.max(0,Number(t.favorite_count)||0)+1)*5);
+        // Only actual upstream play/favorite counters identify top tracks.
+        // If metrics are absent, retain the strictly chronological order.
+        if(current.some(t=>engagement(t)>0)){
+            current.sort((a,b)=>engagement(b)-engagement(a)||
+                quickMixReleaseTimestamp(b)-quickMixReleaseTimestamp(a));
+            return [...quickMixDiversify(current),...previous,...undatedFallback];
+        }
+        return [...current,...previous,...undatedFallback];
+    }
+    return [...verifiedByDate,...undatedFallback];
 }
 // Only update the unplayed tail. Never restart or move the current song when
 // a later provider answers with newer Russian/national Caucasus tracks.
@@ -7296,12 +7357,18 @@ function quickMixSearchPlan(config) {
                 region:'Кавказ · на русском',queries:[...new Set([query,query.replace(/\s+20\d{2}$/,'')])],
                 id:'caucasus-ru:'+i,kind:'caucasus-russian'
             }));
+            const requested=typeof INSTANT_MIX_ARTISTS!=='undefined'
+                ?INSTANT_MIX_ARTISTS.caucasus:[];
+            const performerDirections=requested.map((artist,i)=>({
+                region:'Кавказ · исполнители',queries:[artist],
+                id:'caucasus-artist:'+i,kind:'caucasus-artist'
+            }));
             const national=config.regions.filter(region=>region.id!=='dag_ru')
                 .map(region=>({
                     region:region.label,queries:[...new Set(region.queries)],
                     id:region.id,kind:'caucasus-national'
                 }));
-            return [...russian,...national];
+            return [...russian,...performerDirections,...national];
         }
         if(config.splitRegionQueries){
             // A listener who selected one republic should still hear
@@ -8485,6 +8552,9 @@ function applyThemePalette(themeName) {
     };
     Object.keys(shades).forEach(key => root.style.setProperty(key, shades[key]));
     root.dataset.dagTheme = themeName;
+    // Visualizer preview follows the same applied palette (including Rainbow).
+    if(typeof window!=='undefined'&&typeof Event!=='undefined')
+        window.dispatchEvent?.(new Event('dag-theme-applied'));
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', shades['--theme-page']);
 }

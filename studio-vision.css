@@ -2353,14 +2353,14 @@
 
 /* A complete settings section with its own hierarchy, rich but modest on TEYES. */
 #menu-modal .vision-viz-settings{
-  --viz-selected-color:#D2A1FF;
+  --viz-selected-color:var(--theme-bright,#FFB978);
   position:relative;isolation:isolate;overflow:hidden;
   display:flex!important;flex-direction:column!important;gap:14px!important;
   margin:17px 0 22px!important;padding:19px!important;
   border-radius:21px!important;border:1px solid #ffffff20!important;
   background:
     radial-gradient(ellipse at 98% -9%,rgba(var(--theme-rgb,192,108,66),.19),transparent 60%),
-    linear-gradient(148deg,#242333,#171c2a 58%,#141720)!important;
+    linear-gradient(148deg,var(--theme-modal-a,#242333),var(--theme-modal-b,#171c2a) 58%,var(--theme-page,#141720))!important;
   box-shadow:0 10px 31px #0002,inset 0 1px #ffffff12!important;
 }
 #menu-modal .vision-viz-settings::before{
@@ -2412,7 +2412,7 @@
   overflow:hidden;border-radius:17px;border:1px solid #ffffff19;
   background:
     radial-gradient(ellipse at 50% 51%,color-mix(in srgb,var(--viz-selected-color) 15%,transparent),transparent 64%),
-    linear-gradient(105deg,#242338,#1b2433 50%,#292034);
+    linear-gradient(105deg,var(--theme-surface,#242338),var(--theme-right-a,#1b2433) 50%,var(--theme-modal-b,#292034));
   box-shadow:inset 0 1px #ffffff13;
 }
 #menu-modal .vision-viz-live-preview::before{

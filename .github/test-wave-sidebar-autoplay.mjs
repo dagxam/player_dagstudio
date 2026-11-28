@@ -31,6 +31,6 @@ assert.match(script,/if\(NATIVE_MEDIA3_ACTIVE\|\|navigator\.onLine===false\|\|pl
 assert.match(index,/studio\.js\?v=8/);
 assert.match(index,/studio-next\.js\?v=21/);
 assert.match(index,/studio-vision\.js\?v=12/);
-assert.match(index,/script\.js\?v=2389/);
-assert.match(sw,/dagstudio-player-shell-v2406/);
+assert.match(index,/script\.js\?v=2390/);
+assert.match(sw,/dagstudio-player-shell-v2407/);
 console.log('SIDEBAR_WAVE_ONE_TAP_EXPANDED_AUTOPLAY_PAUSES_PREVIOUS_SOURCE_OK');

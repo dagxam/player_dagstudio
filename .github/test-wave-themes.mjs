@@ -48,14 +48,14 @@ assert.ok(directions.filter(d=>d.kind==='theme').length>
 assert.ok(directions.some(d=>/русск/i.test(d.query)));
 assert.ok(directions.some(d=>d.query.includes(String(year))),
     'The wave should query for more recent releases every theme cycle');
-assert.equal(JSON.stringify(directions.slice(0,4).map(d=>d.theme)),
- JSON.stringify(['russian-pop','caucasus','russian-pop','caucasus']),
- 'Wave starts Russian 2026 and Caucasus 2026 in alternating directions');
-assert.equal(JSON.stringify(directions.slice(4,8).map(d=>d.theme)),
- JSON.stringify(['russian-pop','dagestan','russian-pop','caucasus']),
- 'Wave continues with regional Caucasus 2026 and Russian 2026 artists');
-assert.ok(!directions.slice(0,24).some(d=>d.theme==='foreign'),
- 'Wave must not start with foreign music');
+assert.equal(JSON.stringify(directions.slice(0,6).map(d=>d.theme)),
+ JSON.stringify(['russian-pop','caucasus','foreign','russian-pop','caucasus','foreign']),
+ 'Wave starts Russian, Caucasus and foreign 2026 in repeating directions');
+assert.equal(JSON.stringify(directions.slice(6,12).map(d=>d.theme)),
+ JSON.stringify(['russian-pop','dagestan','foreign','russian-pop','caucasus','foreign']),
+ 'Wave continues with regional Caucasus, Russian and international artists');
+assert.ok(directions.slice(0,24).filter(d=>d.theme==='foreign').length>=6,
+ 'Wave starts with foreign 2026 songs in the three-category rotation');
 assert.ok(directions.slice(0,8).every(d=>d.query.includes(String(year))),
  'All opening Wave priority searches explicitly target the current year');
 assert.equal(ctx.waveSameArtist('JONY (feat. Баста)','Баста'),true,

@@ -35,9 +35,9 @@ runInNewContext(src.slice(begin,end),ctx);
 const directions=ctx.waveSearchDirections([]);
 assert.ok(directions.length>=24);
 assert.ok(directions.slice(0,24).every(d=>d.query.endsWith(' 2026')));
-assert.ok(directions.slice(0,24).every((d,i)=>i%2===0?
-  d.theme==='russian-pop':d.theme!=='russian-pop'));
-assert.ok(directions.every(d=>d.theme!=='foreign'),'no foreign startup catalog');
+assert.ok(directions.slice(0,24).every((d,i)=>i%3===0?
+  d.theme==='russian-pop':i%3===1?d.theme!=='russian-pop'&&d.theme!=='foreign':d.theme==='foreign'));
+assert.ok(directions.some(d=>d.theme==='foreign'),'foreign current-year startup catalog');
 
 let finishSlow;
 const slow=new Promise(resolve=>{finishSlow=resolve;});

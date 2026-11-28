@@ -63,11 +63,24 @@ const cfgBegin=code.indexOf('const QUICK_MIXES={');
 const cfgEnd=code.indexOf('let quickMixRequestId=0;',cfgBegin);
 assert.ok(cfgBegin>=0&&cfgEnd>cfgBegin);
 const meta={};
-runInNewContext(code.slice(cfgBegin,cfgEnd).replace('const QUICK_MIXES=','globalThis.QUICK_MIXES='),meta);
+runInNewContext(code.slice(cfgBegin,cfgEnd)
+ .replace('const QUICK_MIXES=','globalThis.QUICK_MIXES=')
+ .replace('const INSTANT_MIX_ARTISTS=','globalThis.INSTANT_MIX_ARTISTS='),meta);
 const configs=meta.QUICK_MIXES;
 assert.ok(configs.russian.queries.length>=4);
 assert.ok(configs.russian.artists.length>=12);
 assert.equal(configs.russian.mode,'popular');
+const caucasusArtists=meta.INSTANT_MIX_ARTISTS.caucasus;
+for(const name of ['Эльбрус Джанмирзоев','Ислам Итляшев','Султан Лагучев',
+ 'Мурат Тхагалегов','Магамет Дзыбов','Рустам Нахушев','Зульфия Чотчаева',
+ 'Рейсан Магомедкеримов','Артур Бесаев','Амина Магомедова',
+ 'Айна Гетагазова','Антон и Альфия','Ahmed Shad','Alim Zu'])
+ assert.ok(caucasusArtists.includes(name),'Missing Caucasus editorial artist: '+name);
+assert.ok(caucasusArtists.length>=41,'Complete Caucasus seed library');
+const hitWithMetrics={...song('Топ','Хит',year+'-05-05',251),play_count:800000};
+const freshWithoutMetrics={...song('Другой','Новинка',thisYear,252),play_count:8};
+const highRank=ctx.quickMixRankTracks([freshWithoutMetrics,hitWithMetrics],{mode:'popular'});
+assert.equal(highRank[0].title,'Хит','Top verified current-year hit ranks before lesser new song');
 const rusPlan=ctx.quickMixSearchPlan(configs.russian);
 assert.equal(rusPlan[0].kind,'theme');
 assert.equal(rusPlan[1].kind,'artist');

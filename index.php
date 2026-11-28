@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="studio.css?v=6">
     <link rel="stylesheet" href="studio-next.css?v=23">
     <link rel="stylesheet" href="studio-touch.css?v=12">
-    <link rel="stylesheet" href="studio-vision.css?v=12">
+    <link rel="stylesheet" href="studio-vision.css?v=13">
     <link rel="stylesheet" href="studio-sidebar-modern.css?v=11">
     <link rel="stylesheet" href="search-polish.css?v=1">
     <style>html.studio-booting .main-container{visibility:hidden!important}#studio-boot-splash{display:none}html.studio-booting #studio-boot-splash{display:grid;position:fixed;inset:0;z-index:1000;place-content:center;gap:13px;background:#090a0f;color:#f8f5fa;text-align:center;font:800 1.1rem Inter,Arial,sans-serif;letter-spacing:.12em}#studio-boot-splash span{color:#bba5d1;font-size:.68rem;font-weight:600;letter-spacing:.1em}</style>
@@ -283,7 +283,7 @@
                         <span class="vision-viz-preview-off" aria-hidden="true">Анимация выключена</span>
                     </div>
                     <fieldset class="vision-viz-palette" aria-label="Отдельный выбор цвета визуализации">
-                        <legend>Цвет визуализации <small>Независимо от темы плеера</small></legend>
+                        <legend>Цвет визуализации <small>По умолчанию — цвет темы сайта</small></legend>
                         <div class="vision-viz-palette-choices" role="group" aria-label="Готовые цвета визуализации">
                             <button type="button" class="vision-viz-swatch" data-viz-palette="theme" aria-label="Цвет темы плеера" aria-pressed="false"><span class="vision-viz-swatch-dot viz-theme"></span><span>Тема</span></button>
                             <button type="button" class="vision-viz-swatch" data-viz-palette="violet" aria-label="Фиолетовый цвет визуализации" aria-pressed="false"><span class="vision-viz-swatch-dot viz-violet"></span><span>Неон</span></button>
@@ -336,7 +336,7 @@
                         </label>
                     </div>
                     <div class="vision-viz-note"><i class="fas fa-circle-info" aria-hidden="true"></i>
-                        <span>Цвет этой анимации меняется отдельно от оформления. На магнитоле Android частота кадров подбирается автоматически. Настройки сохраняются на устройстве и не изменяют звук.</span>
+                        <span>По умолчанию анимация повторяет цвет темы сайта. Можно выбрать отдельный оттенок. На магнитоле Android частота кадров подбирается автоматически. Настройки сохраняются на устройстве и не изменяют звук.</span>
                     </div>
                 </section>
                 <div class="menu-column-label">Приложение</div>
@@ -500,13 +500,13 @@
     </div>
 </div>
 
-<!-- Build 2389: home navigation and studio-center v9; synchronized browser, OTA and APK smoke tests. -->
+<!-- Build 2390: home navigation and studio-center v9; synchronized browser, OTA and APK smoke tests. -->
 <script src="profile-sync.js?v=1" defer></script>
-<script src="script.js?v=2389" defer></script>
+<script src="script.js?v=2390" defer></script>
 <script src="studio.js?v=8" defer></script>
 <script src="studio-next.js?v=21" defer></script>
 <script src="studio-center.js?v=9" defer></script>
-<script src="studio-vision.js?v=12" defer></script>
+<script src="studio-vision.js?v=13" defer></script>
 
 </body>
 </html>
