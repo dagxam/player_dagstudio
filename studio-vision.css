@@ -2791,3 +2791,102 @@
 @media(prefers-reduced-motion:reduce){
   .vision-ui .vision-wave-genre-option{transition:none!important;transform:none!important}
 }
+
+
+/* === WAVE UNIFIED TRANSPARENT BACKDROP 2393 ===
+   The scene belongs to the entire Wave screen, not only the audio player.
+   The right station selector has no opaque background of its own. */
+.main-container.studio-showcase.vision-ui.showcase-wave-only:not([data-active-mix]){
+  background:
+    linear-gradient(90deg,rgba(10,10,27,.48),rgba(35,18,53,.22) 62%,rgba(16,12,34,.27)),
+    url('images/vision-hero.svg') center center / cover no-repeat!important;
+}
+.main-container.studio-showcase.vision-ui.showcase-wave-only:not([data-active-mix])>.left-col{
+  background:transparent!important;
+}
+.main-container.studio-showcase.vision-ui.showcase-wave-only:not([data-active-mix])>.left-col::after{
+  display:none!important;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix])>.vision-wave-genre-panel{
+  background:transparent!important;
+  border:0!important;border-radius:0!important;
+  box-shadow:none!important;backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-heading,
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-year,
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option,
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-foot{
+  text-shadow:0 2px 6px rgba(3,5,20,.62);
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-heading h2{
+  font-size:clamp(1.18rem,1.7vw,1.52rem)!important;
+  letter-spacing:-.04em;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-heading p{
+  color:#c4c4d3;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-options{
+  border-top:1px solid rgba(var(--wave-tint),.34);
+  background:transparent!important;
+  padding-top:4px;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option{
+  background:transparent!important;border-radius:0!important;
+  box-shadow:none!important;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option:hover{
+  background:transparent!important;
+  color:#fff!important;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option.active{
+  background:linear-gradient(100deg,rgba(var(--wave-tint),.14),rgba(var(--wave-tint),.035))!important;
+  border:1px solid rgba(var(--wave-tint),.58)!important;
+  border-radius:13px!important;
+  box-shadow:inset 3px 0 var(--wave-focus),0 0 23px rgba(var(--wave-tint),.14)!important;
+  color:#fff!important;
+  margin:3px 0;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option.active>i:first-child,
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option.active>i:last-child{
+  color:var(--wave-focus)!important;
+}
+.vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-foot{
+  border-top:1px solid rgba(var(--wave-tint),.25);
+  color:#c0bfd1;
+}
+@media(min-width:769px){
+  .vision-ui.showcase-wave-only:not([data-active-mix])>.vision-wave-genre-panel{
+    padding:27px clamp(12px,1.2vw,22px)!important;
+    margin:0!important;
+    height:100dvh!important;max-height:100dvh!important;
+  }
+  .vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-options{
+    margin-top:3px;
+  }
+}
+@media(max-width:768px){
+  .main-container.studio-showcase.vision-ui.showcase-wave-only:not([data-active-mix]){
+    background:
+      linear-gradient(180deg,rgba(13,11,32,.48),rgba(5,7,19,.44)),
+      url('images/vision-hero.svg') center center / cover no-repeat!important;
+  }
+  .vision-ui.showcase-wave-only:not([data-active-mix])>.vision-wave-genre-panel{
+    background:transparent!important;box-shadow:none!important;
+    border:0!important;border-radius:0!important;
+  }
+  .vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-options{
+    border-top:0!important;gap:12px;padding-top:0;
+  }
+  .vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option.active{
+    margin:0!important;border:0!important;
+    border-bottom:2px solid var(--wave-focus)!important;
+    border-radius:0!important;background:transparent!important;
+    box-shadow:none!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .vision-ui.showcase-wave-only:not([data-active-mix]) .vision-wave-genre-option{
+    transition:none!important;
+  }
+}

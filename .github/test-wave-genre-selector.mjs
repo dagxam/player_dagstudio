@@ -80,8 +80,29 @@ assert.match(css,/\.vision-ui \.vision-wave-genre-option\.active\{[\s\S]*?box-sh
  'Selected station uses a slim theme-colored accent instead of a filled tile');
 
 assert.match(css,/@media\(max-width:768px\)/);
-assert.match(html,/script\.js\?v=2392/);
+assert.match(html,/script\.js\?v=2393/);
 assert.match(html,/studio-vision\.js\?v=14/);
-assert.match(html,/studio-vision\.css\?v=15/);
-assert.match(sw,/dagstudio-player-shell-v2409/);
+assert.match(html,/studio-vision\.css\?v=16/);
+assert.match(sw,/dagstudio-player-shell-v2410/);
+
+const transparent=css.split('/* === WAVE UNIFIED TRANSPARENT BACKDROP 2393 ===')[1];
+assert.ok(transparent,'Missing unified Wave background');
+assert.match(transparent,/url\('images\/vision-hero\.svg'\) center center \/ cover no-repeat!important/,
+  'Wave background should continue across the player and the station rail');
+assert.match(transparent,/>\\.left-col\{\s*background:transparent!important/,
+  'The player itself must not block the shared background');
+assert.match(transparent,/>\\.vision-wave-genre-panel\{\s*background:transparent!important/,
+  'The right rail must not have a solid dark backing');
+assert.match(transparent,/>\\.vision-wave-genre-panel\{[\s\S]*?backdrop-filter:none!important/,
+  'No opaque glass panel or blur may reintroduce the dark rectangle');
+assert.match(transparent,/\.vision-wave-genre-option\.active\{[\s\S]*?background:linear-gradient\(/,
+  'The selected radio category has a gentle theme accent');
+assert.match(transparent,/\.vision-wave-genre-option\.active\{[\s\S]*?border-radius:13px!important/,
+  'The selected radio category has a subtle rounded outline');
+assert.match(transparent,/@media\(max-width:768px\)/,
+  'Transparent Wave styling should remain responsive on mobile');
+assert.ok(!transparent.includes('.showcase-wave-only>.vision-wave-genre-panel'),
+ 'Transparency rules must be scoped to Wave, not collection screens');
+console.log('WAVE_TRANSPARENT_FULL_WIDTH_BACKDROP_AND_RADIO_SELECTION_OK');
+
 console.log('WAVE_GENRE_SELECTOR_2026_THREE_STATIONS_PERSISTENCE_AND_RIGHT_PANEL_OK');
