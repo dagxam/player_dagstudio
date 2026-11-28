@@ -41,6 +41,6 @@ assert.match(studio,/renderPlaylist\(\);playTrack\(index\)/,'Liked songs use sha
 assert.match(src,/div\.onclick = \(\) => \{ playTrack\(i\); \}/,'Track list uses shared playback');
 assert.match(src,/await playTrack\(0\)/,'Wave uses shared playback');
 assert.match(html,/script\.js\?v=2393/);
-assert.match(sw,/dagstudio-player-shell-v2410/);
+assert.match(sw,/dagstudio-player-shell-v2411/);
 assert.match(src,/WEB_BUILD_LABEL = '2393'/);
 console.log('ALL_TRACK_SELECTIONS_OPEN_SHARED_PLAYER_AND_PRESERVE_SWIPE_NEXT_PREV_OK');

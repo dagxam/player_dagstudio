@@ -83,7 +83,7 @@ assert.match(css,/@media\(max-width:768px\)/);
 assert.match(html,/script\.js\?v=2393/);
 assert.match(html,/studio-vision\.js\?v=14/);
 assert.match(html,/studio-vision\.css\?v=16/);
-assert.match(sw,/dagstudio-player-shell-v2410/);
+assert.match(sw,/dagstudio-player-shell-v2411/);
 
 const transparent=css.split('/* === WAVE UNIFIED TRANSPARENT BACKDROP 2393 ===')[1];
 assert.ok(transparent,'Missing unified Wave background');

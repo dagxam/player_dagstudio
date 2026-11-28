@@ -32,5 +32,5 @@ assert.match(index,/studio\.js\?v=8/);
 assert.match(index,/studio-next\.js\?v=21/);
 assert.match(index,/studio-vision\.js\?v=14/);
 assert.match(index,/script\.js\?v=2393/);
-assert.match(sw,/dagstudio-player-shell-v2410/);
+assert.match(sw,/dagstudio-player-shell-v2411/);
 console.log('SIDEBAR_WAVE_ONE_TAP_EXPANDED_AUTOPLAY_PAUSES_PREVIOUS_SOURCE_OK');

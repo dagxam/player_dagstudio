@@ -18,10 +18,10 @@ assert.match(vision,/root\.classList\.remove\('showcase-wave-only'\);\s*document
 assert.match(vision,/window\.playNext\?\.\(\)/);
 assert.match(vision,/window\.playPrev\?\.\(\)/);
 assert.match(html,/studio-vision\.js\?v=14/);
-assert.match(html,/studio-sidebar-modern\.css\?v=11/);
+assert.match(html,/studio-sidebar-modern\.css\?v=12/);
 assert.match(sw,/studio-vision\.js\?v=14/);
-assert.match(sw,/studio-sidebar-modern\.css\?v=11/);
+assert.match(sw,/studio-sidebar-modern\.css\?v=12/);
 assert.match(html,/script\.js\?v=2393/);
-assert.match(sw,/dagstudio-player-shell-v2410/);
+assert.match(sw,/dagstudio-player-shell-v2411/);
 assert.match(js,/WEB_BUILD_LABEL = '2393'/);
 console.log('MOBILE_FULLSCREEN_BOTTOM_MENU_VISIBLE_AND_BRANDS_NOT_CLICKABLE_OK');
