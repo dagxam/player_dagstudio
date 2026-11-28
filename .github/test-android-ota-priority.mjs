@@ -22,5 +22,5 @@ assert.match(js,/if \(!manual\) return \{ status: 'manual-only' \}/);
 assert.match(html,/script\.js\?v=2393/);
 assert.match(sw,/dagstudio-player-shell-v2411/);
 assert.match(js,/WEB_BUILD_LABEL = '2393'/);
-assert.match(js,/\.register\('\/sw\.js\?v=2410'/);
+assert.match(js,/\.register\('\/sw\.js\?v=2411'/);
 console.log('ANDROID_OTA_FIRST_APK_FALLBACK_PRESERVE_AUDIO_OK');

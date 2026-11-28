@@ -37,7 +37,7 @@ const selected=[...scheduled.values()][0];
 selected.fn();
 assert.equal(requested[1][0],'Ислам Итляшев');
 assert.match(read('index.php'),/script\.js\?v=2393/);
-assert.match(read('sw.js'),/dagstudio-player-shell-v2410/);
+assert.match(read('sw.js'),/dagstudio-player-shell-v2411/);
 console.log('SUPPLEMENTAL_PLAYABLE_SEARCH_DEBOUNCE_AND_PWA_REFRESH_OK');
 
 assert.match(script,/const providers = new Set\(searchPlaylistCache\.map\(/,
