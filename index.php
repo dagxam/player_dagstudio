@@ -501,10 +501,10 @@
 </div>
 
 <script src="profile-sync.js?v=1" defer></script>
-<script src="script.js?v=2388" defer></script>
+<script src="script.js?v=2389" defer></script>
 <script src="studio.js?v=8" defer></script>
 <script src="studio-next.js?v=21" defer></script>
-<script src="studio-center.js?v=8" defer></script>
+<script src="studio-center.js?v=9" defer></script>
 <script src="studio-vision.js?v=12" defer></script>
 
 </body>

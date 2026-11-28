@@ -243,7 +243,7 @@ function render(mode='home'){
   }
   gallery.appendChild(grid);
  }else{
-  selectNav('collections');
+  selectNav(mode==='home'?'wave':'collections');
   defs.forEach(d=>grid.appendChild(card(d,()=>showMix(d.key,d.title))));
   gallery.appendChild(grid);
   if(mode==='collections'||mode==='home')window.warmInstantMixSelections?.();

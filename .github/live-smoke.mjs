@@ -126,7 +126,7 @@ try {
           (()=>{const home=document.getElementById('vision-home-hero');
             return !!home&&home.getBoundingClientRect().width>=innerWidth*.7&&
               getComputedStyle(home).display!=='none';})(),
-        cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length>=8,
+        cover:list&&getComputedStyle(list).display!=='none'&&list.querySelectorAll('.showcase-curation-card').length>=4,
         brand:!!nav.querySelector('.showcase-brand'),
         allActions:['search','wave','playlists','likes','offline','collections','settings'].every(k=>
              !!document.getElementById('showcase-'+k)),
