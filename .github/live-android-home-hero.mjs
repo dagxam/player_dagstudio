@@ -61,6 +61,48 @@ try {
     console.log('ANDROID_MY_WAVE_HERO_FITS',viewport.width+'x'+viewport.height,
       JSON.stringify({card:Math.round(h.height),actionBottom:Math.round(measured.actions.bottom-h.top),
         scroll:measured.scroll,client:measured.client}));
+
+    // Regression for the combined playlist + now-playing classes captured on
+    // narrow iPhones: the track list must disappear while the full player
+    // (including transport buttons) occupies the viewport above bottom nav.
+    if(viewport.width<=768){
+      const state=await page.evaluate(()=>{
+        const root=document.querySelector('.main-container.studio-showcase.vision-ui');
+        const left=root?.querySelector(':scope > .left-col');
+        const right=root?.querySelector(':scope > .right-col');
+        const nav=root?.querySelector(':scope > .vision-bottom-nav');
+        if(!root||!left||!right||!nav)return {mounted:false};
+        root.classList.add('showcase-mobile-list','vision-player-expanded');
+        root.classList.remove('showcase-wave-only');
+        const sLeft=getComputedStyle(left),sRight=getComputedStyle(right),
+          sNav=getComputedStyle(nav);
+        const visual=left.querySelector('.visual-container');
+        const transport=left.querySelector('.main-btns');
+        const buttons=transport?.querySelectorAll('button');
+        const v=visual?.getBoundingClientRect();
+        const t=transport?.getBoundingClientRect();
+        const n=nav.getBoundingClientRect();
+        const state={
+          mounted:true,
+          playerVisible:sLeft.display==='flex',
+          listHidden:sRight.display==='none',
+          fullHeight:Math.abs(left.getBoundingClientRect().height-innerHeight)<=4,
+          visualVisible:!!v&&v.height>=80&&v.width>200,
+          transportVisible:!!t&&t.height>35&&buttons?.length===5,
+          canScroll:sLeft.overflowY==='auto'||sLeft.overflowY==='scroll',
+          navVisible:sNav.display==='grid'&&n.height>50&&n.bottom<=innerHeight+2,
+          noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth+3
+        };
+        root.classList.remove('vision-player-expanded','showcase-mobile-list');
+        return state;
+      });
+      console.log('MOBILE_FULL_PLAYER_ISOLATION',viewport.width+'x'+viewport.height,
+        JSON.stringify(state));
+      if(Object.values(state).some(value=>value!==true))
+        throw new Error('MOBILE_FULL_PLAYER_LIST_COLLISION_'+viewport.width+'x'+viewport.height+
+          ' '+JSON.stringify(state));
+    }
+
   }
   console.log('ANDROID_WAVE_HOME_HERO_TEXT_AND_BUTTONS_VISIBLE_OK');
 } finally {
