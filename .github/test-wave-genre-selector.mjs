@@ -74,9 +74,14 @@ assert.match(vision,/vision-wave-genre-panel/);
 assert.match(vision,/setWaveGenre\?\.\(key\)/);
 assert.match(vision,/startQuickMix\('wave'\)/);
 assert.match(css,/grid-template-columns:[^;]*clamp\(190px,21vw,286px\)/);
+assert.match(css,/\.vision-ui \.vision-wave-genre-option\{[\s\S]*?background:transparent!important;/,
+ 'Wave station choices must be unfilled, without tile backgrounds');
+assert.match(css,/\.vision-ui \.vision-wave-genre-option\.active\{[\s\S]*?box-shadow:inset 2px 0/,
+ 'Selected station uses a slim theme-colored accent instead of a filled tile');
+
 assert.match(css,/@media\(max-width:768px\)/);
-assert.match(html,/script\.js\?v=2391/);
+assert.match(html,/script\.js\?v=2392/);
 assert.match(html,/studio-vision\.js\?v=14/);
 assert.match(html,/studio-vision\.css\?v=14/);
-assert.match(sw,/dagstudio-player-shell-v2408/);
+assert.match(sw,/dagstudio-player-shell-v2409/);
 console.log('WAVE_GENRE_SELECTOR_2026_THREE_STATIONS_PERSISTENCE_AND_RIGHT_PANEL_OK');
