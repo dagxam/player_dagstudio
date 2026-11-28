@@ -2714,7 +2714,7 @@
     grid-template-rows:minmax(0,1fr)!important;
   }
   .main-container.studio-showcase.vision-ui.showcase-nav-collapsed.showcase-wave-only:not([data-active-mix]){
-    grid-template-columns:clamp(68px,7vw,84px) minmax(0,1fr) clamp(190px,21vw,286px)!important;
+    grid-template-columns:clamp(82px,8vw,92px) minmax(0,1fr) clamp(190px,21vw,286px)!important;
   }
   .vision-ui.showcase-wave-only:not([data-active-mix])>.left-col{
     grid-column:2!important;grid-row:1!important;min-width:0!important;
