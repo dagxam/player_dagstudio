@@ -9,7 +9,7 @@ const controller=read('script.js');
 const expected=['Поиск','Моя волна','Плейлисты','Мне нравится','Офлайн','Подборки','Настройки'];
 
 assert.match(html,/studio-touch\.css\?v=12"[\s\S]*studio-vision\.css\?v=12"/);
-assert.match(html,/studio-center\.js\?v=8" defer><\/script>\s*<script src="studio-vision\.js\?v=12"/);
+assert.match(html,/studio-center\.js\?v=9" defer><\/script>\s*<script src="studio-vision\.js\?v=12"/);
 assert.match(sw,/dagstudio-player-shell-v\d+/);
 for(const asset of [
  'studio-vision.js?v=12','studio-vision.css?v=12','images/vision-hero.svg'
