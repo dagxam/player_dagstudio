@@ -21,8 +21,8 @@ assert.doesNotMatch(html,/id="caucasus-radio-modal"/);
 assert.match(player,/Эльмира Магомедова/);
 assert.match(player,/Роза Мальсагова/);
 assert.match(player,/Мадина Кайтмазова/);
-assert.ok(html.includes('studio-center.js?v=8'));
-assert.ok(sw.includes('studio-center.js?v=8'));
+assert.ok(html.includes('studio-center.js?v=9'));
+assert.ok(sw.includes('studio-center.js?v=9'));
 assert.match(player,/const WEB_BUILD_LABEL = '\d+'/);
 for(const u of ['https://www.jamendo.com/start','https://soundcloud.com/discover','https://musicbrainz.org/']) {
   assert.ok(center.includes(u),u);
