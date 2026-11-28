@@ -10,6 +10,7 @@ on:
       - 'script.js'
       - '.github/test-four-instant-collections.mjs'
       - '.github/test-wave-2026-start.mjs'
+      - '.github/test-wave-genre-selector.mjs'
       - 'studio.js'
       - 'studio-next.js'
       - 'studio-center.js'
