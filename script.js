@@ -5673,7 +5673,7 @@ function warmWaveFirstTrack(){
     const state={owner,at:Date.now(),candidate:null,promise:null};
     waveWarmState=state;
     state.promise=findWaveNextTrack().then(candidate=>{
-        if(waveWarmState!==state||owner!==tasteOwnerKey())return null;
+        if(waveWarmState!==state||owner!==tasteOwnerKey()+'|'+getWaveGenre())return null;
         state.candidate=waveWarmCandidateAllowed(candidate)?candidate:null;
         if(state.candidate&&!playbackWanted&&navigator.onLine!==false&&
             !getNetworkProfile().weak&&!trafficSaverEnabled())
@@ -7667,7 +7667,7 @@ async function startQuickMix(key) {
         const stationLabel={all:'Русские · Кавказские · Зарубежные',
             caucasus:'Кавказские',russian:'Русские',foreign:'Зарубежные'}[selected];
         setQuickMixStatus(stationLabel+' · хиты 2026 первыми · подключаем звук…');
-        const warm=waveWarmState?.owner===tasteOwnerKey()?waveWarmState:null;
+        const warm=waveWarmState?.owner===tasteOwnerKey()+'|'+getWaveGenre()?waveWarmState:null;
         let first=warm?.candidate||null;
         if(!first&&warm?.promise)first=await Promise.race([
             warm.promise,new Promise(resolve=>setTimeout(()=>resolve(null),180))
